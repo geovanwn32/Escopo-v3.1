@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -389,6 +390,19 @@ endDate.setHours(23,59,59,999);
     setFilterStartDate(undefined);
     setFilterEndDate(undefined);
   };
+  
+  const getPartnerName = (launch: Launch): string => {
+    switch (launch.type) {
+      case 'entrada':
+        return launch.emitente?.nome || 'N/A';
+      case 'saida':
+        return launch.destinatario?.nome || 'N/A';
+      case 'servico':
+        return launch.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+  };
 
 
   // XML files pagination logic
@@ -576,7 +590,7 @@ endDate.setHours(23,59,59,999);
                         <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>Tomador/Destinatário</TableHead>
+                            <TableHead>Parceiro</TableHead>
                             <TableHead>Chave/Número</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -598,7 +612,7 @@ endDate.setHours(23,59,59,999);
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
-                                    {launch.tomador?.nome || launch.destinatario?.nome || 'N/A'}
+                                    {getPartnerName(launch)}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="text-right font-medium">
