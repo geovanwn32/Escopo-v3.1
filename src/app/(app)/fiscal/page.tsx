@@ -49,93 +49,34 @@ export default function FiscalPage() {
             let type: XmlFile['type'] = 'desconhecido';
             let emitCnpj: string | null = null;
             let destCnpj: string | null = null;
+            const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
             const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            
-            // Standard NFe (Product)
-            if (nfeProc) {
-                const emitNode = nfeProc.getElementsByTagName('emit')[0];
-                if (emitNode) {
-                    emitCnpj = emitNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                }
-                const destNode = nfeProc.getElementsByTagName('dest')[0];
-                if (destNode) {
-                    destCnpj = destNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                }
+            const nfseNode = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
 
-                if (emitCnpj === activeCompanyCnpj) {
+            if (nfeProc) { // It's a standard NFe (product)
+                const emitNode = nfeProc.getElementsByTagName('emit')[0];
+                const destNode = nfeProc.getElementsByTagName('dest')[0];
+                emitCnpj = emitNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                destCnpj = destNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                
+                if (emitCnpj === normalizedActiveCnpj) {
                     type = 'saida';
-                } else if (destCnpj === activeCompanyCnpj) {
+                } else if (destCnpj === normalizedActiveCnpj) {
                     type = 'entrada';
                 }
-            } else {
-                // Service Notes (NFS-e) - check multiple formats
-                const nfseRoots = ['NFSe', 'CompNfse', 'GerarNfseResposta', 'ConsultarNfseResposta', 'ConsultarLoteRpsResposta'];
-                let nfseNode = null;
-                for (const root of nfseRoots) {
-                    const nodes = xmlDoc.getElementsByTagName(root);
-                    if (nodes.length > 0) {
-                        nfseNode = nodes[0];
-                        break;
-                    }
-                }
-                
-                // If no root found, maybe it's inside another tag like 'nfse'
-                if (!nfseNode) {
-                  const genericNfse = xmlDoc.getElementsByTagName('nfse')[0];
-                  if(genericNfse) nfseNode = genericNfse;
-                }
+            } else if (nfseNode) { // It's a NFS-e (service)
+                const prestNode = nfseNode.getElementsByTagName('prest')[0] || nfseNode.getElementsByTagName('emit')[0];
+                const tomaNode = nfseNode.getElementsByTagName('toma')[0] || nfseNode.getElementsByTagName('dest')[0];
 
-                if (nfseNode) {
-                    const issuerTags = ['PrestadorServico', 'emit', 'prest', 'CnpjPrestador', 'Prestador'];
-                    const takerTags = ['TomadorServico', 'dest', 'toma', 'CnpjTomador', 'Tomador'];
-                    
-                    const findCnpj = (baseNode: Element, tags: string[]) => {
-                        for (const tag of tags) {
-                            const parentElements = baseNode.getElementsByTagName(tag);
-                            if (parentElements.length > 0) {
-                                // Search for CNPJ inside the parent tag
-                                const cnpjNode = parentElements[0].getElementsByTagName('CNPJ')[0] || parentElements[0].getElementsByTagName('Cnpj')[0];
-                                if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
-                                
-                                // Check if the parent tag itself contains the CNPJ value
-                                if (parentElements[0].textContent && parentElements[0].textContent.replace(/\D/g, '').length === 14) {
-                                  return parentElements[0].textContent.replace(/\D/g, '');
-                                }
-                            }
-                        }
-                        
-                        // Fallback: search for any CNPJ tag within the base node
-                        const allCnpjs = baseNode.getElementsByTagName('CNPJ');
-                        if (allCnpjs.length > 0 && allCnpjs[0].textContent) return allCnpjs[0].textContent.replace(/\D/g, '');
-                        
-                        const allCnpjsLower = baseNode.getElementsByTagName('Cnpj');
-                        if (allCnpjsLower.length > 0 && allCnpjsLower[0].textContent) return allCnpjsLower[0].textContent.replace(/\D/g, '');
+                emitCnpj = prestNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                destCnpj = tomaNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
 
-                        return null;
-                    }
-
-                    // Try to find specific issuer and taker CNPJs first
-                    const prestNode = nfseNode.getElementsByTagName('prest')[0] || nfseNode.getElementsByTagName('PrestadorServico')[0] || nfseNode.getElementsByTagName('emit')[0];
-                    if (prestNode) {
-                        emitCnpj = prestNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                    }
-
-                    const tomaNode = nfseNode.getElementsByTagName('toma')[0] || nfseNode.getElementsByTagName('TomadorServico')[0] || nfseNode.getElementsByTagName('dest')[0];
-                    if (tomaNode) {
-                       destCnpj = tomaNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                    }
-
-                    // If not found, use the more generic search
-                    if (!emitCnpj) emitCnpj = findCnpj(nfseNode, issuerTags);
-                    if (!destCnpj) destCnpj = findCnpj(nfseNode, takerTags);
-                    
-                    if (emitCnpj === activeCompanyCnpj || destCnpj === activeCompanyCnpj) {
-                        type = 'servico';
-                    }
+                if (emitCnpj === normalizedActiveCnpj || destCnpj === normalizedActiveCnpj) {
+                    type = 'servico';
                 }
             }
-
+            
             if (type !== 'desconhecido') {
               return { file, status: 'pending', type } as XmlFile;
             } else {
