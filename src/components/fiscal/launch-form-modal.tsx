@@ -16,6 +16,7 @@ import { Launch, Company } from '@/app/(app)/fiscal/page';
 import { parse, format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Textarea } from '../ui/textarea';
+import { Badge } from '@/components/ui/badge';
 
 interface XmlFile {
   file: File;
@@ -335,7 +336,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="prestador.cnpj">CNPJ</Label>
-                    <Input id="prestador.cnpj" name="prestador.cnpj" value={formatCnpj(getInputValue('prestador.cnpj'))} readOnly={isReadOnly} disabled />
+                    <Input id="prestador.cnpj" name="prestador.cnpj" value={formatCnpj(getInputValue('prestador.cnpj'))} readOnly={isReadOnly || !!getInputValue('prestador.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -348,7 +349,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="tomador.cnpj">CNPJ</Label>
-                    <Input id="tomador.cnpj" name="tomador.cnpj" value={formatCnpj(getInputValue('tomador.cnpj'))} readOnly={isReadOnly} disabled />
+                    <Input id="tomador.cnpj" name="tomador.cnpj" value={formatCnpj(getInputValue('tomador.cnpj'))} readOnly={isReadOnly || !!getInputValue('tomador.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -410,13 +411,13 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           <DialogDescription>
             <div className="flex items-center gap-2">
                 <span>Tipo:</span>
-                <Badge variant="secondary" className="text-base">{formData.type}</Badge>
+                <Badge variant="secondary" className="text-base capitalize">{formData.type}</Badge>
             </div>
             {xmlFile && <p>Arquivo: <span className="font-semibold">{xmlFile.file.name}</span></p>}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-          {formData.type === 'servico' || formData.type === 'saida' && launch?.prestador ? (
+          {formData.type === 'servico' || (formData.type === 'saida' && (!!formData.prestador || manualLaunchType === 'servico')) ? (
             renderNfseFields()
           ) : (
              <div className="space-y-4">
@@ -452,5 +453,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     </Dialog>
   );
 }
-
-    
