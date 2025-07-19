@@ -59,10 +59,15 @@ export default function ContabilPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const entriesData = snapshot.docs.map(doc => {
         const data = doc.data();
+        // The accounting entry from the AI flow stores debit.account and credit.account
+        // but the manual one stores debitAccount and creditAccount. We need to handle both.
         return {
           id: doc.id,
-          ...data,
           date: (data.date as Timestamp).toDate(),
+          debitAccount: data.debit?.account || data.debitAccount,
+          creditAccount: data.credit?.account || data.creditAccount,
+          value: data.debit?.amount || data.value,
+          description: data.description,
         } as AccountingEntry;
       });
       setEntries(entriesData);
@@ -161,7 +166,7 @@ export default function ContabilPage() {
                         <BookOpen className="h-10 w-10 text-muted-foreground" />
                     </div>
                     <h3 className="text-xl font-semibold">Nenhum lançamento encontrado</h3>
-                    <p className="text-muted-foreground mt-2">Comece a fazer lançamentos manuais.</p>
+                    <p className="text-muted-foreground mt-2">Comece a fazer lançamentos manuais ou importe do módulo fiscal.</p>
                 </div>
               ) : (
                 <Table>

@@ -10,7 +10,6 @@ import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -140,12 +139,17 @@ export function SimpleEntryModal({ isOpen, onClose, mode, entry, userId, company
                                       {...field} 
                                       onChange={(e) => {
                                         const { value } = e.target;
-                                        const onlyNums = value.replace(/[^0-9]/g, '');
-                                        const intValue = parseInt(onlyNums, 10) || 0;
-                                        const formattedValue = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(intValue / 100);
+                                        // Allow only numbers and one comma
+                                        const rawValue = value.replace(/[^0-9,]/g, '');
+                                        field.onChange(rawValue);
+                                      }}
+                                      onBlur={(e) => {
+                                        const rawValue = e.target.value.replace(/\./g, '').replace(',', '.');
+                                        const numberValue = parseFloat(rawValue) || 0;
+                                        const formattedValue = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(numberValue);
                                         field.onChange(formattedValue);
                                       }}
-                                      value={new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(field.value)}
+                                      value={typeof field.value === 'number' ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(field.value) : field.value}
                                       readOnly={isReadOnly} 
                                       className="text-right"
                                     />
@@ -213,4 +217,3 @@ export function SimpleEntryModal({ isOpen, onClose, mode, entry, userId, company
     </Dialog>
   );
 }
-
