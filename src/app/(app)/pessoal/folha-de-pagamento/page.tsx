@@ -233,7 +233,7 @@ export default function FolhaDePagamentoPage() {
         setIsEmployeeModalOpen(false);
     };
 
-    const handleCalculate = () => {
+    const handleCalculate = async () => {
         if (!selectedEmployee) {
             toast({
                 variant: 'destructive',
@@ -252,6 +252,8 @@ export default function FolhaDePagamentoPage() {
                 title: 'Cálculo Realizado!',
                 description: 'Os valores de INSS e IRRF foram recalculados.'
             });
+            
+            await handleSave(true);
 
         } catch (error) {
             console.error("Payroll calculation error:", error);
@@ -279,12 +281,14 @@ export default function FolhaDePagamentoPage() {
         }
 
         setIsSaving(true);
+        
+        const finalStatus = isCalculation ? 'calculated' : 'draft';
 
         const payrollData: Omit<Payroll, 'id' | 'createdAt'> = {
             employeeId: selectedEmployee.id!,
             employeeName: selectedEmployee.nomeCompleto,
             period,
-            status: isCalculation ? 'calculated' : 'draft',
+            status: finalStatus,
             events,
             totals: { totalProventos, totalDescontos, liquido },
             updatedAt: serverTimestamp(),
@@ -295,18 +299,18 @@ export default function FolhaDePagamentoPage() {
                 // Update existing payroll
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
                 await setDoc(payrollRef, payrollData, { merge: true });
-                toast({ title: 'Rascunho atualizado com sucesso!' });
+                toast({ title: `Folha de pagamento atualizada como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
             } else {
                 // Create new payroll
                 const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
-                toast({ title: 'Folha de pagamento salva com sucesso!' });
+                toast({ title: `Folha de pagamento salva como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
                 router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`);
             }
         } catch (error) {
             console.error("Error saving payroll:", error);
-            toast({ variant: 'destructive', title: 'Erro ao salvar rascunho' });
+            toast({ variant: 'destructive', title: 'Erro ao salvar folha' });
         } finally {
             setIsSaving(false);
         }
@@ -354,9 +358,9 @@ export default function FolhaDePagamentoPage() {
                     <h1 className="text-2xl font-bold">Folha de Pagamento</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving || !selectedEmployee}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
-                        Salvar
+                    <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving || !selectedEmployee || isCalculating}>
+                        {isSaving && !isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
+                        Salvar Rascunho
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
