@@ -131,7 +131,16 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.emitente = getNodeData(emitNode);
         data.destinatario = getNodeData(destNode);
 
-        data.chaveNfe = querySelectorText(xmlDoc, ['infNFe > Id', 'Id']).replace(/\D/g, '');
+        const infNFeNode = xmlDoc.querySelector('infNFe');
+        let chave = '';
+        if (infNFeNode) {
+          chave = infNFeNode.getAttribute('Id') || '';
+        }
+        if (!chave) {
+            chave = querySelectorText(xmlDoc, ['chNFe']);
+        }
+        data.chaveNfe = chave.replace(/\D/g, '');
+
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
     }
