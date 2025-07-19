@@ -76,7 +76,8 @@ export default function FolhaDePagamentoPage() {
     const [status, setStatus] = useState<Payroll['status']>('draft');
 
 
-    const { user } = useToast();
+    const { user } = useAuth();
+    const { toast } = useToast();
 
      useEffect(() => {
         if (typeof window !== 'undefined') {
