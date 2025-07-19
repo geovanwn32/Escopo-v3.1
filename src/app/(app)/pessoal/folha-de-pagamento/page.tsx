@@ -87,6 +87,10 @@ export default function FolhaDePagamentoPage() {
         setIsRubricaModalOpen(false);
     };
 
+    const handleRemoveEvent = (eventId: string) => {
+        setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+    };
+
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
         
@@ -126,7 +130,7 @@ export default function FolhaDePagamentoPage() {
         try {
             const result = calculatePayroll(selectedEmployee, events);
             
-            const updatedEvents = [...events];
+            const updatedEvents = [...events.filter(e => !['inss', 'irrf'].includes(e.id))];
 
             const addOrUpdateEvent = (newEvent: PayrollEvent) => {
                 const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
@@ -183,6 +187,11 @@ export default function FolhaDePagamentoPage() {
         const liquido = totalProventos - totalDescontos;
         return { totalProventos, totalDescontos, liquido };
     }, [events]);
+    
+    const isEventRemovable = (eventId: string) => {
+        return !['salario_base', 'inss', 'irrf'].includes(eventId);
+    };
+
 
     return (
         <div className="space-y-4">
@@ -194,7 +203,7 @@ export default function FolhaDePagamentoPage() {
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => handleActionClick('Salvar')}><Save className="mr-2 h-4 w-4"/> Salvar</Button>
                     <Button variant="destructive" onClick={() => handleActionClick('Excluir')}><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
-                    <Button onClick={handleCalculate} disabled={isCalculating}>
+                    <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
                         Calcular
                     </Button>
@@ -317,7 +326,13 @@ export default function FolhaDePagamentoPage() {
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Checkbox />
-                                                <Button variant="ghost" size="icon">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    onClick={() => handleRemoveEvent(event.id)}
+                                                    disabled={!isEventRemovable(event.id)}
+                                                    title={isEventRemovable(event.id) ? "Remover Evento" : "Este evento não pode ser removido"}
+                                                >
                                                     <Trash2 className="h-4 w-4 text-red-600" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon"><Info className="h-4 w-4"/></Button>
