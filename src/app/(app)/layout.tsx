@@ -31,7 +31,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
           getDoc(companyRef).then(docSnap => {
             if (docSnap.exists()) {
-              setActiveCompany({ id: docSnap.id, ...docSnap.data() });
+              const companyData = { id: docSnap.id, ...docSnap.data() };
+              setActiveCompany(companyData);
+              // Store company data in session storage for other components to access
+              sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
               setLoading(false);
             } else {
               sessionStorage.removeItem('activeCompanyId');

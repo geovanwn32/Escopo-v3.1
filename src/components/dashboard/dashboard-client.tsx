@@ -12,6 +12,7 @@ import {
   ArrowUpRightSquare,
   BookOpen,
   DollarSign,
+  FileStack,
   Package,
   Users,
 } from "lucide-react"
@@ -20,28 +21,28 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recha
 const stats = [
   {
     title: "Total de Saídas",
-    amount: "R$ 45.231,89",
+    amount: "R$ 0,00",
     icon: ArrowUpRightSquare,
     color: "text-blue-600",
     bgColor: "bg-blue-100",
   },
   {
     title: "Total de Entradas",
-    amount: "R$ 12.871,20",
+    amount: "R$ 0,00",
     icon: ArrowDownLeftSquare,
     color: "text-green-600",
     bgColor: "bg-green-100",
   },
   {
     title: "Funcionários Ativos",
-    amount: "12",
+    amount: "0",
     icon: Users,
     color: "text-yellow-600",
     bgColor: "bg-yellow-100",
   },
   {
     title: "Produtos Cadastrados",
-    amount: "84",
+    amount: "0",
     icon: Package,
     color: "text-red-600",
     bgColor: "bg-red-100",
@@ -49,19 +50,12 @@ const stats = [
 ]
 
 const chartData = [
-  { month: "Jan", receitas: 4000, despesas: 2400 },
-  { month: "Fev", receitas: 3000, despesas: 1398 },
-  { month: "Mar", receitas: 5000, despesas: 9800 },
-  { month: "Abr", receitas: 2780, despesas: 3908 },
-  { month: "Mai", receitas: 1890, despesas: 4800 },
-  { month: "Jun", receitas: 2390, despesas: 3800 },
-]
-
-const recentActivities = [
-    { type: 'saida', description: "Nota de Saída #1024", value: "R$ 1.250,00", date: "2 dias atrás", icon: ArrowUpRightSquare, color: "text-blue-600", bgColor: "bg-blue-100" },
-    { type: 'entrada', description: "Nota de Entrada #5541", value: "R$ 800,50", date: "3 dias atrás", icon: ArrowDownLeftSquare, color: "text-green-600", bgColor: "bg-green-100" },
-    { type: 'contabil', description: "Lançamento Contábil: Salários", value: "R$ 15.400,00", date: "5 dias atrás", icon: BookOpen, color: "text-purple-600", bgColor: "bg-purple-100" },
-    { type: 'servico', description: "Nota de Serviço #88", value: "R$ 2.500,00", date: "1 semana atrás", icon: DollarSign, color: "text-blue-600", bgColor: "bg-blue-100" },
+  { month: "Jan", receitas: 0, despesas: 0 },
+  { month: "Fev", receitas: 0, despesas: 0 },
+  { month: "Mar", receitas: 0, despesas: 0 },
+  { month: "Abr", receitas: 0, despesas: 0 },
+  { month: "Mai", receitas: 0, despesas: 0 },
+  { month: "Jun", receitas: 0, despesas: 0 },
 ]
 
 export function DashboardClient() {
@@ -107,19 +101,12 @@ export function DashboardClient() {
             <CardDescription>Últimos lançamentos realizados.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-                {recentActivities.map((activity, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                        <div className={`p-3 rounded-full ${activity.bgColor}`}>
-                            <activity.icon className={`h-5 w-5 ${activity.color}`} />
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-sm font-medium leading-none">{activity.description}</p>
-                            <p className="text-sm text-muted-foreground">{activity.date}</p>
-                        </div>
-                        <div className="font-medium text-sm">{activity.value}</div>
-                    </div>
-                ))}
+             <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="p-4 bg-muted rounded-full mb-4">
+                    <FileStack className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold">Nenhuma atividade recente</h3>
+                <p className="text-muted-foreground mt-1 text-sm">Os últimos lançamentos aparecerão aqui.</p>
             </div>
           </CardContent>
         </Card>
