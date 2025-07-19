@@ -189,7 +189,7 @@ export function DashboardClient() {
 
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching dashboard data:", error);
+      console.error("Erro ao buscar dados do dashboard:", error);
       toast({ variant: 'destructive', title: "Erro ao carregar dados do dashboard" });
       setLoading(false);
     });

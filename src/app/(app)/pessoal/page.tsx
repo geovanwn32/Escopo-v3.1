@@ -60,7 +60,7 @@ export default function PessoalPage() {
         setPayrolls(payrollsData);
         setLoading(false);
     }, (error) => {
-        console.error("Error fetching payrolls: ", error);
+        console.error("Erro ao buscar folhas de pagamento: ", error);
         toast({
             variant: "destructive",
             title: "Erro ao buscar folhas de pagamento",
@@ -98,8 +98,8 @@ export default function PessoalPage() {
   const getStatusLabel = (status: Payroll['status']): string => {
     switch(status) {
         case 'draft': return 'Rascunho';
-        case 'calculated': return 'Calculado';
-        case 'finalized': return 'Finalizado';
+        case 'calculated': return 'Calculada';
+        case 'finalized': return 'Finalizada';
         default: return status;
     }
   }
@@ -139,7 +139,7 @@ export default function PessoalPage() {
        <Card>
         <CardHeader>
           <CardTitle>Folhas de Pagamento Salvas</CardTitle>
-          <CardDescription>Visualize e continue os cálculos salvos como rascunho.</CardDescription>
+          <CardDescription>Visualize e continue os cálculos salvos.</CardDescription>
         </CardHeader>
         <CardContent>
            {loading ? (
@@ -189,7 +189,7 @@ export default function PessoalPage() {
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
+                              <span className="sr-only">Abrir menu</span>
                               <MoreHorizontal className="h-4 w-4" />
                           </Button>
                           </DropdownMenuTrigger>
@@ -211,7 +211,7 @@ export default function PessoalPage() {
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Esta ação não pode ser desfeita. O rascunho será permanentemente removido.
+                                            Esta ação não pode ser desfeita. A folha de pagamento será permanentemente removida.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

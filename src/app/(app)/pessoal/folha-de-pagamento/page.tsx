@@ -108,17 +108,11 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             
         let updatedEvents = [...currentEvents];
 
-        const addOrUpdateEvent = (newEvent: PayrollEvent) => {
-            const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
-            if (index > -1) {
-                updatedEvents[index] = newEvent;
-            } else {
-                updatedEvents.push(newEvent);
-            }
-        };
+        // Remove old calculated events before adding new ones
+        updatedEvents = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
 
         if (result.inss.valor > 0) {
-             addOrUpdateEvent({
+             updatedEvents.push({
                 id: 'inss',
                 rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
                 referencia: result.inss.aliquota,
@@ -128,7 +122,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         }
         
         if (result.irrf.valor > 0) {
-             addOrUpdateEvent({
+             updatedEvents.push({
                 id: 'irrf',
                 rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
                 referencia: result.irrf.aliquota,
@@ -233,7 +227,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             desconto: 0,
         };
 
-        const updatedEvents = [...events, newEvent];
+        const updatedEvents = [...events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!)), newEvent];
         recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
         setIsRubricaModalOpen(false);
@@ -294,7 +288,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             await handleSave(true);
 
         } catch (error) {
-            console.error("Payroll calculation error:", error);
+            console.error("Erro no cálculo da folha:", error);
             toast({
                 variant: 'destructive',
                 title: 'Erro no cálculo',
@@ -306,14 +300,13 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
     
     const { totalProventos, totalDescontos, liquido } = useMemo<PayrollTotals>(() => {
-        if (!selectedEmployee) return { totalProventos: 0, totalDescontos: 0, liquido: 0 };
-        const result = calculatePayroll(selectedEmployee, events);
+        if (!calculationResult) return { totalProventos: 0, totalDescontos: 0, liquido: 0 };
         return {
-            totalProventos: result.totalProventos,
-            totalDescontos: result.totalDescontos,
-            liquido: result.liquido
+            totalProventos: calculationResult.totalProventos,
+            totalDescontos: calculationResult.totalDescontos,
+            liquido: calculationResult.liquido
         }
-    }, [events, selectedEmployee]);
+    }, [calculationResult]);
     
     const handleSave = async (isCalculation: boolean = false) => {
         if (!user || !activeCompany || !selectedEmployee || !period) {
@@ -365,7 +358,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             }
             setStatus(finalStatus);
         } catch (error) {
-            console.error("Error saving payroll:", error);
+            console.error("Erro ao salvar folha:", error);
             toast({ variant: 'destructive', title: 'Erro ao salvar folha' });
         } finally {
             setIsSaving(false);
