@@ -30,6 +30,7 @@ import {
   BarChart3,
   Settings,
   BookUser,
+  FileText,
 } from "lucide-react"
 
 const menuItems = [
@@ -51,6 +52,7 @@ const menuItems = [
       { href: "/produtos", icon: Package, label: "Produtos" },
       { href: "/servicos", icon: Wrench, label: "Serviços" },
       { href: "/aliquotas", icon: Percent, label: "Alíquotas" },
+      { href: "/rubricas", icon: FileText, label: "Rubricas" },
     ],
   },
   {
