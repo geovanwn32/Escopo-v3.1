@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -45,7 +46,7 @@ const menuItems = [
     section: "Cadastros",
     items: [
       { href: "/empresas", icon: Building2, label: "Empresas" },
-      { href: "/plano-de-contas", icon: BookUser, label: "Plano de Contas" },
+      { href: "/contabil/plano-de-contas", icon: BookUser, label: "Plano de Contas" },
       { href: "/parceiros", icon: Handshake, label: "Parceiros" },
       { href: "/funcionarios", icon: UserCog, label: "Funcionários" },
       { href: "/produtos", icon: Package, label: "Produtos" },
@@ -86,7 +87,7 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
                 <SidebarMenuItem key={item.href}>
                   <Link href={item.href} passHref>
                     <SidebarMenuButton
-                      isActive={pathname === item.href}
+                      isActive={pathname.startsWith(item.href) && (item.href !== '/contabil' || pathname === '/contabil')}
                       tooltip={item.label}
                     >
                       <item.icon />

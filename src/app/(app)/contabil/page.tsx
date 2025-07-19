@@ -138,7 +138,7 @@ export default function ContabilPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button variant="outline" asChild>
-                  <Link href="/plano-de-contas">
+                  <Link href="/contabil/plano-de-contas">
                     <BookUser className="mr-2 h-4 w-4" />
                     Plano de Contas
                   </Link>
