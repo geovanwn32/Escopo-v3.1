@@ -111,7 +111,7 @@ export function DashboardClient() {
       });
       setLaunches(launchesData);
 
-      // Calculate stats
+      // Calculate stats based on user's specific definition
       let totalEntradas = 0;
       let totalSaidas = 0;
       
@@ -122,18 +122,16 @@ export function DashboardClient() {
         const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
         const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
 
-        // Entradas (Income)
-        if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
-          totalEntradas += value; // Venda de produto
-        } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
-          totalEntradas += value; // Prestação de serviço
+        // Totais de Entrada - Computar notas lanças de Entrada caso a empresa destinatária for a empresa ativa (logada).
+        if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
+          totalEntradas += value;
         }
 
-        // Saídas (Expenses)
-        if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
-          totalSaidas += value; // Compra de produto
-        } else if (l.type === 'servico' && tomadorCnpj === activeCompanyCnpj) {
-          totalSaidas += value; // Tomada de serviço
+        // Totais de Saídas - Computar notas lanças de Saídas caso a empresa emitente for a empresa ativa (logada) e notas lanças de Serviços caso a empresa emitente (Prestador) for a empresa ativa (logada).
+        if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
+          totalSaidas += value;
+        } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
+          totalSaidas += value;
         }
       });
 
@@ -165,17 +163,15 @@ export function DashboardClient() {
             const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
             const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
 
-            // Entradas (Income) for chart
-            if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
-              monthlyTotals[key].entradas += value;
-            } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
+            // Chart Entradas
+            if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
               monthlyTotals[key].entradas += value;
             }
             
-            // Saídas (Expenses) for chart
-            if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
+            // Chart Saídas
+            if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
               monthlyTotals[key].saidas += value;
-            } else if (l.type === 'servico' && tomadorCnpj === activeCompanyCnpj) {
+            } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
               monthlyTotals[key].saidas += value;
             }
           }
@@ -286,5 +282,3 @@ export function DashboardClient() {
     </div>
   )
 }
-
-    
