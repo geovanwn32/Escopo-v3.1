@@ -19,7 +19,6 @@ const formatCpf = (cpf: string): string => {
 export function generatePayslipPdf(company: Company, employee: Employee, payroll: Payroll) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
   const primaryColor = [51, 145, 255]; // #3391FF
 
   const drawPayslip = (startY: number) => {
@@ -65,44 +64,33 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
     });
     y = (doc as any).lastAutoTable.finalY + 5;
     
-    // --- PAYROLL EVENTS TABLE ---
-    const proventos = payroll.events.filter(e => e.rubrica.tipo === 'provento');
-    const descontos = payroll.events.filter(e => e.rubrica.tipo === 'desconto');
-    
-    const tableRows = [];
-    const maxLength = Math.max(proventos.length, descontos.length);
+    // --- PAYROLL EVENTS TABLE (Vertical Layout) ---
+    const tableRows = payroll.events.map(event => {
+        const proventoValue = event.rubrica.tipo === 'provento' ? event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
+        const descontoValue = event.rubrica.tipo === 'desconto' ? event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
 
-    for (let i = 0; i < maxLength; i++) {
-        const provento = proventos[i];
-        const desconto = descontos[i];
-        tableRows.push([
-            provento?.rubrica.codigo || '',
-            provento?.rubrica.descricao || '',
-            provento ? provento.referencia.toFixed(2) : '',
-            provento ? provento.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '',
-            desconto?.rubrica.codigo || '',
-            desconto?.rubrica.descricao || '',
-            desconto ? desconto.referencia.toFixed(2) : '',
-            desconto ? desconto.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '',
-        ]);
-    }
+        return [
+            event.rubrica.codigo,
+            event.rubrica.descricao,
+            event.referencia.toFixed(2),
+            proventoValue,
+            descontoValue,
+        ];
+    });
 
     autoTable(doc, {
         startY: y,
-        head: [['Cód.', 'Descrição', 'Referência', 'Proventos', 'Cód.', 'Descrição', 'Referência', 'Descontos']],
+        head: [['Cód.', 'Descrição', 'Referência', 'Proventos', 'Descontos']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: primaryColor, textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center' },
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 35 },
-            2: { cellWidth: 15, halign: 'right' },
-            3: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
-            4: { cellWidth: 10, halign: 'center' },
-            5: { cellWidth: 35 },
-            6: { cellWidth: 15, halign: 'right' },
-            7: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
+            0: { cellWidth: 15, halign: 'center' },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 20, halign: 'right' },
+            3: { cellWidth: 25, halign: 'right' },
+            4: { cellWidth: 25, halign: 'right' },
         }
     });
     y = (doc as any).lastAutoTable.finalY;
@@ -114,19 +102,22 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
         showHead: false,
         styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
         body: [
-            [
-                { content: 'Total Vencimentos:', styles: { halign: 'right' } },
+             [
+                { content: 'Total de Vencimentos:', styles: { halign: 'right' } },
                 { content: formatCurrency(payroll.totals.totalProventos), styles: { halign: 'right' } },
-                { content: 'Total Descontos:', styles: { halign: 'right' } },
+            ],
+            [
+                { content: 'Total de Descontos:', styles: { halign: 'right' } },
                 { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
+            ],
+             [
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
                 { content: formatCurrency(payroll.totals.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
             ],
         ],
         columnStyles: {
-            0: { cellWidth: 30 }, 1: { cellWidth: 20 },
-            2: { cellWidth: 30 }, 3: { cellWidth: 20 },
-            4: { cellWidth: 30 }, 5: { cellWidth: 'auto' },
+            0: { cellWidth: 122 }, 
+            1: { cellWidth: 'auto' },
         }
     });
     y = (doc as any).lastAutoTable.finalY + 8;
