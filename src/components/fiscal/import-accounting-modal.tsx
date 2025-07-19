@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { createAccountingEntries } from '@/ai/flows/create-accounting-entries-flow';
+import type { CreateAccountingEntriesInput } from '@/ai/schemas/accounting-entries-schemas';
 
 interface ImportAccountingModalProps {
   isOpen: boolean;
@@ -41,12 +42,13 @@ export function ImportAccountingModal({ isOpen, onClose, userId, companyId }: Im
   const handleImport = async () => {
     setLoading(true);
     try {
-      const result = await createAccountingEntries({
+      const input: CreateAccountingEntriesInput = {
         userId,
         companyId,
         year: parseInt(selectedYear),
         month: parseInt(selectedMonth),
-      });
+      };
+      const result = await createAccountingEntries(input);
 
       if (result.success) {
         toast({
