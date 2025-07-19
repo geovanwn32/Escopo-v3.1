@@ -1,10 +1,12 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,18 +16,21 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
+import { Employee } from '@/types/employee';
 
 interface EmployeeFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   userId: string;
+  companyId: string;
+  employee: Employee | null;
 }
 
 const employeeSchema = z.object({
   // Personal Data
   nomeCompleto: z.string().min(1, "Nome é obrigatório"),
   dataNascimento: z.date({ required_error: "Data de nascimento é obrigatória." }),
-  cpf: z.string().min(14, "CPF inválido"),
+  cpf: z.string().min(14, "CPF inválido").transform(val => val.replace(/\D/g, '')),
   rg: z.string().min(1, "RG é obrigatório"),
   estadoCivil: z.string().min(1, "Estado civil é obrigatório"),
   sexo: z.string().min(1, "Sexo é obrigatório"),
@@ -35,7 +40,7 @@ const employeeSchema = z.object({
   telefone: z.string().min(10, "Telefone inválido"),
 
   // Address
-  cep: z.string().min(9, "CEP inválido"),
+  cep: z.string().min(9, "CEP inválido").transform(val => val.replace(/\D/g, '')),
   logradouro: z.string().min(1, "Logradouro é obrigatório"),
   numero: z.string().min(1, "Número é obrigatório"),
   complemento: z.string().optional(),
@@ -47,38 +52,56 @@ const employeeSchema = z.object({
   dataAdmissao: z.date({ required_error: "Data de admissão é obrigatória." }),
   cargo: z.string().min(1, "Cargo é obrigatório"),
   departamento: z.string().min(1, "Departamento é obrigatório"),
-  salarioBase: z.string().min(1, "Salário é obrigatório"),
+  salarioBase: z.string().min(1, "Salário é obrigatório").transform(v => String(v).replace(',', '.')),
   tipoContrato: z.string().min(1, "Tipo de contrato é obrigatório"),
   jornadaTrabalho: z.string().min(1, "Jornada é obrigatória"),
 });
 
-export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModalProps) {
+const formatCpf = (cpf: string) => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+const formatCep = (cep: string) => cep?.replace(/(\d{5})(\d{3})/, "$1-$2");
+
+export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee }: EmployeeFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
-    defaultValues: {
-      nomeCompleto: "",
-      cpf: "",
-      rg: "",
-      nomeMae: "",
-      nomePai: "",
-      email: "",
-      telefone: "",
-      cep: "",
-      logradouro: "",
-      numero: "",
-      complemento: "",
-      bairro: "",
-      cidade: "",
-      uf: "",
-      cargo: "",
-      departamento: "",
-      salarioBase: "",
-      jornadaTrabalho: "",
-    },
   });
+
+  const mode = employee ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (isOpen) {
+        if (employee) {
+            form.reset({
+                ...employee,
+                cpf: formatCpf(employee.cpf),
+                cep: formatCep(employee.cep),
+                salarioBase: String(employee.salarioBase),
+            });
+        } else {
+            form.reset({
+              nomeCompleto: "",
+              cpf: "",
+              rg: "",
+              nomeMae: "",
+              nomePai: "",
+              email: "",
+              telefone: "",
+              cep: "",
+              logradouro: "",
+              numero: "",
+              complemento: "",
+              bairro: "",
+              cidade: "",
+              uf: "",
+              cargo: "",
+              departamento: "",
+              salarioBase: "",
+              jornadaTrabalho: "",
+            });
+        }
+    }
+  }, [isOpen, employee, form]);
 
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
@@ -107,25 +130,49 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
 
   const onSubmit = async (values: z.infer<typeof employeeSchema>) => {
     setLoading(true);
-    console.log(values);
-    // Here you would typically save the data to Firestore
-    // For now, we'll just simulate a delay and show a toast
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setLoading(false);
-    toast({
-      title: "Funcionário Cadastrado!",
-      description: `${values.nomeCompleto} foi adicionado com sucesso.`,
-    });
-    form.reset();
-    onClose();
+    try {
+      const dataToSave = { ...values, salarioBase: parseFloat(values.salarioBase) };
+      
+      if (mode === 'create') {
+        const employeesRef = collection(db, `users/${userId}/companies/${companyId}/employees`);
+        await addDoc(employeesRef, dataToSave);
+        toast({
+          title: "Funcionário Cadastrado!",
+          description: `${values.nomeCompleto} foi adicionado com sucesso.`,
+        });
+      } else if (employee?.id) {
+        const employeeRef = doc(db, `users/${userId}/companies/${companyId}/employees`, employee.id);
+        await setDoc(employeeRef, dataToSave);
+        toast({
+          title: "Funcionário Atualizado!",
+          description: `Os dados de ${values.nomeCompleto} foram atualizados.`,
+        });
+      }
+      
+      onClose();
+    } catch (error) {
+        console.error("Error saving employee:", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao salvar",
+            description: "Não foi possível salvar os dados do funcionário."
+        });
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Cadastro de Novo Funcionário</DialogTitle>
-          <DialogDescription>Preencha os dados abaixo para admitir um novo funcionário.</DialogDescription>
+          <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Funcionário' : 'Alterar Funcionário'}</DialogTitle>
+          <DialogDescription>
+            {mode === 'create' 
+              ? "Preencha os dados abaixo para admitir um novo funcionário."
+              : `Alterando os dados de ${employee?.nomeCompleto}.`
+            }
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -152,8 +199,8 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
                      <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                    </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="estadoCivil" render={({ field }) => ( <FormItem><FormLabel>Estado Civil</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="solteiro">Solteiro(a)</SelectItem><SelectItem value="casado">Casado(a)</SelectItem><SelectItem value="divorciado">Divorciado(a)</SelectItem><SelectItem value="viuvo">Viúvo(a)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="sexo" render={({ field }) => ( <FormItem><FormLabel>Sexo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="estadoCivil" render={({ field }) => ( <FormItem><FormLabel>Estado Civil</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="solteiro">Solteiro(a)</SelectItem><SelectItem value="casado">Casado(a)</SelectItem><SelectItem value="divorciado">Divorciado(a)</SelectItem><SelectItem value="viuvo">Viúvo(a)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="sexo" render={({ field }) => ( <FormItem><FormLabel>Sexo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="masculino">Masculino</SelectItem><SelectItem value="feminino">Feminino</SelectItem><SelectItem value="outro">Outro</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                   </div>
                   <FormField control={form.control} name="nomeMae" render={({ field }) => ( <FormItem><FormLabel>Nome da Mãe</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="nomePai" render={({ field }) => ( <FormItem><FormLabel>Nome do Pai (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
@@ -186,10 +233,14 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="departamento" render={({ field }) => ( <FormItem><FormLabel>Departamento</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="salarioBase" render={({ field }) => ( <FormItem><FormLabel>Salário Base (R$)</FormLabel><FormControl><Input {...field} type="number" step="0.01" /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="salarioBase" render={({ field }) => ( <FormItem><FormLabel>Salário Base (R$)</FormLabel><FormControl><Input {...field} onChange={e => {
+                        const { value } = e.target;
+                        e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                        field.onChange(e);
+                    }} /></FormControl><FormMessage /></FormItem> )} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                     <FormField control={form.control} name="tipoContrato" render={({ field }) => ( <FormItem><FormLabel>Tipo de Contrato</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="clt">CLT</SelectItem><SelectItem value="pj">PJ</SelectItem><SelectItem value="estagio">Estágio</SelectItem><SelectItem value="temporario">Temporário</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                     <FormField control={form.control} name="tipoContrato" render={({ field }) => ( <FormItem><FormLabel>Tipo de Contrato</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="clt">CLT</SelectItem><SelectItem value="pj">PJ</SelectItem><SelectItem value="estagio">Estágio</SelectItem><SelectItem value="temporario">Temporário</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                      <FormField control={form.control} name="jornadaTrabalho" render={({ field }) => ( <FormItem><FormLabel>Jornada de Trabalho</FormLabel><FormControl><Input {...field} placeholder="Ex: 40 horas semanais" /></FormControl><FormMessage /></FormItem> )} />
                   </div>
                 </TabsContent>
@@ -200,7 +251,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
               <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
               <Button type="submit" disabled={loading}>
                 {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                Salvar Funcionário
+                {mode === 'create' ? 'Salvar Funcionário' : 'Salvar Alterações'}
               </Button>
             </DialogFooter>
           </form>
