@@ -98,44 +98,43 @@ function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number
 
 
 export function calculatePayroll(employee: Employee, events: PayrollEvent[]): PayrollCalculationResult {
-    const baseSalary = employee.salarioBase;
-
-    // Calculate totals for proventos and descontos excluding auto-calculated ones
-    const initialProventos = events
-        .filter(e => e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + e.provento, 0);
-
-    const initialDescontos = events
-        .filter(e => e.rubrica.tipo === 'desconto' && !['inss', 'irrf'].includes(e.rubrica.id!))
-        .reduce((acc, e) => acc + e.desconto, 0);
-    
-    // Calculate bases
+    // 1. Calculate the bases by summing up all relevant proventos
     const baseFGTS = events
-        .filter(e => e.rubrica.incideFGTS)
+        .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
 
     const baseINSS = events
-        .filter(e => e.rubrica.incideINSS)
+        .filter(e => e.rubrica.incideINSS && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
-
-    // Calculate INSS
+        
+    // 2. Calculate INSS based on its specific base
     const inss = calculateINSS(baseINSS);
 
-    // Calculate IRRF base (proventos with IRRF incidence minus INSS and other deductions)
+    // 3. Calculate the IRRF base
+    // It's the sum of proventos that are IRRF-incidente, minus the calculated INSS value.
     const baseIRRFProventos = events
-        .filter(e => e.rubrica.incideIRRF)
+        .filter(e => e.rubrica.incideIRRF && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
     const baseIRRF = baseIRRFProventos - inss.valor;
-
-    // Calculate IRRF
+    
+    // 4. Calculate IRRF based on its specific base and dependents
     const irrf = calculateIRRF(baseIRRF, employee.dependentes || 0);
 
-    // Calculate FGTS (employer contribution, not a deduction from employee)
+    // 5. Calculate FGTS (employer contribution, not a deduction from employee)
     const fgts = { valor: parseFloat((baseFGTS * 0.08).toFixed(2)) };
 
-    // Final totals
-    const totalProventos = initialProventos;
+    // 6. Calculate final totals
+    const totalProventos = events
+        .filter(e => e.rubrica.tipo === 'provento')
+        .reduce((acc, e) => acc + e.provento, 0);
+
+    // Sum initial discounts + calculated INSS and IRRF
+    const initialDescontos = events
+        .filter(e => e.rubrica.tipo === 'desconto' && !['inss', 'irrf'].includes(e.rubrica.id!))
+        .reduce((acc, e) => acc + e.desconto, 0);
+        
     const totalDescontos = initialDescontos + inss.valor + irrf.valor;
+    
     const liquido = totalProventos - totalDescontos;
 
     return {
