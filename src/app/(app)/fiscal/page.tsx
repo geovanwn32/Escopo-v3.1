@@ -576,7 +576,7 @@ endDate.setHours(23,59,59,999);
                         <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>Prestador/Emitente</TableHead>
+                            <TableHead>Tomador/Destinatário</TableHead>
                             <TableHead>Chave/Número</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -598,7 +598,7 @@ endDate.setHours(23,59,59,999);
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
-                                    {launch.prestador?.nome || launch.emitente?.nome || 'N/A'}
+                                    {launch.tomador?.nome || launch.destinatario?.nome || 'N/A'}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="text-right font-medium">
@@ -666,6 +666,8 @@ endDate.setHours(23,59,59,999);
       )}
     </div>
   );
+
+    
 
     
 
