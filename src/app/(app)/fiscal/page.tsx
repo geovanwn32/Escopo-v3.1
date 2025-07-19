@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -7,7 +6,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -109,6 +108,7 @@ export default function FiscalPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
   const xmlItemsPerPage = 5;
+  const [xmlFilter, setXmlFilter] = useState("");
 
   const [filterKey, setFilterKey] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -405,9 +405,15 @@ endDate.setHours(23,59,59,999);
   };
 
 
-  // XML files pagination logic
-  const totalXmlPages = Math.ceil(xmlFiles.length / xmlItemsPerPage);
-  const paginatedXmlFiles = xmlFiles.slice(
+  // XML files filtering and pagination logic
+  const filteredXmlFiles = useMemo(() => {
+    return xmlFiles.filter(file => 
+      file.file.name.toLowerCase().includes(xmlFilter.toLowerCase())
+    );
+  }, [xmlFiles, xmlFilter]);
+
+  const totalXmlPages = Math.ceil(filteredXmlFiles.length / xmlItemsPerPage);
+  const paginatedXmlFiles = filteredXmlFiles.slice(
     (xmlCurrentPage - 1) * xmlItemsPerPage,
     xmlCurrentPage * xmlItemsPerPage
   );
@@ -446,6 +452,26 @@ endDate.setHours(23,59,59,999);
             <CardDescription>Gerencie e realize o lançamento dos arquivos XML importados.</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      placeholder="Filtrar por nome do arquivo..."
+                      value={xmlFilter}
+                      onChange={(e) => {
+                        setXmlFilter(e.target.value);
+                        setXmlCurrentPage(1); // Reset page on filter
+                      }}
+                      className="pl-8"
+                  />
+                </div>
+                 {xmlFilter && (
+                    <Button variant="ghost" onClick={() => setXmlFilter("")}>
+                        <FilterX className="mr-2 h-4 w-4" />
+                        Limpar Filtro
+                    </Button>
+                )}
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -456,9 +482,9 @@ endDate.setHours(23,59,59,999);
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedXmlFiles.map((xmlFile) => (
+                {paginatedXmlFiles.length > 0 ? paginatedXmlFiles.map((xmlFile) => (
                   <TableRow key={xmlFile.file.name}>
-                    <TableCell className="font-medium">{xmlFile.file.name}</TableCell>
+                    <TableCell className="font-medium max-w-xs truncate">{xmlFile.file.name}</TableCell>
                      <TableCell>
                       <Badge variant={xmlFile.type === 'desconhecido' ? 'destructive' : 'secondary'}>
                         {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
@@ -497,7 +523,13 @@ endDate.setHours(23,59,59,999);
                         </AlertDialog>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : (
+                   <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center">
+                          Nenhum arquivo encontrado.
+                      </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -686,3 +718,4 @@ endDate.setHours(23,59,59,999);
     
 
     
+
