@@ -1,12 +1,13 @@
 
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2 } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -74,6 +75,8 @@ export default function FiscalPage() {
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
+  const xmlItemsPerPage = 5;
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,7 +166,7 @@ export default function FiscalPage() {
               }
               return null;
             };
-
+            
             // NF-e (Produto) - tem prioridade
             if (xmlDoc.getElementsByTagName('nfeProc').length > 0) {
                 const emitCnpj = findCnpj(['emit'], 'CNPJ');
@@ -252,11 +255,19 @@ export default function FiscalPage() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteLaunch = async (launchId: string) => {
+  const handleDeleteLaunch = async (launch: Launch) => {
     if (!user || !activeCompanyId) return;
     try {
-        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompanyId}/launches`, launchId);
+        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompanyId}/launches`, launch.id);
         await deleteDoc(launchRef);
+        
+        // Reset the status of the corresponding XML file to 'pending'
+        setXmlFiles(files => 
+            files.map(f => 
+                f.file.name === launch.fileName ? { ...f, status: 'pending' } : f
+            )
+        );
+
         toast({
             title: "Lançamento excluído com sucesso!"
         });
@@ -281,6 +292,13 @@ export default function FiscalPage() {
      setXmlFiles(files => files.map(f => f.file.name === fileName ? { ...f, status: 'launched' } : f));
      handleModalClose();
   }
+
+  // XML files pagination logic
+  const totalXmlPages = Math.ceil(xmlFiles.length / xmlItemsPerPage);
+  const paginatedXmlFiles = xmlFiles.slice(
+    (xmlCurrentPage - 1) * xmlItemsPerPage,
+    xmlCurrentPage * xmlItemsPerPage
+  );
 
 
   return (
@@ -326,7 +344,7 @@ export default function FiscalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {xmlFiles.map((xmlFile) => (
+                {paginatedXmlFiles.map((xmlFile) => (
                   <TableRow key={xmlFile.file.name}>
                     <TableCell className="font-medium">{xmlFile.file.name}</TableCell>
                      <TableCell>
@@ -352,6 +370,19 @@ export default function FiscalPage() {
               </TableBody>
             </Table>
           </CardContent>
+           {totalXmlPages > 1 && (
+            <CardFooter className="flex justify-end items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p - 1)} disabled={xmlCurrentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">Página {xmlCurrentPage} de {totalXmlPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p + 1)} disabled={xmlCurrentPage === totalXmlPages}>
+                    Próximo
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </CardFooter>
+           )}
         </Card>
       )}
 
@@ -430,7 +461,7 @@ export default function FiscalPage() {
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteLaunch(launch.id)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleDeleteLaunch(launch)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
