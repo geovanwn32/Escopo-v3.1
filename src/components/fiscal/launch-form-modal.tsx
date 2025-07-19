@@ -1,11 +1,10 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, useEffect, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import type { Launch } from '@/app/(app)/fiscal/page';
+import { parse, format, isValid } from 'date-fns';
 
 interface XmlFile {
   file: File;
@@ -72,27 +72,74 @@ function parseXml(xmlString: string) {
 
 export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId, companyId, onLaunchSuccess }: LaunchFormModalProps) {
   const [loading, setLoading] = useState(false);
-  const [parsedData, setParsedData] = useState<Partial<z.infer<typeof launchSchema>>>({});
+  const [formData, setFormData] = useState<Partial<z.infer<typeof launchSchema>>>({});
   const { toast } = useToast();
   const isReadOnly = mode === 'view';
 
+  const formatCurrency = (value?: number) => {
+    if (value === undefined || isNaN(value)) return '';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  }
+
+  const parseCurrency = (value: string): number => {
+    const number = parseFloat(value.replace(/[^0-9,]/g, '').replace(',', '.'));
+    return isNaN(number) ? 0 : number;
+  };
+
+  const formatDate = (date?: Date): string => {
+    if (!date || !isValid(date)) return '';
+    return format(date, 'dd/MM/yyyy');
+  };
+  
+  const parseDate = (dateStr: string): Date | null => {
+    const parsed = parse(dateStr, 'dd/MM/yyyy', new Date());
+    return isValid(parsed) ? parsed : null;
+  };
+
   useEffect(() => {
+    let initialData: Partial<z.infer<typeof launchSchema>> = {};
     if (isOpen) {
       if (mode === 'create' && xmlFile) {
-        const data = parseXml(xmlFile.content);
-        setParsedData(data);
+        initialData = parseXml(xmlFile.content);
       } else if ((mode === 'edit' || mode === 'view') && launch) {
-        setParsedData({
+        initialData = {
           fileName: launch.fileName,
           type: launch.type,
           value: launch.value,
           date: launch.date,
           chaveNfe: launch.chaveNfe,
           numeroNfse: launch.numeroNfse,
-        });
+        };
       }
+      setFormData(initialData);
     }
   }, [isOpen, xmlFile, launch, mode]);
+
+  const handleInputChange = (field: keyof z.infer<typeof launchSchema>, value: string) => {
+    setFormData(prev => {
+        let parsedValue: any = value;
+        if (field === 'value') {
+            parsedValue = parseCurrency(value);
+        } else if (field === 'date') {
+            const date = parseDate(value);
+            if (date) {
+                parsedValue = date;
+            } else {
+                return { ...prev, [field]: undefined }; 
+            }
+        }
+        return { ...prev, [field]: parsedValue };
+    });
+  };
+
+  const getInputValue = (field: keyof z.infer<typeof launchSchema>): string => {
+        const value = formData[field];
+        if (value === undefined || value === null) return '';
+        if (field === 'value') return formatCurrency(value as number);
+        if (field === 'date') return formatDate(value as Date);
+        return String(value);
+  };
+
 
   const handleSubmit = async () => {
     if (mode === 'view') {
@@ -104,10 +151,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
         const launchData = {
             fileName: xmlFile?.file.name || launch?.fileName || 'N/A',
             type: xmlFile?.type || launch?.type || 'desconhecido',
-            value: parsedData.value || 0,
-            date: parsedData.date || new Date(),
-            chaveNfe: parsedData.chaveNfe || null,
-            numeroNfse: parsedData.numeroNfse || null,
+            value: formData.value || 0,
+            date: formData.date || new Date(),
+            chaveNfe: formData.chaveNfe || null,
+            numeroNfse: formData.numeroNfse || null,
         };
         
         await launchSchema.parseAsync(launchData);
@@ -121,9 +168,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
             });
             onLaunchSuccess(xmlFile!.file.name);
         } else if (mode === 'edit' && launch) {
-            // TODO: Implementar a lógica de atualização no Firestore
-            // const launchRef = doc(db, `users/${userId}/companies/${companyId}/launches`, launch.id);
-            // await setDoc(launchRef, launchData, { merge: true });
+            const launchRef = doc(db, `users/${userId}/companies/${companyId}/launches`, launch.id);
+            await updateDoc(launchRef, launchData);
             toast({
                 title: "Lançamento atualizado!",
                 description: "As alterações foram salvas com sucesso."
@@ -143,16 +189,6 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
     }
   };
   
-  const formatCurrency = (value?: number) => {
-    if (value === undefined) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  }
-
-  const formatDate = (date?: Date) => {
-    if (!date) return '';
-    return new Intl.DateTimeFormat('pt-BR').format(date);
-  }
-
   const getTitle = () => {
     switch(mode) {
         case 'create': return 'Confirmar Lançamento Fiscal';
@@ -177,15 +213,30 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="key" className="text-right">Chave/Número</Label>
-            <Input id="key" value={parsedData.chaveNfe || parsedData.numeroNfse || ''} readOnly={isReadOnly} className="col-span-3" />
+            <Input 
+                id="key" 
+                value={getInputValue(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse')}
+                onChange={(e) => handleInputChange(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse', e.target.value)} 
+                readOnly={isReadOnly} 
+                className="col-span-3" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="date" className="text-right">Data</Label>
-            <Input id="date" value={formatDate(parsedData.date)} readOnly={isReadOnly} className="col-span-3" />
+            <Input 
+                id="date" 
+                value={getInputValue('date')} 
+                onChange={(e) => handleInputChange('date', e.target.value)}
+                readOnly={isReadOnly} 
+                className="col-span-3" />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="value" className="text-right">Valor</Label>
-            <Input id="value" value={formatCurrency(parsedData.value)} readOnly={isReadOnly} className="col-span-3" />
+            <Input 
+                id="value" 
+                value={getInputValue('value')} 
+                onChange={(e) => handleInputChange('value', e.target.value)}
+                readOnly={isReadOnly} 
+                className="col-span-3" />
           </div>
         </div>
         <DialogFooter>
@@ -203,5 +254,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
     </Dialog>
   );
 }
-
-    
