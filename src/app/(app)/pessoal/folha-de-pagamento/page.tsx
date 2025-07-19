@@ -619,7 +619,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             <Input
                                                 type="text"
                                                 className="h-8 w-20 text-right"
-                                                value={event.referencia?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                value={(event.referencia ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                                                 onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
                                                 readOnly={!isFieldEditable(event, 'referencia')}
                                             />
