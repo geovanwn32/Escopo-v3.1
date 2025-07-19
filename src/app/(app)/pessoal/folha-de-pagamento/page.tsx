@@ -76,8 +76,7 @@ export default function FolhaDePagamentoPage() {
     const [status, setStatus] = useState<Payroll['status']>('draft');
 
 
-    const { user } = useAuth();
-    const { toast } = useToast();
+    const { user } = useToast();
 
      useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -272,18 +271,19 @@ export default function FolhaDePagamentoPage() {
         return { totalProventos, totalDescontos, liquido };
     }, [events]);
     
-    const handleSave = async () => {
+    const handleSave = async (isCalculation: boolean = false) => {
         if (!user || !activeCompany || !selectedEmployee || !period) {
             toast({ variant: 'destructive', title: 'Dados incompletos', description: 'Selecione funcionário e período para salvar.' });
             return;
         }
 
         setIsSaving(true);
+
         const payrollData: Omit<Payroll, 'id' | 'createdAt'> = {
             employeeId: selectedEmployee.id!,
             employeeName: selectedEmployee.nomeCompleto,
             period,
-            status: status,
+            status: isCalculation ? 'calculated' : 'draft',
             events,
             totals: { totalProventos, totalDescontos, liquido },
             updatedAt: serverTimestamp(),
@@ -353,7 +353,7 @@ export default function FolhaDePagamentoPage() {
                     <h1 className="text-2xl font-bold">Folha de Pagamento</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={handleSave} disabled={isSaving || !selectedEmployee}>
+                    <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving || !selectedEmployee}>
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
                         Salvar
                     </Button>
@@ -376,7 +376,7 @@ export default function FolhaDePagamentoPage() {
                     </AlertDialog>
                     <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
-                        Calcular
+                        Calcular e Salvar
                     </Button>
                 </div>
             </div>
