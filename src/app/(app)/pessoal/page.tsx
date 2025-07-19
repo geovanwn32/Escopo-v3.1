@@ -122,7 +122,11 @@ export default function PessoalPage() {
             </Button>
             <Button className="w-full justify-start" variant="secondary" disabled><Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário</Button>
             <Button className="w-full justify-start" variant="secondary" disabled><SendToBack className="mr-2 h-4 w-4" /> Calcular Férias</Button>
-            <Button className="w-full justify-start" variant="secondary" disabled><UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão</Button>
+            <Button asChild className="w-full justify-start" variant="secondary">
+              <Link href="/pessoal/rescisao">
+                <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
+              </Link>
+            </Button>
           </CardContent>
         </Card>
         <Card>
