@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -415,7 +414,10 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
 
     const isFieldEditable = (event: PayrollEvent): boolean => {
-      if (['inss', 'irrf', 'salario_base'].includes(event.id)) {
+      if (['inss', 'irrf'].includes(event.id)) {
+        return false;
+      }
+      if (event.id === 'salario_base') {
         return false;
       }
       return true;
@@ -621,7 +623,10 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             <Input
                                                 type="text"
                                                 className="h-8 w-20 text-right"
-                                                value={event.referencia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                                value={event.referencia.toLocaleString('pt-BR', {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 10,
+                                                })}
                                                 onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
                                                 readOnly={!isFieldEditable(event)}
                                             />
@@ -712,3 +717,5 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 }
 
 export default PayrollPageWrapper;
+
+    
