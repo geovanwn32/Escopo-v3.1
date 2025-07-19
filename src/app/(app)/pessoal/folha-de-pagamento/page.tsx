@@ -3,7 +3,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,11 +61,16 @@ export interface PayrollTotals {
     liquido: number;
 }
 
-export default function FolhaDePagamentoPage() {
-    const router = useRouter();
+function PayrollPageWrapper() {
     const searchParams = useSearchParams();
     const payrollId = searchParams.get('id');
+    const router = useRouter();
 
+    return <FolhaDePagamentoPage payrollId={payrollId} router={router} />;
+}
+
+
+function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null, router: any }) {
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -285,8 +291,7 @@ export default function FolhaDePagamentoPage() {
 
         setIsSaving(true);
         
-        // Always run calculation before saving to get latest bases
-        const calcResult = calculatePayroll(employee, events);
+        const calcResult = calculatePayroll(selectedEmployee, events);
 
         const finalStatus = isCalculation ? 'calculated' : 'draft';
 
@@ -344,7 +349,7 @@ export default function FolhaDePagamentoPage() {
             return;
         }
 
-        const calcResult = calculatePayroll(employee, events);
+        const calcResult = calculatePayroll(selectedEmployee, events);
 
         const payrollData: Payroll = {
             employeeId: selectedEmployee.id!,
@@ -646,3 +651,5 @@ export default function FolhaDePagamentoPage() {
         </div>
     );
 }
+
+export default PayrollPageWrapper;
