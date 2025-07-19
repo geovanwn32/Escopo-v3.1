@@ -1,13 +1,22 @@
+
+"use client";
+
+import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, UserCog } from "lucide-react";
+import { EmployeeFormModal } from '@/components/pessoal/employee-form-modal';
+import { useAuth } from '@/lib/auth';
 
 export default function FuncionariosPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { user } = useAuth();
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Cadastro de Funcionários</h1>
-        <Button>
+        <Button onClick={() => setIsModalOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Novo Funcionário
         </Button>
@@ -25,6 +34,14 @@ export default function FuncionariosPage() {
             <p className="text-muted-foreground mt-2">Clique em "Novo Funcionário" para começar.</p>
         </div>
       </Card>
+      
+      {user && (
+         <EmployeeFormModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            userId={user.uid}
+          />
+      )}
     </div>
   );
 }
