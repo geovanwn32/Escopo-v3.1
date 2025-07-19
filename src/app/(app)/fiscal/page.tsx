@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,12 @@ import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, isValid } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface XmlFile {
   file: {
@@ -77,6 +83,11 @@ export default function FiscalPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
   const xmlItemsPerPage = 5;
+
+  const [filterKey, setFilterKey] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState<Date | undefined>();
+  const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,9 +165,8 @@ export default function FiscalPage() {
 
             let type: XmlFile['type'] = 'desconhecido';
 
-            const findCnpj = (potentialParents: string[], cnpjTagName: string) => {
-                for (const parentTag of potentialParents) {
-                    const parentNode = xmlDoc.getElementsByTagName(parentTag)[0];
+            const findCnpj = (potentialParents: (Document | Element)[], cnpjTagName: string): string | null => {
+                for (const parentNode of potentialParents) {
                     if (parentNode) {
                         const cnpjNodes = parentNode.getElementsByTagName(cnpjTagName);
                         if (cnpjNodes.length > 0 && cnpjNodes[0].textContent) {
@@ -167,27 +177,32 @@ export default function FiscalPage() {
                 return null;
             };
 
-            // NF-e (Produto) - Venda ou Compra
-            if (xmlDoc.getElementsByTagName('nfeProc').length > 0) {
-                const emitCnpj = findCnpj(['emit'], 'CNPJ');
-                const destCnpj = findCnpj(['dest'], 'CNPJ');
+            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
+            const nfse = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
 
+            if (nfeProc) {
+                const emitNode = nfeProc.getElementsByTagName('emit')[0];
+                const destNode = nfeProc.getElementsByTagName('dest')[0];
+                const emitCnpj = findCnpj(emitNode ? [emitNode] : [], 'CNPJ');
+                const destCnpj = findCnpj(destNode ? [destNode] : [], 'CNPJ');
+                
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida'; // Venda de produto (saída de estoque, entrada de receita)
+                    type = 'saida'; // Venda de produto
                 } else if (destCnpj === normalizedActiveCnpj) {
-                    type = 'entrada'; // Compra de produto (entrada de estoque, saída de caixa)
+                    type = 'entrada'; // Compra de produto
                 }
-            }
-            // NFS-e (Serviço) - Prestado ou Tomado
-            else if (xmlDoc.getElementsByTagName('NFSe').length > 0) {
-                 const prestadorCnpj = findCnpj(['emit', 'prest', 'PrestadorServico'], 'CNPJ');
-                 const tomadorCnpj = findCnpj(['dest', 'toma', 'TomadorServico'], 'CNPJ');
+            } else if (nfse) {
+                const prestadorNode = nfse.getElementsByTagName('PrestadorServico')[0] || nfse.getElementsByTagName('prest')[0];
+                const tomadorNode = nfse.getElementsByTagName('TomadorServico')[0] || nfse.getElementsByTagName('toma')[0];
 
-                 if (prestadorCnpj === normalizedActiveCnpj) {
-                  type = 'servico'; // Prestação de serviço (entrada de receita)
-                 } else if (tomadorCnpj === normalizedActiveCnpj) {
-                  type = 'saida'; // Tomada de serviço (despesa, saída de caixa)
-                 }
+                const prestadorCnpj = findCnpj(prestadorNode ? [prestadorNode] : [], 'Cnpj');
+                const tomadorCnpj = findCnpj(tomadorNode ? [tomadorNode] : [], 'Cnpj');
+
+                if (prestadorCnpj === normalizedActiveCnpj) {
+                    type = 'servico'; // Prestação de serviço (é uma entrada de receita)
+                } else if (tomadorCnpj === normalizedActiveCnpj) {
+                    type = 'saida'; // Tomada de serviço (é uma despesa/saída)
+                }
             }
             
             if (type !== 'desconhecido') {
@@ -314,6 +329,39 @@ export default function FiscalPage() {
      }
      handleModalClose();
   }
+  
+  const filteredLaunches = useMemo(() => {
+    return launches.filter(launch => {
+        const keyMatch = filterKey ? (launch.chaveNfe?.includes(filterKey) || launch.numeroNfse?.includes(filterKey)) : true;
+        const typeMatch = filterType ? launch.type === filterType : true;
+        
+        let dateMatch = true;
+        if (filterStartDate) {
+            const launchDate = new Date(launch.date);
+            launchDate.setHours(0,0,0,0);
+            const startDate = new Date(filterStartDate);
+            startDate.setHours(0,0,0,0);
+            dateMatch = launchDate >= startDate;
+        }
+        if (filterEndDate && dateMatch) {
+            const launchDate = new Date(launch.date);
+            launchDate.setHours(23,59,59,999);
+            const endDate = new Date(filterEndDate);
+            endDate.setHours(23,59,59,999);
+            dateMatch = launchDate <= endDate;
+        }
+
+        return keyMatch && typeMatch && dateMatch;
+    });
+  }, [launches, filterKey, filterType, filterStartDate, filterEndDate]);
+
+  const clearFilters = () => {
+    setFilterKey("");
+    setFilterType("");
+    setFilterStartDate(undefined);
+    setFilterEndDate(undefined);
+  };
+
 
   // XML files pagination logic
   const totalXmlPages = Math.ceil(xmlFiles.length / xmlItemsPerPage);
@@ -430,9 +478,58 @@ export default function FiscalPage() {
       <Card>
         <CardHeader>
           <CardTitle>Lançamentos Recentes</CardTitle>
-          <CardDescription>Visualize os últimos lançamentos fiscais.</CardDescription>
+          <CardDescription>Visualize e filtre os lançamentos fiscais.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input
+                    placeholder="Filtrar por Chave/Número..."
+                    value={filterKey}
+                    onChange={(e) => setFilterKey(e.target.value)}
+                    className="max-w-xs"
+                />
+                <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="entrada">Entrada</SelectItem>
+                        <SelectItem value="saida">Saída</SelectItem>
+                        <SelectItem value="servico">Serviço</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className="w-full sm:w-[280px] justify-start text-left font-normal"
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {filterStartDate && filterEndDate ? (
+                                <>
+                                {format(filterStartDate, "dd/MM/yy")} - {format(filterEndDate, "dd/MM/yy")}
+                                </>
+                            ) : <span>Filtrar por Data</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                        mode="range"
+                        selected={{ from: filterStartDate, to: filterEndDate }}
+                        onSelect={(range) => {
+                            setFilterStartDate(range?.from);
+                            setFilterEndDate(range?.to);
+                        }}
+                        locale={ptBR}
+                        numberOfMonths={2}
+                        />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                </Button>
+            </div>
             {loadingLaunches ? (
                  <div className="flex justify-center items-center py-20">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -457,7 +554,13 @@ export default function FiscalPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {launches.map(launch => (
+                        {filteredLaunches.length === 0 ? (
+                             <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    Nenhum resultado encontrado para os filtros aplicados.
+                                </TableCell>
+                            </TableRow>
+                        ) : filteredLaunches.map(launch => (
                             <TableRow key={launch.id}>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
                                 <TableCell>
@@ -531,4 +634,5 @@ export default function FiscalPage() {
       )}
     </div>
   );
-}
+
+    
