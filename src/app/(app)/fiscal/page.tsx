@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -147,16 +148,19 @@ export default function FiscalPage() {
 
             const findCnpj = (xml: Document, parents: string[], child: string) => {
               for (const parentTag of parents) {
-                const parentNode = xml.getElementsByTagName(parentTag)[0];
-                if (parentNode) {
-                  const cnpjNode = parentNode.getElementsByTagName(child)[0];
-                  if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
-                }
+                const parentNodeList = xml.getElementsByTagName(parentTag);
+                 for (let i = 0; i < parentNodeList.length; i++) {
+                    const parentNode = parentNodeList[i];
+                    if (parentNode) {
+                      const cnpjNode = parentNode.getElementsByTagName(child)[0];
+                      if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
+                    }
+                 }
               }
               return null;
             }
 
-            // NF-e
+            // NF-e (Produto)
             const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
             if (nfeProc) {
                 const emitCnpj = findCnpj(xmlDoc, ['emit'], 'CNPJ');
@@ -167,16 +171,16 @@ export default function FiscalPage() {
                 } else if (destCnpj === normalizedActiveCnpj) {
                     type = 'entrada';
                 }
-            } else { // Check for NFS-e variants
+            } else { // Check for NFS-e variants (Serviço)
                 const nfseNode = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
                 if (nfseNode) {
                     const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico', 'emit'], 'CNPJ');
                     const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico', 'dest'], 'CNPJ');
 
                     if (prestadorCnpj === normalizedActiveCnpj) {
-                      type = 'servico'; // Assuming service provided is income
+                      type = 'servico'; // Service provided = income
                     } else if (tomadorCnpj === normalizedActiveCnpj) {
-                      type = 'servico'; // Assuming service taken is an expense, but classified as 'servico'
+                      type = 'saida'; // Service taken = expense
                     }
                 }
             }
