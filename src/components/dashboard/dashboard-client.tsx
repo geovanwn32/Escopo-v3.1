@@ -36,6 +36,8 @@ interface Launch {
   valorTotalNota?: number;
   prestador?: { cnpj?: string | null };
   tomador?: { cnpj?: string | null };
+  emitente?: { cnpj?: string | null };
+  destinatario?: { cnpj?: string | null };
 }
 
 
@@ -89,7 +91,7 @@ export function DashboardClient() {
   }, []);
 
   useEffect(() => {
-    if (!user || !activeCompanyId) {
+    if (!user || !activeCompanyId || !activeCompanyCnpj) {
       setLoading(false);
       return;
     }
@@ -112,10 +114,8 @@ export function DashboardClient() {
       // Calculate stats
       const totalEntradas = launchesData.reduce((acc, l) => {
           const value = l.valorLiquido || l.valorTotalNota || 0;
-          if (l.type === 'saida') { // NF-e de Saída (Venda)
-              return acc + value;
-          }
-          if (l.type === 'servico' && l.prestador?.cnpj === activeCompanyCnpj) { // NFS-e Prestado
+          // NF-e de Saída (Venda de produto) ou NFS-e de Serviço Prestado
+          if (l.type === 'saida' || (l.type === 'servico' && (l.prestador?.cnpj === activeCompanyCnpj))) {
               return acc + value;
           }
           return acc;
@@ -123,10 +123,8 @@ export function DashboardClient() {
 
       const totalSaidas = launchesData.reduce((acc, l) => {
           const value = l.valorLiquido || l.valorTotalNota || 0;
-          if (l.type === 'entrada') { // NF-e de Entrada (Compra)
-              return acc + value;
-          }
-          if (l.type === 'servico' && l.tomador?.cnpj === activeCompanyCnpj) { // NFS-e Tomado
+           // NF-e de Entrada (Compra de produto) ou NFS-e de Serviço Tomado
+          if (l.type === 'entrada' || (l.type === 'servico' && (l.tomador?.cnpj === activeCompanyCnpj))) {
               return acc + value;
           }
           return acc;
@@ -140,30 +138,27 @@ export function DashboardClient() {
 
       // Prepare chart data for the last 6 months
       const monthlyTotals: { [key: string]: { entradas: number, saidas: number } } = {};
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-      sixMonthsAgo.setDate(1);
-
-      for (let i = 0; i < 6; i++) {
-        const date = new Date(sixMonthsAgo.getFullYear(), sixMonthsAgo.getMonth() + i, 1);
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const today = new Date();
+      
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
         monthlyTotals[key] = { entradas: 0, saidas: 0 };
       }
       
       launchesData.forEach(l => {
           const launchDate = l.date;
-          if (launchDate >= sixMonthsAgo) {
-            const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
-            if (monthlyTotals[key]) {
-              const value = l.valorLiquido || l.valorTotalNota || 0;
-              // Income
-              if (l.type === 'saida' || (l.type === 'servico' && l.prestador?.cnpj === activeCompanyCnpj)) {
-                monthlyTotals[key].entradas += value;
-              } 
-              // Expense
-              else if (l.type === 'entrada' || (l.type === 'servico' && l.tomador?.cnpj === activeCompanyCnpj)) {
-                monthlyTotals[key].saidas += value;
-              }
+          const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
+          
+          if (monthlyTotals[key]) {
+            const value = l.valorLiquido || l.valorTotalNota || 0;
+            // Income
+            if (l.type === 'saida' || (l.type === 'servico' && (l.prestador?.cnpj === activeCompanyCnpj))) {
+              monthlyTotals[key].entradas += value;
+            } 
+            // Expense
+            else if (l.type === 'entrada' || (l.type === 'servico' && (l.tomador?.cnpj === activeCompanyCnpj))) {
+              monthlyTotals[key].saidas += value;
             }
           }
       });
