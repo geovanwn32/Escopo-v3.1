@@ -58,9 +58,10 @@ export interface PayrollTotals {
     liquido: number;
 }
 
-export default function FolhaDePagamentoPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
+export default function FolhaDePagamentoPage() {
     const router = useRouter();
-    const payrollId = typeof searchParams.id === 'string' ? searchParams.id : null;
+    const searchParams = useSearchParams();
+    const payrollId = searchParams.get('id');
 
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
