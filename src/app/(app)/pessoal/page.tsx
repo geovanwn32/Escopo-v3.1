@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -80,6 +81,19 @@ export default function PessoalPage() {
       }
   };
 
+  const getStatusVariant = (status: Payroll['status']): "secondary" | "default" | "outline" => {
+    switch (status) {
+        case 'draft':
+            return 'secondary';
+        case 'calculated':
+            return 'default';
+        case 'finalized':
+            return 'outline'
+        default:
+            return 'secondary';
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -149,8 +163,8 @@ export default function PessoalPage() {
                     <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
                      <TableCell>
-                      <Badge variant={payroll.status === 'draft' ? 'secondary' : 'default'}>
-                        {payroll.status === 'draft' ? 'Rascunho' : 'Finalizada'}
+                      <Badge variant={getStatusVariant(payroll.status)} className="capitalize">
+                         {payroll.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">

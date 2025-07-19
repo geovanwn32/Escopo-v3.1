@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,8 @@ export default function FolhaDePagamentoPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [currentPayrollId, setCurrentPayrollId] = useState<string | null>(payrollId);
     const [period, setPeriod] = useState<string>('');
+    const [status, setStatus] = useState<Payroll['status']>('draft');
+
 
     const { user } = useAuth();
     const { toast } = useToast();
@@ -119,6 +121,7 @@ export default function FolhaDePagamentoPage() {
                     
                     setPeriod(payrollData.period);
                     setEvents(payrollData.events);
+                    setStatus(payrollData.status);
                     setCurrentPayrollId(payrollData.id!);
 
                 } else {
@@ -157,17 +160,55 @@ export default function FolhaDePagamentoPage() {
         };
 
         setEvents(prevEvents => [...prevEvents, newEvent]);
+        setStatus('draft');
         setIsRubricaModalOpen(false);
     };
 
     const handleRemoveEvent = (eventId: string) => {
         setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+        setStatus('draft');
     };
+    
+    const runCalculation = useCallback((currentEvents: PayrollEvent[], employee: Employee): PayrollEvent[] => {
+        const result = calculatePayroll(employee, currentEvents);
+            
+        const updatedEvents = [...currentEvents.filter(e => !['inss', 'irrf'].includes(e.id))];
+
+        const addOrUpdateEvent = (newEvent: PayrollEvent) => {
+            const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
+            if (index > -1) {
+                updatedEvents[index] = newEvent;
+            } else {
+                updatedEvents.push(newEvent);
+            }
+        };
+
+        if (result.inss.valor > 0) {
+             addOrUpdateEvent({
+                id: 'inss',
+                rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
+                referencia: result.inss.aliquota,
+                provento: 0,
+                desconto: result.inss.valor,
+            });
+        }
+
+         if (result.irrf.valor > 0) {
+             addOrUpdateEvent({
+                id: 'irrf',
+                rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
+                referencia: result.irrf.aliquota,
+                provento: 0,
+                desconto: result.irrf.valor,
+            });
+        }
+
+        return updatedEvents;
+    }, []);
 
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
         
-        // Auto-add base salary event
         const baseSalaryEvent: PayrollEvent = {
             id: 'salario_base',
             rubrica: {
@@ -185,7 +226,9 @@ export default function FolhaDePagamentoPage() {
             desconto: 0
         };
 
-        setEvents([baseSalaryEvent]);
+        const calculatedEvents = runCalculation([baseSalaryEvent], employee);
+        setEvents(calculatedEvents);
+        setStatus('calculated');
         setIsEmployeeModalOpen(false);
     };
 
@@ -201,45 +244,12 @@ export default function FolhaDePagamentoPage() {
 
         setIsCalculating(true);
         try {
-            const result = calculatePayroll(selectedEmployee, events);
-            
-            const updatedEvents = [...events.filter(e => !['inss', 'irrf'].includes(e.id))];
-
-            const addOrUpdateEvent = (newEvent: PayrollEvent) => {
-                const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
-                if (index > -1) {
-                    updatedEvents[index] = newEvent;
-                } else {
-                    updatedEvents.push(newEvent);
-                }
-            };
-
-            // Add INSS calculation result
-            if (result.inss.valor > 0) {
-                 addOrUpdateEvent({
-                    id: 'inss',
-                    rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
-                    referencia: result.inss.aliquota,
-                    provento: 0,
-                    desconto: result.inss.valor,
-                });
-            }
-
-            // Add IRRF calculation result
-             if (result.irrf.valor > 0) {
-                 addOrUpdateEvent({
-                    id: 'irrf',
-                    rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
-                    referencia: result.irrf.aliquota,
-                    provento: 0,
-                    desconto: result.irrf.valor,
-                });
-            }
-
-            setEvents(updatedEvents);
+            const calculatedEvents = runCalculation(events, selectedEmployee);
+            setEvents(calculatedEvents);
+            setStatus('calculated');
             toast({
                 title: 'Cálculo Realizado!',
-                description: 'Os valores de INSS e IRRF foram calculados e adicionados.'
+                description: 'Os valores de INSS e IRRF foram recalculados.'
             });
 
         } catch (error) {
@@ -272,7 +282,7 @@ export default function FolhaDePagamentoPage() {
             employeeId: selectedEmployee.id!,
             employeeName: selectedEmployee.nomeCompleto,
             period,
-            status: 'draft',
+            status: status,
             events,
             totals: { totalProventos, totalDescontos, liquido },
             updatedAt: serverTimestamp(),
@@ -289,7 +299,7 @@ export default function FolhaDePagamentoPage() {
                 const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
-                toast({ title: 'Folha de pagamento salva como rascunho!' });
+                toast({ title: 'Folha de pagamento salva com sucesso!' });
                 router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`);
             }
         } catch (error) {

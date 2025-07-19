@@ -6,7 +6,7 @@ export interface Payroll {
     employeeId: string;
     employeeName: string;
     period: string; // e.g., "07/2024"
-    status: 'draft' | 'finalized';
+    status: 'draft' | 'calculated' | 'finalized';
     events: PayrollEvent[];
     totals: PayrollTotals;
     createdAt?: FieldValue | Date;
