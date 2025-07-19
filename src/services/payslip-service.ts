@@ -4,7 +4,8 @@ import type { Company } from '@/app/(app)/fiscal/page';
 import type { Employee } from '@/types/employee';
 import type { Payroll } from '@/types/payroll';
 
-const formatCurrency = (value: number): string => {
+const formatCurrency = (value: number | undefined | null): string => {
+  if (value === undefined || value === null) return 'R$ 0,00';
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
@@ -105,21 +106,55 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
              [
                 { content: 'Total de Vencimentos:', styles: { halign: 'right' } },
                 { content: formatCurrency(payroll.totals.totalProventos), styles: { halign: 'right' } },
-            ],
-            [
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
                 { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
             ],
              [
+                { content: '', colSpan: 2 },
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
                 { content: formatCurrency(payroll.totals.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
             ],
         ],
         columnStyles: {
-            0: { cellWidth: 122 }, 
-            1: { cellWidth: 'auto' },
+            0: { cellWidth: 'auto' }, 
+            1: { cellWidth: 25 },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 25 },
         }
     });
+    y = (doc as any).lastAutoTable.finalY;
+
+    // --- CALCULATION BASES ---
+    autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      showHead: false,
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+        [
+          { content: 'Base INSS:', styles: { fontStyle: 'bold' } },
+          { content: formatCurrency(payroll.baseINSS), styles: { halign: 'left' } },
+          { content: 'Base FGTS:', styles: { fontStyle: 'bold' } },
+          { content: formatCurrency(payroll.baseFGTS), styles: { halign: 'left' } },
+          { content: 'FGTS do Mês:', styles: { fontStyle: 'bold' } },
+          { content: formatCurrency(payroll.fgtsValue), styles: { halign: 'left' } },
+        ],
+        [
+          { content: 'Base IRRF:', styles: { fontStyle: 'bold' } },
+          { content: formatCurrency(payroll.baseIRRF), styles: { halign: 'left' } },
+          { content: '', colSpan: 4 },
+        ],
+      ],
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 41.33 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 41.33 },
+        4: { cellWidth: 25 },
+        5: { cellWidth: 'auto' },
+      }
+    });
+
     y = (doc as any).lastAutoTable.finalY + 8;
     
     doc.setFontSize(8);

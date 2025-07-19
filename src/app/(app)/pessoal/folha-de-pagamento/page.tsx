@@ -76,6 +76,7 @@ export default function FolhaDePagamentoPage() {
     const [currentPayrollId, setCurrentPayrollId] = useState<string | null>(payrollId);
     const [period, setPeriod] = useState<string>('');
     const [status, setStatus] = useState<Payroll['status']>('draft');
+    const [calculationResult, setCalculationResult] = useState<PayrollCalculationResult | null>(null);
 
 
     const { user } = useAuth();
@@ -172,8 +173,9 @@ export default function FolhaDePagamentoPage() {
         setStatus('draft');
     };
     
-    const runCalculation = useCallback((currentEvents: PayrollEvent[], employee: Employee): PayrollEvent[] => {
+    const runCalculation = useCallback((currentEvents: PayrollEvent[], employee: Employee): PayrollCalculationResult => {
         const result = calculatePayroll(employee, currentEvents);
+        setCalculationResult(result);
             
         const updatedEvents = [...currentEvents.filter(e => !['inss', 'irrf'].includes(e.id))];
 
@@ -206,7 +208,8 @@ export default function FolhaDePagamentoPage() {
             });
         }
 
-        return updatedEvents;
+        setEvents(updatedEvents);
+        return result;
     }, []);
 
     const handleSelectEmployee = (employee: Employee) => {
@@ -229,8 +232,7 @@ export default function FolhaDePagamentoPage() {
             desconto: 0
         };
 
-        const calculatedEvents = runCalculation([baseSalaryEvent], employee);
-        setEvents(calculatedEvents);
+        runCalculation([baseSalaryEvent], employee);
         setStatus('calculated');
         setIsEmployeeModalOpen(false);
     };
@@ -247,8 +249,7 @@ export default function FolhaDePagamentoPage() {
 
         setIsCalculating(true);
         try {
-            const calculatedEvents = runCalculation(events, selectedEmployee);
-            setEvents(calculatedEvents);
+            runCalculation(events, selectedEmployee);
             setStatus('calculated');
             toast({
                 title: 'Cálculo Realizado!',
@@ -284,6 +285,9 @@ export default function FolhaDePagamentoPage() {
 
         setIsSaving(true);
         
+        // Always run calculation before saving to get latest bases
+        const calcResult = calculatePayroll(employee, events);
+
         const finalStatus = isCalculation ? 'calculated' : 'draft';
 
         const payrollData: Omit<Payroll, 'id' | 'createdAt'> = {
@@ -292,7 +296,11 @@ export default function FolhaDePagamentoPage() {
             period,
             status: finalStatus,
             events,
-            totals: { totalProventos, totalDescontos, liquido },
+            totals: { totalProventos: calcResult.totalProventos, totalDescontos: calcResult.totalDescontos, liquido: calcResult.liquido },
+            baseINSS: calcResult.baseINSS,
+            baseIRRF: calcResult.baseIRRF,
+            baseFGTS: calcResult.baseFGTS,
+            fgtsValue: calcResult.fgts.valor,
             updatedAt: serverTimestamp(),
         };
 
@@ -301,17 +309,16 @@ export default function FolhaDePagamentoPage() {
                 // Update existing payroll
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
                 await setDoc(payrollRef, payrollData, { merge: true });
-                setStatus(finalStatus);
                 toast({ title: `Folha de pagamento atualizada como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
             } else {
                 // Create new payroll
                 const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
-                setStatus(finalStatus);
-                toast({ title: `Folha de pagamento salva como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
                 router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`, { scroll: false });
+                toast({ title: `Folha de pagamento salva como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
             }
+            setStatus(finalStatus);
         } catch (error) {
             console.error("Error saving payroll:", error);
             toast({ variant: 'destructive', title: 'Erro ao salvar folha' });
@@ -336,6 +343,9 @@ export default function FolhaDePagamentoPage() {
             toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
             return;
         }
+
+        const calcResult = calculatePayroll(employee, events);
+
         const payrollData: Payroll = {
             employeeId: selectedEmployee.id!,
             employeeName: selectedEmployee.nomeCompleto,
@@ -343,6 +353,10 @@ export default function FolhaDePagamentoPage() {
             status,
             events,
             totals: { totalProventos, totalDescontos, liquido },
+            baseINSS: calcResult.baseINSS,
+            baseIRRF: calcResult.baseIRRF,
+            baseFGTS: calcResult.baseFGTS,
+            fgtsValue: calcResult.fgts.valor,
             updatedAt: new Date(),
         };
         generatePayslipPdf(activeCompany, selectedEmployee, payrollData);

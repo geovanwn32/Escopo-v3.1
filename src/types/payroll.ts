@@ -9,6 +9,10 @@ export interface Payroll {
     status: 'draft' | 'calculated' | 'finalized';
     events: PayrollEvent[];
     totals: PayrollTotals;
+    baseINSS?: number;
+    baseIRRF?: number;
+    baseFGTS?: number;
+    fgtsValue?: number;
     createdAt?: FieldValue | Date;
     updatedAt: FieldValue;
 }
