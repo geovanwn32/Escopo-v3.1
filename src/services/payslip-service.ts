@@ -19,131 +19,128 @@ const formatCpf = (cpf: string): string => {
 
 export function generatePayslipPdf(company: Company, employee: Employee, payroll: Payroll) {
   const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  let y = 15;
 
-  // --- HEADER ---
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Holerite de Pagamento', 105, y, { align: 'center' });
-  y += 8;
+  const drawPayslip = (startY: number) => {
+    let y = startY;
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Competência: ${payroll.period}`, 105, y, { align: 'center' });
-  y += 10;
-  
-  // --- COMPANY INFO ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Empresa Contratante', 15, y);
-  y += 6;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  autoTable(doc, {
-    startY: y,
-    theme: 'plain',
-    styles: { fontSize: 9, cellPadding: 1.5 },
-    body: [
-      [{ content: 'Razão Social:', styles: { fontStyle: 'bold' } }, company.razaoSocial, { content: 'CNPJ:', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
-    ],
-  });
-  y = (doc as any).lastAutoTable.finalY + 8;
-  
-  // --- EMPLOYEE INFO ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Funcionário', 15, y);
-  y += 6;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  autoTable(doc, {
-    startY: y,
-    theme: 'plain',
-    styles: { fontSize: 9, cellPadding: 1.5 },
-    body: [
-      [{ content: 'Nome:', styles: { fontStyle: 'bold' } }, employee.nomeCompleto, { content: 'CPF:', styles: { fontStyle: 'bold' } }, formatCpf(employee.cpf)],
-      [{ content: 'Cargo:', styles: { fontStyle: 'bold' } }, employee.cargo, { content: 'Data Admissão:', styles: { fontStyle: 'bold' } }, format(employee.dataAdmissao, 'dd/MM/yyyy')],
-    ],
-  });
-  y = (doc as any).lastAutoTable.finalY + 10;
-  
-  // --- PAYROLL EVENTS TABLE ---
-  const proventos = payroll.events.filter(e => e.rubrica.tipo === 'provento');
-  const descontos = payroll.events.filter(e => e.rubrica.tipo === 'desconto');
-  
-  const tableRows = [];
-  const maxLength = Math.max(proventos.length, descontos.length);
+    // --- HEADER ---
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Recibo de Pagamento de Salário', 15, y);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Competência: ${payroll.period}`, pageWidth - 15, y, { align: 'right' });
+    y += 8;
 
-  for (let i = 0; i < maxLength; i++) {
-    const provento = proventos[i];
-    const desconto = descontos[i];
-    tableRows.push([
-      provento?.rubrica.codigo || '',
-      provento?.rubrica.descricao || '',
-      provento ? provento.referencia.toFixed(2) : '',
-      provento ? provento.provento.toFixed(2) : '',
-      desconto?.rubrica.codigo || '',
-      desconto?.rubrica.descricao || '',
-      desconto ? desconto.referencia.toFixed(2) : '',
-      desconto ? desconto.desconto.toFixed(2) : '',
-    ]);
-  }
+    // --- COMPANY & EMPLOYEE INFO ---
+    autoTable(doc, {
+        startY: y,
+        theme: 'plain',
+        styles: { fontSize: 8, cellPadding: 1, overflow: 'linebreak' },
+        body: [
+            [
+                { content: 'Empregador:', styles: { fontStyle: 'bold' } },
+                { content: company.razaoSocial, styles: { cellWidth: 80 } },
+                { content: 'CNPJ:', styles: { fontStyle: 'bold' } },
+                { content: formatCnpj(company.cnpj), styles: { cellWidth: 'auto' } },
+            ],
+            [
+                { content: 'Funcionário(a):', styles: { fontStyle: 'bold' } },
+                { content: employee.nomeCompleto },
+                { content: 'Cargo:', styles: { fontStyle: 'bold' } },
+                { content: employee.cargo },
+            ],
+        ],
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+    
+    // --- PAYROLL EVENTS TABLE ---
+    const proventos = payroll.events.filter(e => e.rubrica.tipo === 'provento');
+    const descontos = payroll.events.filter(e => e.rubrica.tipo === 'desconto');
+    
+    const tableRows = [];
+    const maxLength = Math.max(proventos.length, descontos.length);
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Cód.', 'Descrição', 'Referência', 'Proventos', 'Cód.', 'Descrição', 'Referência', 'Descontos']],
-    body: tableRows,
-    theme: 'striped',
-    headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-    columnStyles: {
-      3: { halign: 'right' },
-      7: { halign: 'right' },
+    for (let i = 0; i < maxLength; i++) {
+        const provento = proventos[i];
+        const desconto = descontos[i];
+        tableRows.push([
+            provento?.rubrica.codigo || '',
+            provento?.rubrica.descricao || '',
+            provento ? provento.referencia.toFixed(2) : '',
+            provento ? provento.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '',
+            desconto?.rubrica.codigo || '',
+            desconto?.rubrica.descricao || '',
+            desconto ? desconto.referencia.toFixed(2) : '',
+            desconto ? desconto.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '',
+        ]);
     }
-  });
-  y = (doc as any).lastAutoTable.finalY + 2;
 
-  // --- TOTALS ---
-  const totalsData = [
-    [
-        { content: 'Total de Proventos:', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right' } },
-        { content: formatCurrency(payroll.totals.totalProventos), styles: { halign: 'right' } },
-        { content: 'Total de Descontos:', colSpan: 2, styles: { fontStyle: 'bold', halign: 'right' } },
-        { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right' } },
-    ],
-  ];
+    autoTable(doc, {
+        startY: y,
+        head: [['Cód.', 'Descrição', 'Referência', 'Proventos', 'Cód.', 'Descrição', 'Referência', 'Descontos']],
+        body: tableRows,
+        theme: 'striped',
+        headStyles: { fillColor: [230, 230, 230], textColor: 0, fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        columnStyles: {
+            0: { cellWidth: 10 },
+            1: { cellWidth: 35 },
+            2: { cellWidth: 15, halign: 'right' },
+            3: { cellWidth: 20, halign: 'right' },
+            4: { cellWidth: 10 },
+            5: { cellWidth: 35 },
+            6: { cellWidth: 15, halign: 'right' },
+            7: { cellWidth: 20, halign: 'right' },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY;
 
-  autoTable(doc, {
-    startY: y,
-    theme: 'plain',
-    body: totalsData
-  });
-  y = (doc as any).lastAutoTable.finalY + 1;
-  doc.line(15, y, 195, y); // Separator line
-  y += 5;
+    // --- TOTALS & SIGNATURE ---
+     autoTable(doc, {
+        startY: y,
+        theme: 'plain',
+        styles: { fontSize: 8, cellPadding: 1, fontStyle: 'bold' },
+        body: [
+            [
+                { content: 'Total Vencimentos:', styles: { halign: 'left' } },
+                { content: formatCurrency(payroll.totals.totalProventos), styles: { halign: 'right' } },
+                { content: 'Total Descontos:', styles: { halign: 'left' } },
+                { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right' } },
+                { content: '' },
+            ],
+            [
+                { content: 'VALOR LÍQUIDO:', styles: { halign: 'left' } },
+                { content: formatCurrency(payroll.totals.liquido), styles: { halign: 'right' } },
+                { content: '' },
+                { content: 'Assinatura:', styles: { halign: 'left' } },
+                { content: '' },
+            ],
+        ],
+        columnStyles: {
+            0: { cellWidth: 30 },
+            1: { cellWidth: 40 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 'auto' },
+        }
+    });
+    return (doc as any).lastAutoTable.finalY;
+  };
 
-  // --- NET PAY ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Líquido a Receber:', 150, y, { align: 'right' });
-  doc.text(formatCurrency(payroll.totals.liquido), 195, y, { align: 'right' });
-  y += 15;
+  // Draw first copy
+  drawPayslip(15);
+  
+  // Draw separator
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(10, pageHeight / 2, pageWidth - 10, pageHeight / 2);
+  doc.setLineDashPattern([], 0);
 
-  // --- SIGNATURE LINE ---
-  doc.line(40, y, 100, y);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Assinatura do Funcionário', 70, y + 4, { align: 'center' });
-
-
-  // --- FOOTER ---
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.text(`Página ${i} de ${pageCount}`, 195, pageHeight - 10, { align: 'right' });
-  }
-
+  // Draw second copy
+  drawPayslip(pageHeight / 2 + 10);
+  
   // Open the PDF in a new tab
   doc.output('dataurlnewwindow');
 }
