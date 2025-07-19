@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -74,6 +73,7 @@ export default function FiscalPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
+  const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
   const xmlItemsPerPage = 5;
@@ -153,14 +153,14 @@ export default function FiscalPage() {
             const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
             let type: XmlFile['type'] = 'desconhecido';
-            
+
             const findCnpj = (potentialParents: string[], cnpjTagName: string) => {
                 for (const parentTag of potentialParents) {
                     const parentNode = xmlDoc.getElementsByTagName(parentTag)[0];
                     if (parentNode) {
-                        const cnpjNode = parentNode.getElementsByTagName(cnpjTagName)[0];
-                        if (cnpjNode && cnpjNode.textContent) {
-                            return cnpjNode.textContent.replace(/\D/g, '');
+                        const cnpjNodes = parentNode.getElementsByTagName(cnpjTagName);
+                        if (cnpjNodes.length > 0 && cnpjNodes[0].textContent) {
+                            return cnpjNodes[0].textContent.replace(/\D/g, '');
                         }
                     }
                 }
@@ -179,9 +179,9 @@ export default function FiscalPage() {
                 }
             }
             // NFS-e (Serviço) - Prestado ou Tomado
-            else if (xmlDoc.getElementsByTagName('NFSe').length > 0 || xmlDoc.getElementsByTagName('CompNfse').length > 0) {
-                 const prestadorCnpj = findCnpj(['prest', 'PrestadorServico', 'emit'], 'CNPJ');
-                 const tomadorCnpj = findCnpj(['toma', 'TomadorServico', 'dest'], 'CNPJ');
+            else if (xmlDoc.getElementsByTagName('NFSe').length > 0) {
+                 const prestadorCnpj = findCnpj(['emit', 'prest', 'PrestadorServico'], 'CNPJ');
+                 const tomadorCnpj = findCnpj(['dest', 'toma', 'TomadorServico'], 'CNPJ');
 
                  if (prestadorCnpj === normalizedActiveCnpj) {
                   type = 'servico'; // Prestação de serviço (entrada de receita)
@@ -238,13 +238,23 @@ export default function FiscalPage() {
     const fileObject = new File([file.content], file.file.name, { type: file.file.type });
     setSelectedXml({ ...file, file: fileObject });
     setEditingLaunch(null);
+    setManualLaunchType(null);
     setIsModalOpen(true);
   };
   
+  const handleManualLaunch = (type: 'saida' | 'entrada' | 'servico') => {
+    setModalMode('create');
+    setSelectedXml(null);
+    setEditingLaunch(null);
+    setManualLaunchType(type);
+    setIsModalOpen(true);
+  };
+
   const handleViewLaunch = (launch: Launch) => {
     setModalMode('view');
     setEditingLaunch(launch);
     setSelectedXml(null);
+    setManualLaunchType(null);
     setIsModalOpen(true);
   };
 
@@ -252,6 +262,7 @@ export default function FiscalPage() {
     setModalMode('edit');
     setEditingLaunch(launch);
     setSelectedXml(null);
+    setManualLaunchType(null);
     setIsModalOpen(true);
   };
 
@@ -294,10 +305,13 @@ export default function FiscalPage() {
     setIsModalOpen(false);
     setSelectedXml(null);
     setEditingLaunch(null);
+    setManualLaunchType(null);
   }
 
   const handleLaunchSuccess = (fileName: string) => {
-     setXmlFiles(files => files.map(f => f.file.name === fileName ? { ...f, status: 'launched' } : f));
+     if (fileName) {
+        setXmlFiles(files => files.map(f => f.file.name === fileName ? { ...f, status: 'launched' } : f));
+     }
      handleModalClose();
   }
 
@@ -326,9 +340,9 @@ export default function FiscalPage() {
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button variant="secondary"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button variant="outline"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => handleManualLaunch('saida')}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => handleManualLaunch('entrada')} variant="secondary"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => handleManualLaunch('servico')} variant="outline"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button variant="outline" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -508,6 +522,7 @@ export default function FiscalPage() {
             onClose={handleModalClose}
             xmlFile={selectedXml}
             launch={editingLaunch}
+            manualLaunchType={manualLaunchType}
             mode={modalMode}
             userId={user.uid}
             companyId={activeCompanyId}

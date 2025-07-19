@@ -27,6 +27,7 @@ interface LaunchFormModalProps {
   onClose: () => void;
   xmlFile: XmlFile | null;
   launch: Launch | null;
+  manualLaunchType: 'entrada' | 'saida' | 'servico' | null;
   mode: 'create' | 'edit' | 'view';
   userId: string;
   companyId: string;
@@ -36,7 +37,7 @@ interface LaunchFormModalProps {
 const launchSchema = z.object({
   fileName: z.string(),
   type: z.string(),
-  value: z.number(),
+  value: z.number().min(0.01, "O valor deve ser maior que zero."),
   date: z.date(),
   chaveNfe: z.string().optional().nullable(),
   numeroNfse: z.string().optional().nullable(),
@@ -70,7 +71,7 @@ function parseXml(xmlString: string) {
     return data;
 }
 
-export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId, companyId, onLaunchSuccess }: LaunchFormModalProps) {
+export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunchType, mode, userId, companyId, onLaunchSuccess }: LaunchFormModalProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Partial<z.infer<typeof launchSchema>>>({});
   const { toast } = useToast();
@@ -99,8 +100,18 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
   useEffect(() => {
     let initialData: Partial<z.infer<typeof launchSchema>> = {};
     if (isOpen) {
-      if (mode === 'create' && xmlFile) {
-        initialData = parseXml(xmlFile.content);
+      if (mode === 'create') {
+        if (xmlFile) {
+          initialData = parseXml(xmlFile.content);
+          initialData.type = xmlFile.type;
+        } else if (manualLaunchType) {
+          initialData = {
+            type: manualLaunchType,
+            date: new Date(),
+            value: 0,
+            fileName: 'Lançamento Manual'
+          };
+        }
       } else if ((mode === 'edit' || mode === 'view') && launch) {
         initialData = {
           fileName: launch.fileName,
@@ -113,7 +124,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
       }
       setFormData(initialData);
     }
-  }, [isOpen, xmlFile, launch, mode]);
+  }, [isOpen, xmlFile, launch, manualLaunchType, mode]);
 
   const handleInputChange = (field: keyof z.infer<typeof launchSchema>, value: string) => {
     setFormData(prev => {
@@ -149,8 +160,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
     setLoading(true);
     try {
         const launchData = {
-            fileName: xmlFile?.file.name || launch?.fileName || 'N/A',
-            type: xmlFile?.type || launch?.type || 'desconhecido',
+            fileName: xmlFile?.file.name || launch?.fileName || 'Lançamento Manual',
+            type: formData.type || 'desconhecido',
             value: formData.value || 0,
             date: formData.date || new Date(),
             chaveNfe: formData.chaveNfe || null,
@@ -164,9 +175,11 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
             await addDoc(launchesRef, launchData);
             toast({
                 title: "Lançamento realizado!",
-                description: `O arquivo ${xmlFile!.file.name} foi lançado com sucesso.`
+                description: launchData.fileName === 'Lançamento Manual' 
+                    ? `Lançamento manual de ${launchData.type} criado.`
+                    : `O arquivo ${launchData.fileName} foi lançado com sucesso.`
             });
-            onLaunchSuccess(xmlFile!.file.name);
+            onLaunchSuccess(launchData.fileName);
         } else if (mode === 'edit' && launch) {
             const launchRef = doc(db, `users/${userId}/companies/${companyId}/launches`, launch.id);
             await updateDoc(launchRef, launchData);
@@ -178,12 +191,21 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
         }
 
     } catch (error) {
-        console.error(error);
-        toast({
-            variant: 'destructive',
-            title: "Erro ao Salvar",
-            description: "Ocorreu um erro ao salvar os dados. Verifique o console para mais detalhes."
-        });
+        if (error instanceof z.ZodError) {
+            const firstError = error.errors[0];
+            toast({
+                variant: 'destructive',
+                title: `Erro de validação: ${firstError.path.join('.')}`,
+                description: firstError.message,
+            });
+        } else {
+            console.error(error);
+            toast({
+                variant: 'destructive',
+                title: "Erro ao Salvar",
+                description: "Ocorreu um erro ao salvar os dados. Verifique o console para mais detalhes."
+            });
+        }
     } finally {
         setLoading(false);
     }
@@ -191,11 +213,33 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
   
   const getTitle = () => {
     switch(mode) {
-        case 'create': return 'Confirmar Lançamento Fiscal';
+        case 'create': 
+            return xmlFile 
+                ? 'Confirmar Lançamento de XML' 
+                : `Novo Lançamento Manual`;
         case 'edit': return 'Alterar Lançamento Fiscal';
         case 'view': return 'Visualizar Lançamento Fiscal';
     }
   }
+
+  const getDescription = () => {
+    if (mode === 'create') {
+        if (xmlFile) {
+            return <>Confirme os dados do arquivo <span className="font-bold">{xmlFile.file.name}</span></>;
+        }
+        if (manualLaunchType) {
+            const typeText = {
+                entrada: "Nota de Entrada",
+                saida: "Nota de Saída",
+                servico: "Nota de Serviço"
+            }[manualLaunchType];
+            return <>Preencha os dados para uma nova <span className="font-bold">{typeText}</span>.</>;
+        }
+    }
+    return <>Visualize ou edite os dados do lançamento fiscal <span className="font-bold">{launch?.fileName}</span>.</>;
+  }
+
+  const isKeyFieldReadOnly = isReadOnly || !!xmlFile;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -203,13 +247,13 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
           <DialogDescription>
-            Confirme os dados do arquivo <span className="font-bold">{xmlFile?.file.name || launch?.fileName}</span>.
+            {getDescription()}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="type" className="text-right">Tipo</Label>
-            <Input id="type" value={(xmlFile?.type || launch?.type || '').charAt(0).toUpperCase() + (xmlFile?.type || launch?.type || '').slice(1)} readOnly className="col-span-3" />
+            <Input id="type" value={(formData.type || '').charAt(0).toUpperCase() + (formData.type || '').slice(1)} readOnly className="col-span-3 bg-muted" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="key" className="text-right">Chave/Número</Label>
@@ -217,8 +261,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
                 id="key" 
                 value={getInputValue(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse')}
                 onChange={(e) => handleInputChange(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse', e.target.value)} 
-                readOnly={isReadOnly} 
-                className="col-span-3" />
+                readOnly={isKeyFieldReadOnly} 
+                className={`col-span-3 ${isKeyFieldReadOnly ? 'bg-muted' : ''}`}
+                placeholder={manualLaunchType === 'servico' ? 'Número da NFS-e' : 'Chave da NF-e'}
+            />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="date" className="text-right">Data</Label>
@@ -227,7 +273,9 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
                 value={getInputValue('date')} 
                 onChange={(e) => handleInputChange('date', e.target.value)}
                 readOnly={isReadOnly} 
-                className="col-span-3" />
+                className={`col-span-3 ${isReadOnly ? 'bg-muted' : ''}`}
+                placeholder="dd/mm/aaaa"
+            />
           </div>
            <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="value" className="text-right">Valor</Label>
@@ -236,7 +284,9 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, mode, userId
                 value={getInputValue('value')} 
                 onChange={(e) => handleInputChange('value', e.target.value)}
                 readOnly={isReadOnly} 
-                className="col-span-3" />
+                className={`col-span-3 ${isReadOnly ? 'bg-muted' : ''}`}
+                placeholder="R$ 0,00"
+            />
           </div>
         </div>
         <DialogFooter>
