@@ -14,7 +14,12 @@ import { useAuth } from "@/lib/auth";
 import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
 
 interface XmlFile {
-  file: File;
+  file: {
+    name: string;
+    type: string;
+    size: number;
+    lastModified: number;
+  };
   content: string;
   status: 'pending' | 'launched' | 'error';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido';
@@ -30,6 +35,31 @@ interface Launch {
     chaveNfe?: string;
     numeroNfse?: string;
 }
+
+// Helper to safely stringify with support for File objects
+function replacer(key: string, value: any) {
+  if (value instanceof File) {
+    return {
+      _type: 'File',
+      name: value.name,
+      size: value.size,
+      type: value.type,
+      lastModified: value.lastModified,
+    };
+  }
+  return value;
+}
+
+// Helper to safely parse with support for File objects
+function reviver(key: string, value: any) {
+  if (value && value._type === 'File') {
+    // We can't recreate the file content, but we can recreate the object structure
+    // This is sufficient for display and state management purposes
+    return new File([], value.name, { type: value.type, lastModified: value.lastModified });
+  }
+  return value;
+}
+
 
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
@@ -53,9 +83,20 @@ export default function FiscalPage() {
             if (companyData) {
                 setActiveCompanyCnpj(JSON.parse(companyData).cnpj);
             }
+            const storedFiles = sessionStorage.getItem(`xmlFiles_${companyId}`);
+            if (storedFiles) {
+                setXmlFiles(JSON.parse(storedFiles, reviver));
+            }
         }
     }
   }, [user]);
+
+  useEffect(() => {
+    if (activeCompanyId) {
+        sessionStorage.setItem(`xmlFiles_${activeCompanyId}`, JSON.stringify(xmlFiles, replacer));
+    }
+  }, [xmlFiles, activeCompanyId]);
+
 
   useEffect(() => {
     if (!activeCompanyId) {
@@ -94,7 +135,7 @@ export default function FiscalPage() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFiles = await Promise.all(Array.from(event.target.files)
+      const newFilesPromises = Array.from(event.target.files)
         .filter(file => file.type === 'text/xml' || file.name.endsWith('.xml'))
         .map(async (file) => {
             const fileContent = await file.text();
@@ -104,34 +145,50 @@ export default function FiscalPage() {
             let type: XmlFile['type'] = 'desconhecido';
             const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
-            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            const nfse = xmlDoc.getElementsByTagName('NFSe')[0];
+            const findCnpj = (xml: Document, parents: string[], child: string) => {
+              for (const parentTag of parents) {
+                const parentNode = xml.getElementsByTagName(parentTag)[0];
+                if (parentNode) {
+                  const cnpjNode = parentNode.getElementsByTagName(child)[0];
+                  if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
+                }
+              }
+              return null;
+            }
 
+            // NF-e
+            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
             if (nfeProc) {
-                const emitNode = nfeProc.getElementsByTagName('emit')[0];
-                const destNode = nfeProc.getElementsByTagName('dest')[0];
-                const emitCnpj = emitNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
-                const destCnpj = destNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
-                
+                const emitCnpj = findCnpj(xmlDoc, ['emit'], 'CNPJ');
+                const destCnpj = findCnpj(xmlDoc, ['dest'], 'CNPJ');
+
                 if (emitCnpj === normalizedActiveCnpj) {
                     type = 'saida';
                 } else if (destCnpj === normalizedActiveCnpj) {
                     type = 'entrada';
                 }
-            } else if (nfse) {
-                const prestNode = nfse.getElementsByTagName('prest')[0];
-                const tomaNode = nfse.getElementsByTagName('toma')[0];
+            } else { // Check for NFS-e variants
+                const nfseNode = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
+                if (nfseNode) {
+                    const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico', 'emit'], 'CNPJ');
+                    const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico', 'dest'], 'CNPJ');
 
-                const emitCnpj = prestNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
-                const destCnpj = tomaNode?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
-                
-                 if (emitCnpj === normalizedActiveCnpj || destCnpj === normalizedActiveCnpj) {
-                    type = 'servico';
+                    if (prestadorCnpj === normalizedActiveCnpj) {
+                      type = 'servico'; // Assuming service provided is income
+                    } else if (tomadorCnpj === normalizedActiveCnpj) {
+                      type = 'servico'; // Assuming service taken is an expense, but classified as 'servico'
+                    }
                 }
             }
             
             if (type !== 'desconhecido') {
-              return { file, content: fileContent, status: 'pending', type } as XmlFile;
+              const fileData = {
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  lastModified: file.lastModified,
+              };
+              return { file: fileData, content: fileContent, status: 'pending', type } as XmlFile;
             } else {
               toast({
                 variant: "destructive",
@@ -140,10 +197,18 @@ export default function FiscalPage() {
               })
               return null;
             }
-        }));
+        });
       
-      const validFiles = newFiles.filter(Boolean) as XmlFile[];
-      setXmlFiles(prevFiles => [...prevFiles, ...validFiles]);
+      const newFiles = (await Promise.all(newFilesPromises)).filter(Boolean) as XmlFile[];
+      setXmlFiles(prevFiles => {
+        const existingFileNames = new Set(prevFiles.map(f => f.file.name));
+        const uniqueNewFiles = newFiles.filter(f => !existingFileNames.has(f.file.name));
+        return [...prevFiles, ...uniqueNewFiles];
+      });
+      // Clear file input to allow re-uploading the same file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -160,7 +225,8 @@ export default function FiscalPage() {
   };
   
   const handleLaunch = (file: XmlFile) => {
-    setSelectedXml(file);
+    const fileObject = new File([file.content], file.file.name, { type: file.file.type });
+    setSelectedXml({ ...file, file: fileObject });
     setIsModalOpen(true);
   };
 
@@ -295,18 +361,16 @@ export default function FiscalPage() {
             )}
         </CardContent>
       </Card>
-      {selectedXml && (
+      {selectedXml && user && activeCompanyId && (
         <LaunchFormModal 
             isOpen={isModalOpen}
             onClose={handleModalClose}
-            xmlFile={selectedXml}
-            userId={user!.uid}
-            companyId={activeCompanyId!}
+            xmlFile={{ ...selectedXml, file: new File([selectedXml.content], selectedXml.file.name, {type: selectedXml.file.type}) }}
+            userId={user.uid}
+            companyId={activeCompanyId}
             onLaunchSuccess={handleLaunchSuccess}
         />
       )}
     </div>
   );
 }
-
-    
