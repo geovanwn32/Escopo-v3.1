@@ -95,6 +95,15 @@ export default function PessoalPage() {
     }
   }
 
+  const getStatusLabel = (status: Payroll['status']): string => {
+    switch(status) {
+        case 'draft': return 'Rascunho';
+        case 'calculated': return 'Calculado';
+        case 'finalized': return 'Finalizado';
+        default: return status;
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -170,7 +179,7 @@ export default function PessoalPage() {
                             'bg-green-600 hover:bg-green-600/90 text-white': payroll.status === 'calculated',
                         })}
                       >
-                         {payroll.status === 'draft' ? 'Rascunho' : payroll.status}
+                         {getStatusLabel(payroll.status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">
