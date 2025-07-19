@@ -8,16 +8,6 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    databaseURL: `https://${process.env.GCLOUD_PROJECT}.firebaseio.com`
-  });
-}
-const db = admin.firestore();
-
-
 export const CreateAccountingEntriesInputSchema = z.object({
   userId: z.string().describe('The ID of the user.'),
   companyId: z.string().describe('The ID of the company.'),
@@ -101,6 +91,15 @@ const createAccountingEntriesFlow = ai.defineFlow(
   },
   async (input) => {
     try {
+        // Initialize Firebase Admin SDK if not already initialized
+        if (!admin.apps.length) {
+          admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            databaseURL: `https://${process.env.GCLOUD_PROJECT}.firebaseio.com`
+          });
+        }
+        const db = admin.firestore();
+
         const { userId, companyId, year, month } = input;
         
         const startDate = new Date(year, month - 1, 1);
