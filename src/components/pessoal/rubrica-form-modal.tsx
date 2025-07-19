@@ -35,20 +35,22 @@ const rubricaSchema = z.object({
   incideIRRF: z.boolean().default(false),
 });
 
+const defaultRubricaValues: z.infer<typeof rubricaSchema> = {
+    codigo: '',
+    descricao: '',
+    tipo: 'provento',
+    naturezaESocial: '',
+    incideINSS: false,
+    incideFGTS: false,
+    incideIRRF: false,
+};
+
 export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }: RubricaFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const form = useForm<z.infer<typeof rubricaSchema>>({
     resolver: zodResolver(rubricaSchema),
-    defaultValues: {
-        codigo: '',
-        descricao: '',
-        tipo: 'provento',
-        naturezaESocial: '',
-        incideINSS: false,
-        incideFGTS: false,
-        incideIRRF: false,
-    }
+    defaultValues: defaultRubricaValues,
   });
 
   const mode = rubrica ? 'edit' : 'create';
@@ -56,17 +58,12 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
   useEffect(() => {
     if (isOpen) {
         if (rubrica) {
-            form.reset(rubrica);
-        } else {
             form.reset({
-                codigo: '',
-                descricao: '',
-                tipo: 'provento',
-                naturezaESocial: '',
-                incideINSS: false,
-                incideFGTS: false,
-                incideIRRF: false,
+                ...defaultRubricaValues,
+                ...rubrica,
             });
+        } else {
+            form.reset(defaultRubricaValues);
         }
     }
   }, [isOpen, rubrica, form]);
