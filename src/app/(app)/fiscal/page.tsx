@@ -153,41 +153,41 @@ export default function FiscalPage() {
             const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
             let type: XmlFile['type'] = 'desconhecido';
-
-            const findCnpj = (potentialParents: string[], cnpjTagName: string) => {
-              for (const parentTag of potentialParents) {
-                  const parentNode = xmlDoc.getElementsByTagName(parentTag)[0];
-                  if (parentNode) {
-                      const cnpjNode = parentNode.getElementsByTagName(cnpjTagName)[0];
-                      if (cnpjNode && cnpjNode.textContent) {
-                          return cnpjNode.textContent.replace(/\D/g, '');
-                      }
-                  }
-              }
-              return null;
-            };
             
-            // NF-e (Produto) - tem prioridade
+            const findCnpj = (potentialParents: string[], cnpjTagName: string) => {
+                for (const parentTag of potentialParents) {
+                    const parentNode = xmlDoc.getElementsByTagName(parentTag)[0];
+                    if (parentNode) {
+                        const cnpjNode = parentNode.getElementsByTagName(cnpjTagName)[0];
+                        if (cnpjNode && cnpjNode.textContent) {
+                            return cnpjNode.textContent.replace(/\D/g, '');
+                        }
+                    }
+                }
+                return null;
+            };
+
+            // NF-e (Produto) - Venda ou Compra
             if (xmlDoc.getElementsByTagName('nfeProc').length > 0) {
                 const emitCnpj = findCnpj(['emit'], 'CNPJ');
                 const destCnpj = findCnpj(['dest'], 'CNPJ');
 
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida'; // Venda de produto
+                    type = 'saida'; // Venda de produto (saída de estoque, entrada de receita)
                 } else if (destCnpj === normalizedActiveCnpj) {
-                    type = 'entrada'; // Compra de produto
+                    type = 'entrada'; // Compra de produto (entrada de estoque, saída de caixa)
                 }
-            } 
-            // NFS-e (Serviço)
+            }
+            // NFS-e (Serviço) - Prestado ou Tomado
             else if (xmlDoc.getElementsByTagName('NFSe').length > 0 || xmlDoc.getElementsByTagName('CompNfse').length > 0) {
                  const prestadorCnpj = findCnpj(['prest', 'PrestadorServico', 'emit'], 'CNPJ');
                  const tomadorCnpj = findCnpj(['toma', 'TomadorServico', 'dest'], 'CNPJ');
 
-                if (prestadorCnpj === normalizedActiveCnpj) {
+                 if (prestadorCnpj === normalizedActiveCnpj) {
                   type = 'servico'; // Prestação de serviço (entrada de receita)
-                } else if (tomadorCnpj === normalizedActiveCnpj) {
-                  type = 'saida'; // Tomada de serviço (despesa)
-                }
+                 } else if (tomadorCnpj === normalizedActiveCnpj) {
+                  type = 'saida'; // Tomada de serviço (despesa, saída de caixa)
+                 }
             }
             
             if (type !== 'desconhecido') {
@@ -281,6 +281,14 @@ export default function FiscalPage() {
     }
   };
 
+  const handleDeleteXmlFile = (fileName: string) => {
+    setXmlFiles(files => files.filter(f => f.file.name !== fileName));
+    toast({
+        title: "Arquivo XML removido",
+        description: `O arquivo ${fileName} foi removido da lista.`
+    });
+  };
+
 
   const handleModalClose = () => {
     setIsModalOpen(false);
@@ -340,7 +348,7 @@ export default function FiscalPage() {
                   <TableHead>Nome do Arquivo</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,11 +367,30 @@ export default function FiscalPage() {
                         <Badge variant="default" className="bg-green-600">Lançado</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status === 'launched' || xmlFile.type === 'desconhecido'}>
-                        {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
-                        {xmlFile.status === 'pending' ? 'Lançar' : 'Lançado'}
-                      </Button>
+                    <TableCell className="text-right space-x-2">
+                        <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status === 'launched' || xmlFile.type === 'desconhecido'}>
+                            {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+                            {xmlFile.status === 'pending' ? 'Lançar' : 'Lançado'}
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="icon" title="Excluir arquivo da lista">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. O arquivo XML será removido da lista de importação, mas o lançamento fiscal associado (se houver) não será excluído.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteXmlFile(xmlFile.file.name)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -490,5 +517,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
