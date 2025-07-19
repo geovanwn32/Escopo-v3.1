@@ -79,7 +79,7 @@ const fieldMappings = {
     'numeroNfse': ['Numero', 'nNFSe'],
     'date': ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi'],
     'chaveNfe': ['Id'],
-    'discriminacao': ['Discriminacao', 'discriminacao', 'xDescricao'],
+    'discriminacao': ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl'],
     'itemLc116': ['ItemListaServico', 'cServico'],
     'valorServicos': ['ValorServicos', 'vServ'],
     'valorPis': ['ValorPis', 'vPIS'],
@@ -87,7 +87,7 @@ const fieldMappings = {
     'valorIr': ['ValorIr', 'vIR'],
     'valorInss': ['ValorInss', 'vINSS'],
     'valorCsll': ['ValorCsll', 'vCSLL'],
-    'valorLiquido': ['ValorLiquidoNfse', 'vLiq'],
+    'valorLiquido': ['ValorLiquidoNfse', 'vLiq', 'vNF'],
     'valorProdutos': ['vProd'],
     'valorTotalNota': ['vNF'],
 };
@@ -111,9 +111,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
         // Determine context (emitente, destinatario, etc.)
         if (['emit', 'Emitente', 'PrestadorServico', 'prest'].includes(nodeName)) {
-            contextKey = (type === 'servico') ? 'prestador' : 'emitente';
+            contextKey = (type === 'servico' || type === 'saida') ? 'prestador' : 'emitente';
         } else if (['dest', 'Destinatario', 'TomadorServico', 'toma'].includes(nodeName)) {
-             contextKey = (type === 'servico') ? 'tomador' : 'destinatario';
+             contextKey = (type === 'servico' || type === 'saida') ? 'tomador' : 'destinatario';
         } else if (['ICMSTot', 'Valores', 'ValoresNfse', 'Valor'].includes(nodeName)){
             contextKey = 'valores';
         }
@@ -125,7 +125,18 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                 
                 // Adjust for context
                 if (['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey) && contextKey && contextKey !== primaryKey) {
-                   continue;
+                   if (type === 'servico' && primaryKey === 'emitente' && contextKey === 'prestador') {
+                     // allow emitente/prestador as synonyms for servico
+                   } else if (type === 'servico' && primaryKey === 'destinatario' && contextKey === 'tomador') {
+                    // allow tomador/destinatario as synonyms for servico
+                   } else if ((type === 'entrada' || type === 'saida') && primaryKey === 'prestador' && contextKey === 'emitente') {
+                     // allow prestador/emitente for nfe
+                   } else if ((type === 'entrada' || type === 'saida') && primaryKey === 'tomador' && contextKey === 'destinatario') {
+                     // allow tomador/destinatario for nfe
+                   }
+                   else {
+                       continue;
+                   }
                 }
                 
                 const value = node.textContent?.trim() || '';
@@ -140,10 +151,20 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                         data.date = new Date(value);
                     } else if (primaryKey === 'chaveNfe') {
                         data.chaveNfe = value.replace(/\D/g, '');
-                    } else if (typeof (launchSchema.shape as any)[primaryKey]?.parse(0) === 'number') {
-                        (data as any)[primaryKey] = parseFloat(value) || 0;
                     } else {
-                        (data as any)[primaryKey] = value;
+                        const schemaForField = (launchSchema.shape as any)[primaryKey];
+                        if (schemaForField instanceof z.ZodOptional || schemaForField instanceof z.ZodNullable) {
+                            if (schemaForField._def.innerType instanceof z.ZodNumber) {
+                                (data as any)[primaryKey] = parseFloat(value) || 0;
+                            } else {
+                               (data as any)[primaryKey] = value;
+                            }
+                        } else if (schemaForField instanceof z.ZodNumber) {
+                            (data as any)[primaryKey] = parseFloat(value) || 0;
+                        }
+                        else {
+                            (data as any)[primaryKey] = value;
+                        }
                     }
                 }
             }
@@ -159,7 +180,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     
     // Fallback for values not in a specific group
     if (!data.valorTotalNota && data.emitente) data.valorTotalNota = (data as any)['vNF'];
-    if (!data.valorLiquido && data.prestador) data.valorLiquido = (data as any)['vLiq'];
+    if (!data.valorLiquido && (data.prestador || type === 'servico')) {
+        data.valorLiquido = (data as any)['vLiq'] || (data as any)['vNF'] || data.valorLiquido;
+    }
 
 
     return data;
@@ -175,7 +198,9 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
   const formatCnpj = (cnpj?: string) => {
     if (!cnpj) return '';
-    return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+    const cleaned = cnpj.replace(/\D/g, '');
+    if (cleaned.length !== 14) return cnpj; // return original if not a full CNPJ
+    return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
   }
 
   const parseCurrency = (value: string): number => {
@@ -185,10 +210,21 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
   const formatDate = (date?: Date): string => {
     if (!date || !isValid(date)) return '';
-    return format(date, 'yyyy-MM-dd');
+    try {
+        return format(date, 'yyyy-MM-dd');
+    } catch {
+        return '';
+    }
   };
   
   const parseDate = (dateStr: string): Date | null => {
+    // Handle yyyy-MM-dd from input type="date"
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if(year && month && day){
+        const date = new Date(year, month - 1, day);
+         if (isValid(date)) return date;
+    }
+    // Fallback for other formats
     const parsed = new Date(dateStr);
     return isValid(parsed) ? parsed : null;
   };
@@ -262,12 +298,17 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     }
     setLoading(true);
     try {
-        const dataToSave = {
+        const dataToSave: Partial<FormData> = {
           ...formData,
           date: formData.date || new Date(),
           fileName: formData.fileName || 'Lançamento Manual',
           type: formData.type || 'desconhecido',
         };
+
+        if (dataToSave.prestador?.cnpj) dataToSave.prestador.cnpj = dataToSave.prestador.cnpj.replace(/\D/g, '');
+        if (dataToSave.tomador?.cnpj) dataToSave.tomador.cnpj = dataToSave.tomador.cnpj.replace(/\D/g, '');
+        if (dataToSave.emitente?.cnpj) dataToSave.emitente.cnpj = dataToSave.emitente.cnpj.replace(/\D/g, '');
+        if (dataToSave.destinatario?.cnpj) dataToSave.destinatario.cnpj = dataToSave.destinatario.cnpj.replace(/\D/g, '');
 
         // Convert undefined to null before saving
         Object.keys(dataToSave).forEach(key => {
@@ -296,7 +337,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     ? `Lançamento manual de ${dataToSave.type} criado.`
                     : `O arquivo ${dataToSave.fileName} foi lançado com sucesso.`
             });
-            onLaunchSuccess(dataToSave.fileName);
+            onLaunchSuccess(dataToSave.fileName as string);
         } else if (mode === 'edit' && launch) {
             const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, launch.id);
             await updateDoc(launchRef, dataToSave);
@@ -309,6 +350,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
     } catch (error) {
         if (error instanceof z.ZodError) {
+            console.error("Zod Error:", error.errors);
             const firstError = error.errors[0];
             toast({
                 variant: 'destructive',
