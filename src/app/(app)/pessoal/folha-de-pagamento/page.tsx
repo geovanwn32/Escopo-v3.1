@@ -58,10 +58,9 @@ export interface PayrollTotals {
     liquido: number;
 }
 
-export default function FolhaDePagamentoPage() {
-    const searchParams = useSearchParams();
+export default function FolhaDePagamentoPage({ searchParams }: { searchParams: { [key: string]: string | string[] | undefined }}) {
     const router = useRouter();
-    const payrollId = searchParams.get('id');
+    const payrollId = typeof searchParams.id === 'string' ? searchParams.id : null;
 
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
@@ -122,7 +121,7 @@ export default function FolhaDePagamentoPage() {
                     setPeriod(payrollData.period);
                     setEvents(payrollData.events);
                     setStatus(payrollData.status);
-                    setCurrentPayrollId(payrollData.id!);
+                    setCurrentPayrollId(payrollSnap.id);
 
                 } else {
                     toast({ variant: 'destructive', title: 'Folha de pagamento não encontrada.' });
@@ -299,14 +298,16 @@ export default function FolhaDePagamentoPage() {
                 // Update existing payroll
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
                 await setDoc(payrollRef, payrollData, { merge: true });
+                setStatus(finalStatus);
                 toast({ title: `Folha de pagamento atualizada como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
             } else {
                 // Create new payroll
                 const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
+                setStatus(finalStatus);
                 toast({ title: `Folha de pagamento salva como ${finalStatus === 'draft' ? 'Rascunho' : 'Calculado'}!` });
-                router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`);
+                router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`, { scroll: false });
             }
         } catch (error) {
             console.error("Error saving payroll:", error);
