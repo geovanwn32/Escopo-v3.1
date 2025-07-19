@@ -106,8 +106,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         const result = calculatePayroll(employee, currentEvents);
         setCalculationResult(result);
             
-        // Filter out old calculated events to avoid duplicates
-        const updatedEvents = [...currentEvents.filter(e => !['inss', 'irrf', 'fgts'].includes(e.rubrica.id!))];
+        let updatedEvents = [...currentEvents];
 
         const addOrUpdateEvent = (newEvent: PayrollEvent) => {
             const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
@@ -137,6 +136,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                 desconto: result.irrf.valor,
             });
         }
+        
         setEvents(updatedEvents);
         return result;
     }, []);
@@ -171,7 +171,6 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                     }
                     
                     setPeriod(payrollData.period);
-                    setEvents(payrollData.events);
                     setStatus(payrollData.status);
                     setCurrentPayrollId(payrollSnap.id);
                     if (employeeData) {
@@ -198,9 +197,24 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const numericValue = parseFloat(value.replace(',', '.')) || 0;
         
-        const updatedEvents = events.map(event =>
+        let updatedEvents = events.map(event =>
             event.id === eventId ? { ...event, [field]: numericValue } : event
         );
+
+        const currentEvent = updatedEvents.find(e => e.id === eventId);
+
+        if (selectedEmployee && currentEvent && field === 'referencia') {
+            // --- Auto-calculation logic ---
+            if (currentEvent.rubrica.descricao.includes('Horas Extras 50%')) {
+                const hourlyRate = selectedEmployee.salarioBase / 220;
+                const overtimePay = hourlyRate * 1.5 * numericValue;
+                updatedEvents = updatedEvents.map(event =>
+                    event.id === eventId ? { ...event, provento: parseFloat(overtimePay.toFixed(2)) } : event
+                );
+            }
+             // Add more auto-calculation rules here for other rubricas if needed
+            // else if (currentEvent.rubrica.codigo === '...') { ... }
+        }
         
         recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
@@ -333,7 +347,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             if (currentPayrollId) {
                 // Update existing payroll
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
-                await setDoc(payrollRef, payrollData, { merge: true });
+                await setDoc(payrollRef, { ...payrollData, updatedAt: serverTimestamp() }, { merge: true });
                 if (!isCalculation) {
                     toast({ title: `Folha de pagamento atualizada como Rascunho!` });
                 }
@@ -398,8 +412,15 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
 
     const isFieldEditable = (event: PayrollEvent, field: 'referencia' | 'provento'): boolean => {
+      if (['inss', 'irrf'].includes(event.id)) return false;
       if (event.rubrica.tipo === 'desconto') return false; // Descontos não são editáveis diretamente
       if (event.id === 'salario_base' && field === 'provento') return false; // Salário base não é editável diretamente
+      
+      // Bloqueia provento se for calculado automaticamente a partir da referência
+      if (field === 'provento' && event.rubrica.descricao.includes('Horas Extras')) {
+          return false;
+      }
+      
       return true;
     }
 
