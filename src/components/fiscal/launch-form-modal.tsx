@@ -68,19 +68,28 @@ const launchSchema = z.object({
 type FormData = z.infer<typeof launchSchema>;
 
 const fieldMappings = {
+    // NFS-e Parties
     'prestador.nome': ['RazaoSocial', 'xNome', 'Nome'],
     'prestador.cnpj': ['Cnpj', 'CNPJ'],
     'tomador.nome': ['RazaoSocial', 'xNome', 'Nome'],
     'tomador.cnpj': ['Cnpj', 'CNPJ'],
+
+    // NF-e Parties
     'emitente.nome': ['xNome', 'RazaoSocial'],
     'emitente.cnpj': ['CNPJ'],
     'destinatario.nome': ['xNome', 'RazaoSocial'],
     'destinatario.cnpj': ['CNPJ'],
+
+    // General Info
     'numeroNfse': ['Numero', 'nNFSe'],
     'date': ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi'],
     'chaveNfe': ['Id'],
+
+    // Service Details
     'discriminacao': ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl'],
     'itemLc116': ['ItemListaServico', 'cServico'],
+
+    // Values
     'valorServicos': ['ValorServicos', 'vServ'],
     'valorPis': ['ValorPis', 'vPIS'],
     'valorCofins': ['ValorCofins', 'vCOFINS'],
@@ -104,17 +113,21 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     const data: Partial<FormData> = {};
 
-    function processNode(node: Element, parentContext: string = '') {
+    function processNode(node: Element) {
         const nodeName = node.tagName.split(':').pop() || node.tagName;
 
-        let currentContext = parentContext;
+        let currentContext = '';
+        const parentName = node.parentElement?.tagName.split(':').pop() || node.parentElement?.tagName;
 
-        if (['emit', 'Emitente', 'PrestadorServico', 'prest'].includes(nodeName)) {
-            currentContext = (type === 'servico' || type === 'saida') ? 'prestador' : 'emitente';
-        } else if (['dest', 'Destinatario', 'TomadorServico', 'toma'].includes(nodeName)) {
-             currentContext = (type === 'servico' || type === 'saida') ? 'tomador' : 'destinatario';
-        } else if (['ICMSTot', 'Valores', 'ValoresNfse', 'Valor'].includes(nodeName)){
-            currentContext = 'valores';
+        // Determine context based on parent node
+        if (['emit', 'Emitente'].includes(parentName || '')) {
+            currentContext = type === 'servico' ? '' : 'emitente';
+        } else if (['dest', 'Destinatario'].includes(parentName || '')) {
+            currentContext = type === 'servico' ? '' : 'destinatario';
+        } else if (['PrestadorServico', 'prest'].includes(parentName || '')) {
+            currentContext = type === 'servico' ? 'prestador' : '';
+        } else if (['TomadorServico', 'toma'].includes(parentName || '')) {
+            currentContext = type === 'servico' ? 'tomador' : '';
         }
 
         for (const [field, tags] of Object.entries(fieldMappings)) {
@@ -122,11 +135,13 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                 let [primaryKey, secondaryKey] = field.split('.');
                 
                 let effectivePrimaryKey = primaryKey;
-                if (['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey)) {
-                   if (currentContext) {
-                        // Use the current context if it's one of the party types
-                        effectivePrimaryKey = currentContext;
-                   }
+                if (currentContext && primaryKey === currentContext) {
+                    // This is a direct match, like <RazaoSocial> inside <PrestadorServico>
+                } else if (!['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey)) {
+                    // This is a non-party field, like 'date' or 'valorServicos'
+                } else {
+                    // This tag is a party member, but not in the right context. Skip it.
+                    continue;
                 }
                 
                 const value = node.textContent?.trim() || '';
@@ -137,7 +152,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                         [secondaryKey]: value,
                     };
                 } else {
-                     if (primaryKey === 'date') {
+                    if (primaryKey === 'date') {
                         data.date = new Date(value);
                     } else if (primaryKey === 'chaveNfe') {
                         data.chaveNfe = value.replace(/\D/g, '');
@@ -154,15 +169,20 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         }
         
         for (const childNode of Array.from(node.children)) {
-            processNode(childNode, currentContext);
+            processNode(childNode);
         }
     }
 
     processNode(xmlDoc.documentElement);
     
-    if (!data.valorTotalNota && data.emitente) data.valorTotalNota = (data as any)['vNF'];
-    if (!data.valorLiquido && (data.prestador || type === 'servico')) {
-        data.valorLiquido = (data as any)['vLiq'] || (data as any)['vNF'] || data.valorLiquido;
+    // Fallback for vNF which can exist in multiple places
+    if (!data.valorTotalNota && data.emitente) {
+        const vNFNode = xmlDoc.querySelector('vNF');
+        if (vNFNode) data.valorTotalNota = parseFloat(vNFNode.textContent || '0');
+    }
+     if (!data.valorLiquido && type === 'servico') {
+        const vLiqNode = xmlDoc.querySelector('ValorLiquidoNfse');
+        if (vLiqNode) data.valorLiquido = parseFloat(vLiqNode.textContent || '0');
     }
 
 
@@ -549,7 +569,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
-          <DialogDescription asChild>
+           <DialogDescription asChild>
             <div>
               <div className="flex items-center gap-2">
                   <span>Tipo:</span>
@@ -560,7 +580,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-          {formData.type === 'servico' || (formData.type === 'saida' && !formData.chaveNfe) ? (
+          {formData.type === 'servico' ? (
             renderNfseFields()
           ) : (
             renderNfeFields()
