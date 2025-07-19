@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,9 +37,10 @@ import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-mo
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
-import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/types/payroll';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export interface PayrollEvent {
     id: string; 
@@ -58,6 +59,7 @@ export interface PayrollTotals {
 export default function FolhaDePagamentoPage() {
     const searchParams = useSearchParams();
     const payrollId = searchParams.get('id');
+    const router = useRouter();
 
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
@@ -87,7 +89,10 @@ export default function FolhaDePagamentoPage() {
 
     useEffect(() => {
         const fetchPayroll = async () => {
-            if (!payrollId || !user || !activeCompany) return;
+            if (!payrollId || !user || !activeCompany) {
+                setIsLoading(false);
+                return;
+            };
 
             setIsLoading(true);
             try {
@@ -116,6 +121,7 @@ export default function FolhaDePagamentoPage() {
 
                 } else {
                     toast({ variant: 'destructive', title: 'Folha de pagamento não encontrada.' });
+                    router.push('/pessoal/folha-de-pagamento');
                 }
             } catch (error) {
                 toast({ variant: 'destructive', title: 'Erro ao carregar folha de pagamento.' });
@@ -128,7 +134,7 @@ export default function FolhaDePagamentoPage() {
         if (payrollId && user && activeCompany) {
             fetchPayroll();
         }
-    }, [payrollId, user, activeCompany, toast]);
+    }, [payrollId, user, activeCompany, toast, router]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const numericValue = parseFloat(value.replace(',', '.')) || 0;
@@ -282,12 +288,24 @@ export default function FolhaDePagamentoPage() {
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
                 toast({ title: 'Folha de pagamento salva como rascunho!' });
+                router.replace(`/pessoal/folha-de-pagamento?id=${docRef.id}`);
             }
         } catch (error) {
             console.error("Error saving payroll:", error);
             toast({ variant: 'destructive', title: 'Erro ao salvar rascunho' });
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!currentPayrollId || !user || !activeCompany) return;
+        try {
+            await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId));
+            toast({ title: 'Rascunho excluído com sucesso!' });
+            router.push('/pessoal');
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro ao excluir rascunho.' });
         }
     };
 
@@ -321,7 +339,23 @@ export default function FolhaDePagamentoPage() {
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
                         Salvar
                     </Button>
-                    <Button variant="destructive" onClick={() => {}} disabled><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="destructive" disabled={!currentPayrollId}><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta ação não pode ser desfeita. O rascunho da folha de pagamento será permanentemente removido.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
                         Calcular
@@ -347,7 +381,8 @@ export default function FolhaDePagamentoPage() {
                                     size="icon"
                                     className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
                                     onClick={() => setIsEmployeeModalOpen(true)}
-                                    disabled={!activeCompany}
+                                    disabled={!activeCompany || !!currentPayrollId}
+                                    title={currentPayrollId ? "Não é possível alterar o funcionário de um rascunho salvo." : "Selecionar funcionário"}
                                 >
                                     <Search className="h-4 w-4 text-muted-foreground" />
                                 </Button>

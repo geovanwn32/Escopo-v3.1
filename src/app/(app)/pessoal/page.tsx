@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -10,10 +10,12 @@ import type { Company } from '@/app/(app)/fiscal/page';
 import type { Payroll } from "@/types/payroll";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -51,7 +53,7 @@ export default function PessoalPage() {
         const payrollsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            createdAt: doc.data().createdAt.toDate(),
+            createdAt: doc.data().createdAt?.toDate(),
         } as Payroll));
         setPayrolls(payrollsData);
         setLoading(false);
@@ -67,6 +69,16 @@ export default function PessoalPage() {
 
     return () => unsubscribe();
   }, [user, activeCompany, toast]);
+
+  const handleDeletePayroll = async (payrollId: string) => {
+      if (!user || !activeCompany) return;
+      try {
+        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, payrollId));
+        toast({ title: 'Rascunho excluído com sucesso!' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao excluir rascunho.' });
+      }
+  };
 
 
   return (
@@ -128,17 +140,13 @@ export default function PessoalPage() {
                   <TableHead>Período</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Líquido</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payrolls.map((payroll) => (
-                  <TableRow key={payroll.id} className="cursor-pointer hover:bg-muted/50">
-                    {/* The Link wrapping the TableCell makes the cell clickable */}
-                    <TableCell>
-                      <Link href={`/pessoal/folha-de-pagamento?id=${payroll.id}`} className="block w-full h-full font-medium">
-                        {payroll.employeeName}
-                      </Link>
-                    </TableCell>
+                  <TableRow key={payroll.id}>
+                    <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
                      <TableCell>
                       <Badge variant={payroll.status === 'draft' ? 'secondary' : 'default'}>
@@ -147,6 +155,44 @@ export default function PessoalPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payroll.totals.liquido)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/pessoal/folha-de-pagamento?id=${payroll.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Acessar
+                                </Link>
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Excluir
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. O rascunho será permanentemente removido.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeletePayroll(payroll.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
