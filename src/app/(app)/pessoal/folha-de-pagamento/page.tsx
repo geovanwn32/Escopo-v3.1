@@ -421,13 +421,20 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
     const isFieldEditable = (event: PayrollEvent, field: 'referencia' | 'provento'): boolean => {
       if (['inss', 'irrf'].includes(event.id)) return false;
-      if (event.id === 'salario_base') return false; // Salário base não é editável diretamente
-      if (field === 'provento') return false; // Proventos e descontos são sempre calculados
-
-      const needsReference = ['horas extras', 'adicional noturno'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
-      if (!needsReference && field === 'referencia') return false;
+      if (event.id === 'salario_base') return false; 
       
-      return true;
+      if (field === 'provento') {
+          // Proventos e descontos são sempre calculados, exceto para eventos manuais sem lógica automática
+          const hasAutomaticCalculation = ['horas extras', 'adicional noturno', 'periculosidade', 'insalubridade', 'salário família', 'vale-transporte'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
+          return !hasAutomaticCalculation;
+      }
+
+      // A referência é editável se for um evento que depende dela, como horas.
+      const needsReference = ['horas extras', 'adicional noturno'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
+      if (needsReference && field === 'referencia') return true;
+
+      // Por padrão, a referência não é editável para a maioria dos outros eventos automáticos.
+      return false;
     }
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
