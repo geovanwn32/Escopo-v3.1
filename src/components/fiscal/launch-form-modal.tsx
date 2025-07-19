@@ -290,43 +290,56 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
         return;
     }
     setLoading(true);
+
+    const getSafeNumber = (value: any): number | null => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number(value);
+        return isNaN(num) ? null : num;
+    };
+
+    const getSafeString = (value: any): string | null => {
+      return (value && typeof value === 'string' && value.trim() !== '') ? value.trim() : null
+    }
+
     try {
-        const cleanedData = { ...formData };
-        if (cleanedData.prestador?.cnpj) cleanedData.prestador.cnpj = cleanedData.prestador.cnpj.replace(/\D/g, '');
-        if (cleanedData.tomador?.cnpj) cleanedData.tomador.cnpj = cleanedData.tomador.cnpj.replace(/\D/g, '');
-        if (cleanedData.emitente?.cnpj) cleanedData.emitente.cnpj = cleanedData.emitente.cnpj.replace(/\D/g, '');
-        if (cleanedData.destinatario?.cnpj) cleanedData.destinatario.cnpj = cleanedData.destinatario.cnpj.replace(/\D/g, '');
-
         const dataToSave = {
-            fileName: 'Lançamento Manual',
-            type: 'desconhecido',
-            date: new Date(),
-            chaveNfe: null,
-            numeroNfse: null,
-            prestador: null,
-            tomador: null,
-            discriminacao: null,
-            itemLc116: null,
-            valorServicos: null,
-            valorPis: null,
-            valorCofins: null,
-            valorIr: null,
-            valorInss: null,
-            valorCsll: null,
-            valorLiquido: null,
-            emitente: null,
-            destinatario: null,
-            valorProdutos: null,
-            valorTotalNota: null,
-            ...cleanedData
-        };
+            fileName: formData.fileName || 'Lançamento Manual',
+            type: formData.type || 'desconhecido',
+            date: formData.date && isValid(formData.date) ? formData.date : new Date(),
 
-        Object.keys(dataToSave).forEach((keyStr) => {
-            const key = keyStr as keyof typeof dataToSave;
-            if (dataToSave[key] === undefined) {
-                (dataToSave as any)[key] = null;
-            }
-        });
+            chaveNfe: getSafeString(formData.chaveNfe),
+            numeroNfse: getSafeString(formData.numeroNfse),
+
+            prestador: {
+              nome: getSafeString(formData.prestador?.nome),
+              cnpj: getSafeString(formData.prestador?.cnpj?.replace(/\D/g, '')),
+            },
+            tomador: {
+              nome: getSafeString(formData.tomador?.nome),
+              cnpj: getSafeString(formData.tomador?.cnpj?.replace(/\D/g, '')),
+            },
+            emitente: {
+              nome: getSafeString(formData.emitente?.nome),
+              cnpj: getSafeString(formData.emitente?.cnpj?.replace(/\D/g, '')),
+            },
+            destinatario: {
+              nome: getSafeString(formData.destinatario?.nome),
+              cnpj: getSafeString(formData.destinatario?.cnpj?.replace(/\D/g, '')),
+            },
+
+            discriminacao: getSafeString(formData.discriminacao),
+            itemLc116: getSafeString(formData.itemLc116),
+
+            valorServicos: getSafeNumber(formData.valorServicos),
+            valorPis: getSafeNumber(formData.valorPis),
+            valorCofins: getSafeNumber(formData.valorCofins),
+            valorIr: getSafeNumber(formData.valorIr),
+            valorInss: getSafeNumber(formData.valorInss),
+            valorCsll: getSafeNumber(formData.valorCsll),
+            valorLiquido: getSafeNumber(formData.valorLiquido),
+            valorProdutos: getSafeNumber(formData.valorProdutos),
+            valorTotalNota: getSafeNumber(formData.valorTotalNota),
+        };
         
         await launchSchema.parseAsync(dataToSave);
 
@@ -356,7 +369,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
             const firstError = error.errors[0];
             toast({
                 variant: 'destructive',
-                title: `Erro de validação: ${firstError.path.join('.')}`,
+                title: `Erro de validação no campo: ${firstError.path.join('.')}`,
                 description: firstError.message,
             });
         } else {
@@ -419,7 +432,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="prestador.cnpj">CNPJ</Label>
-                    <Input id="prestador.cnpj" name="prestador.cnpj" value={formatCnpj(getInputValue('prestador.cnpj'))} readOnly={isReadOnly || !!getInputValue('prestador.cnpj')} />
+                    <Input id="prestador.cnpj" name="prestador.cnpj" value={formatCnpj(getInputValue('prestador.cnpj'))} onChange={handleInputChange} readOnly={isReadOnly || !!getInputValue('prestador.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -432,7 +445,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="tomador.cnpj">CNPJ</Label>
-                    <Input id="tomador.cnpj" name="tomador.cnpj" value={formatCnpj(getInputValue('tomador.cnpj'))} readOnly={isReadOnly || !!getInputValue('tomador.cnpj')} />
+                    <Input id="tomador.cnpj" name="tomador.cnpj" value={formatCnpj(getInputValue('tomador.cnpj'))} onChange={handleInputChange} readOnly={isReadOnly || !!getInputValue('tomador.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -512,7 +525,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="emitente.cnpj">CNPJ</Label>
-                    <Input id="emitente.cnpj" name="emitente.cnpj" value={formatCnpj(getInputValue('emitente.cnpj'))} readOnly={isReadOnly || !!getInputValue('emitente.cnpj')} />
+                    <Input id="emitente.cnpj" name="emitente.cnpj" value={formatCnpj(getInputValue('emitente.cnpj'))} onChange={handleInputChange} readOnly={isReadOnly || !!getInputValue('emitente.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -525,7 +538,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="destinatario.cnpj">CNPJ</Label>
-                    <Input id="destinatario.cnpj" name="destinatario.cnpj" value={formatCnpj(getInputValue('destinatario.cnpj'))} readOnly={isReadOnly || !!getInputValue('destinatario.cnpj')} />
+                    <Input id="destinatario.cnpj" name="destinatario.cnpj" value={formatCnpj(getInputValue('destinatario.cnpj'))} onChange={handleInputChange} readOnly={isReadOnly || !!getInputValue('destinatario.cnpj')} />
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -563,7 +576,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-          {formData.type === 'servico' ? (
+          {formData.type === 'servico' || (formData.type === 'saida' && !formData.chaveNfe) ? (
             renderNfseFields()
           ) : (
             renderNfeFields()
