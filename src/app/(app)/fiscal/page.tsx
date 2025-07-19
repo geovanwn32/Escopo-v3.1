@@ -106,14 +106,17 @@ export default function FiscalPage() {
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  
+  const [xmlFilter, setXmlFilter] = useState("");
   const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
   const xmlItemsPerPage = 5;
-  const [xmlFilter, setXmlFilter] = useState("");
 
   const [filterKey, setFilterKey] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStartDate, setFilterStartDate] = useState<Date | undefined>();
   const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
+  const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
+  const launchesItemsPerPage = 5;
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -384,6 +387,10 @@ endDate.setHours(23,59,59,999);
     });
   }, [launches, filterKey, filterType, filterStartDate, filterEndDate]);
 
+  useEffect(() => {
+    setLaunchesCurrentPage(1);
+  }, [filterKey, filterType, filterStartDate, filterEndDate]);
+
   const clearFilters = () => {
     setFilterKey("");
     setFilterType("");
@@ -418,6 +425,12 @@ endDate.setHours(23,59,59,999);
     xmlCurrentPage * xmlItemsPerPage
   );
 
+  // Launches pagination logic
+  const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
+  const paginatedLaunches = filteredLaunches.slice(
+    (launchesCurrentPage - 1) * launchesItemsPerPage,
+    launchesCurrentPage * launchesItemsPerPage
+  );
 
   return (
     <div className="space-y-6">
@@ -629,13 +642,13 @@ endDate.setHours(23,59,59,999);
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredLaunches.length === 0 ? (
+                        {paginatedLaunches.length === 0 ? (
                              <TableRow>
                                 <TableCell colSpan={6} className="h-24 text-center">
                                     Nenhum resultado encontrado para os filtros aplicados.
                                 </TableCell>
                             </TableRow>
-                        ) : filteredLaunches.map(launch => (
+                        ) : paginatedLaunches.map(launch => (
                             <TableRow key={launch.id}>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
                                 <TableCell>
@@ -696,6 +709,19 @@ endDate.setHours(23,59,59,999);
                 </Table>
             )}
         </CardContent>
+        {totalLaunchPages > 1 && (
+            <CardFooter className="flex justify-end items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p - 1)} disabled={launchesCurrentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">Página {launchesCurrentPage} de {totalLaunchPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p + 1)} disabled={launchesCurrentPage === totalLaunchPages}>
+                    Próximo
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </CardFooter>
+        )}
       </Card>
       {isModalOpen && user && activeCompany && (
         <LaunchFormModal 
@@ -712,11 +738,5 @@ endDate.setHours(23,59,59,999);
       )}
     </div>
   );
-
-    
-
-    
-
-    
 
     
