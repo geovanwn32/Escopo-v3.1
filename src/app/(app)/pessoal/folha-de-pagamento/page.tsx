@@ -195,7 +195,9 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     }, [payrollId, user, activeCompany, toast, router, recalculateAndSetState]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
-        const numericValue = parseFloat(value.replace(',', '.')) || 0;
+        // Remove thousand separators (.), then replace decimal separator (,) with a dot (.)
+        const sanitizedValue = value.replace(/\./g, '').replace(',', '.');
+        const numericValue = parseFloat(sanitizedValue) || 0;
         
         let updatedEvents = events.map(event =>
             event.id === eventId ? { ...event, [field]: numericValue } : event
