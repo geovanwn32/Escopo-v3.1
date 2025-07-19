@@ -27,6 +27,7 @@ import {
   FileText,
   Loader2,
   ArrowLeft,
+  Printer,
 } from "lucide-react";
 import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -43,6 +44,7 @@ import { db } from '@/lib/firebase';
 import type { Payroll } from '@/types/payroll';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
+import { generatePayslipPdf } from '@/services/payslip-service';
 
 export interface PayrollEvent {
     id: string; 
@@ -329,6 +331,23 @@ export default function FolhaDePagamentoPage() {
         }
     };
 
+    const handleGeneratePdf = () => {
+        if (!activeCompany || !selectedEmployee) {
+            toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
+            return;
+        }
+        const payrollData: Payroll = {
+            employeeId: selectedEmployee.id!,
+            employeeName: selectedEmployee.nomeCompleto,
+            period,
+            status,
+            events,
+            totals: { totalProventos, totalDescontos, liquido },
+            updatedAt: new Date(),
+        };
+        generatePayslipPdf(activeCompany, selectedEmployee, payrollData);
+    };
+
     const isEventRemovable = (eventId: string) => {
         return !['salario_base', 'inss', 'irrf'].includes(eventId);
     };
@@ -384,6 +403,10 @@ export default function FolhaDePagamentoPage() {
                     <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
                         Calcular e Salvar
+                    </Button>
+                     <Button variant="secondary" onClick={handleGeneratePdf} disabled={status !== 'calculated' && status !== 'finalized'}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Visualizar Holerite
                     </Button>
                 </div>
             </div>
