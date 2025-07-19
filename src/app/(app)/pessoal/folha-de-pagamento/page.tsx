@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import {
   Trash2,
   Filter,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -33,21 +34,14 @@ import type { Rubrica } from '@/types/rubrica';
 import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
+import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
 
-interface PayrollEvent {
-    id: string; // Use rubrica's id or a unique generated id
-    checked: boolean;
-    isAddition: boolean; // Not clear from UI, default to true
-    date: string;
-    eventCode: string;
-    description: string;
-    cp: 'S' | 'N';
-    fg: 'S' | 'N';
-    ir: 'S' | 'N';
-    reference: string;
-    earning: number;
-    deduction: number;
-    type: 'provento' | 'desconto';
+export interface PayrollEvent {
+    id: string; 
+    rubrica: Rubrica;
+    referencia: number;
+    provento: number;
+    desconto: number;
 }
 
 export default function FolhaDePagamentoPage() {
@@ -56,7 +50,8 @@ export default function FolhaDePagamentoPage() {
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-
+    const [isCalculating, setIsCalculating] = useState(false);
+    
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -72,10 +67,6 @@ export default function FolhaDePagamentoPage() {
         }
     }, [user]);
 
-    const totalEarnings = events.reduce((acc, event) => acc + event.earning, 0);
-    const totalDeductions = events.reduce((acc, event) => acc + event.deduction, 0);
-    const netPay = totalEarnings - totalDeductions;
-
     const handleActionClick = (actionName: string) => {
         toast({
             title: `Ação: ${actionName}`,
@@ -86,18 +77,10 @@ export default function FolhaDePagamentoPage() {
     const handleAddEvent = (rubrica: Rubrica) => {
         const newEvent: PayrollEvent = {
             id: rubrica.id!,
-            checked: false,
-            isAddition: true,
-            date: new Date().toLocaleDateString('pt-BR'), // Or period date
-            eventCode: rubrica.codigo,
-            description: rubrica.descricao,
-            cp: rubrica.incideINSS ? 'S' : 'N',
-            fg: rubrica.incideFGTS ? 'S' : 'N',
-            ir: rubrica.incideIRRF ? 'S' : 'N',
-            reference: '0',
-            earning: rubrica.tipo === 'provento' ? 0 : 0, // Should be calculated
-            deduction: rubrica.tipo === 'desconto' ? 0 : 0, // Should be calculated
-            type: rubrica.tipo,
+            rubrica: rubrica,
+            referencia: 0,
+            provento: 0,
+            desconto: 0,
         };
 
         setEvents(prevEvents => [...prevEvents, newEvent]);
@@ -106,9 +89,100 @@ export default function FolhaDePagamentoPage() {
 
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
-        setEvents([]); // Reset events when changing employee
+        
+        // Auto-add base salary event
+        const baseSalaryEvent: PayrollEvent = {
+            id: 'salario_base',
+            rubrica: {
+                id: 'salario_base',
+                codigo: '100',
+                descricao: 'SALÁRIO BASE',
+                tipo: 'provento',
+                incideINSS: true,
+                incideFGTS: true,
+                incideIRRF: true,
+                naturezaESocial: '1000'
+            },
+            referencia: 30, // days
+            provento: employee.salarioBase,
+            desconto: 0
+        };
+
+        setEvents([baseSalaryEvent]);
         setIsEmployeeModalOpen(false);
     };
+
+    const handleCalculate = () => {
+        if (!selectedEmployee) {
+            toast({
+                variant: 'destructive',
+                title: 'Nenhum funcionário selecionado',
+                description: 'Por favor, selecione um funcionário para calcular a folha.'
+            });
+            return;
+        }
+
+        setIsCalculating(true);
+        try {
+            const result = calculatePayroll(selectedEmployee, events);
+            
+            const updatedEvents = [...events];
+
+            const addOrUpdateEvent = (newEvent: PayrollEvent) => {
+                const index = updatedEvents.findIndex(e => e.rubrica.id === newEvent.rubrica.id);
+                if (index > -1) {
+                    updatedEvents[index] = newEvent;
+                } else {
+                    updatedEvents.push(newEvent);
+                }
+            };
+
+            // Add INSS calculation result
+            if (result.inss.valor > 0) {
+                 addOrUpdateEvent({
+                    id: 'inss',
+                    rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
+                    referencia: result.inss.aliquota,
+                    provento: 0,
+                    desconto: result.inss.valor,
+                });
+            }
+
+            // Add IRRF calculation result
+             if (result.irrf.valor > 0) {
+                 addOrUpdateEvent({
+                    id: 'irrf',
+                    rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
+                    referencia: result.irrf.aliquota,
+                    provento: 0,
+                    desconto: result.irrf.valor,
+                });
+            }
+
+            setEvents(updatedEvents);
+            toast({
+                title: 'Cálculo Realizado!',
+                description: 'Os valores de INSS e IRRF foram calculados e adicionados.'
+            });
+
+        } catch (error) {
+            console.error("Payroll calculation error:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Erro no cálculo',
+                description: (error as Error).message,
+            })
+        } finally {
+            setIsCalculating(false);
+        }
+    };
+    
+    const { totalProventos, totalDescontos, liquido } = useMemo(() => {
+        const totalProventos = events.reduce((acc, event) => acc + event.provento, 0);
+        const totalDescontos = events.reduce((acc, event) => acc + event.desconto, 0);
+        const liquido = totalProventos - totalDescontos;
+        return { totalProventos, totalDescontos, liquido };
+    }, [events]);
 
     return (
         <div className="space-y-4">
@@ -120,7 +194,10 @@ export default function FolhaDePagamentoPage() {
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => handleActionClick('Salvar')}><Save className="mr-2 h-4 w-4"/> Salvar</Button>
                     <Button variant="destructive" onClick={() => handleActionClick('Excluir')}><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
-                    <Button onClick={() => handleActionClick('Calcular')}><Calculator className="mr-2 h-4 w-4"/> Calcular</Button>
+                    <Button onClick={handleCalculate} disabled={isCalculating}>
+                        {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
+                        Calcular
+                    </Button>
                 </div>
             </div>
 
@@ -195,11 +272,10 @@ export default function FolhaDePagamentoPage() {
                                             <Button variant="ghost" size="icon"><Filter className="h-4 w-4"/></Button>
                                         </div>
                                     </TableHead>
-                                    <TableHead>Data</TableHead>
                                     <TableHead>Evento</TableHead>
                                     <TableHead>
                                         <div className="flex items-center gap-2">
-                                            Histórico
+                                            Descrição
                                             <Input placeholder="Pesquisar por..." className="h-8 max-w-sm" />
                                         </div>
                                     </TableHead>
@@ -207,14 +283,14 @@ export default function FolhaDePagamentoPage() {
                                     <TableHead>FG</TableHead>
                                     <TableHead>IR</TableHead>
                                     <TableHead>Referência</TableHead>
-                                    <TableHead className="text-right">Rendimento</TableHead>
+                                    <TableHead className="text-right">Provento</TableHead>
                                     <TableHead className="text-right">Desconto</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {!selectedEmployee ? (
                                     <TableRow>
-                                        <TableCell colSpan={10}>
+                                        <TableCell colSpan={9}>
                                             <div className="flex flex-col items-center justify-center py-12 text-center">
                                                 <div className="p-4 bg-muted rounded-full mb-4">
                                                     <Search className="h-10 w-10 text-muted-foreground" />
@@ -226,7 +302,7 @@ export default function FolhaDePagamentoPage() {
                                     </TableRow>
                                 ) : events.length === 0 ? (
                                      <TableRow>
-                                        <TableCell colSpan={10}>
+                                        <TableCell colSpan={9}>
                                             <div className="flex flex-col items-center justify-center py-12 text-center">
                                                 <div className="p-4 bg-muted rounded-full mb-4">
                                                     <FileText className="h-10 w-10 text-muted-foreground" />
@@ -240,22 +316,21 @@ export default function FolhaDePagamentoPage() {
                                     <TableRow key={event.id}>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
-                                                <Checkbox checked={event.checked} />
+                                                <Checkbox />
                                                 <Button variant="ghost" size="icon">
-                                                    {event.isAddition ? <Plus className="h-4 w-4 text-green-600" /> : <Trash2 className="h-4 w-4 text-red-600" />}
+                                                    <Trash2 className="h-4 w-4 text-red-600" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon"><Info className="h-4 w-4"/></Button>
                                             </div>
                                         </TableCell>
-                                        <TableCell>{event.date}</TableCell>
-                                        <TableCell>{event.eventCode}</TableCell>
-                                        <TableCell>{event.description}</TableCell>
-                                        <TableCell><PayrollEventBadge type={event.cp} /></TableCell>
-                                        <TableCell><PayrollEventBadge type={event.fg} /></TableCell>
-                                        <TableCell><PayrollEventBadge type={event.ir} /></TableCell>
-                                        <TableCell>{event.reference}</TableCell>
-                                        <TableCell className="text-right font-medium">{event.earning.toFixed(2).replace('.', ',')}</TableCell>
-                                        <TableCell className="text-right font-medium text-red-600">{event.deduction.toFixed(2).replace('.', ',')}</TableCell>
+                                        <TableCell>{event.rubrica.codigo}</TableCell>
+                                        <TableCell>{event.rubrica.descricao}</TableCell>
+                                        <TableCell><PayrollEventBadge type={event.rubrica.incideINSS ? 'S' : 'N'} /></TableCell>
+                                        <TableCell><PayrollEventBadge type={event.rubrica.incideFGTS ? 'S' : 'N'} /></TableCell>
+                                        <TableCell><PayrollEventBadge type={event.rubrica.incideIRRF ? 'S' : 'N'} /></TableCell>
+                                        <TableCell>{event.referencia?.toFixed(2).replace('.', ',')}</TableCell>
+                                        <TableCell className="text-right font-medium">{event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                        <TableCell className="text-right font-medium text-red-600">{event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -286,14 +361,14 @@ export default function FolhaDePagamentoPage() {
                         </div>
                         <div className="flex gap-6 text-right">
                            <div className="space-y-1">
-                             <p className="font-semibold text-lg">{totalEarnings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                             <p className="font-semibold text-lg">{totalProventos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                             <div className="space-y-1">
-                             <p className="font-semibold text-lg text-red-600">{totalDeductions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                             <p className="font-semibold text-lg text-red-600">{totalDescontos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                            <div className="space-y-1">
                                 <p className="text-sm text-muted-foreground">Líquido à Receber:</p>
-                                <p className="font-bold text-lg text-blue-700">{netPay.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                <p className="font-bold text-lg text-blue-700">{liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                         </div>
                     </div>

@@ -12,6 +12,7 @@ export interface Employee {
   nomePai?: string;
   email?: string;
   telefone: string;
+  dependentes: number;
 
   // Address
   cep: string;
