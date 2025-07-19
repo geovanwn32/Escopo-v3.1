@@ -26,6 +26,7 @@ import {
   Filter,
   FileText,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,6 +42,7 @@ import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, de
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/types/payroll';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import Link from 'next/link';
 
 export interface PayrollEvent {
     id: string; 
@@ -331,8 +333,13 @@ export default function FolhaDePagamentoPage() {
         <div className="space-y-4">
              <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" asChild>
+                        <Link href="/pessoal">
+                            <ArrowLeft className="h-4 w-4" />
+                            <span className="sr-only">Voltar</span>
+                        </Link>
+                    </Button>
                     <h1 className="text-2xl font-bold">Folha de Pagamento</h1>
-                    <HelpCircle className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={handleSave} disabled={isSaving || !selectedEmployee}>
