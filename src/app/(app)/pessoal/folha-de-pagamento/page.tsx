@@ -388,6 +388,15 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
       return true;
     }
 
+    const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let value = e.target.value;
+        value = value.replace(/\D/g, ''); // Remove non-digit characters
+        if (value.length > 2) {
+            value = `${value.slice(0, 2)}/${value.slice(2, 6)}`;
+        }
+        setPeriod(value);
+    };
+
     if (isLoading) {
         return (
             <div className="flex h-full w-full items-center justify-center">
@@ -469,7 +478,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Período</label>
                              <div className="flex items-center gap-2">
-                                <Input placeholder="Ex: 07/2024" value={period} onChange={e => setPeriod(e.target.value)} />
+                                <Input placeholder="Ex: 07/2024" value={period} onChange={handlePeriodChange} maxLength={7} />
                                 <Button variant="ghost" size="icon" disabled><RefreshCw className="h-4 w-4 text-blue-600"/></Button>
                                 <Button variant="ghost" size="icon" disabled><X className="h-4 w-4 text-red-600"/></Button>
                             </div>
