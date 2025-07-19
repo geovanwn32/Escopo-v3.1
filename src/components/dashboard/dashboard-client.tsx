@@ -112,23 +112,31 @@ export function DashboardClient() {
       setLaunches(launchesData);
 
       // Calculate stats
-      const totalEntradas = launchesData.reduce((acc, l) => {
-          const value = l.valorLiquido || l.valorTotalNota || 0;
-          // NF-e de Saída (Venda de produto) ou NFS-e de Serviço Prestado
-          if (l.type === 'saida' || (l.type === 'servico' && (l.prestador?.cnpj === activeCompanyCnpj))) {
-              return acc + value;
-          }
-          return acc;
-      }, 0);
+      let totalEntradas = 0;
+      let totalSaidas = 0;
+      
+      launchesData.forEach(l => {
+        const value = l.valorLiquido || l.valorTotalNota || 0;
+        const emitenteCnpj = l.emitente?.cnpj?.replace(/\D/g, '');
+        const destinatarioCnpj = l.destinatario?.cnpj?.replace(/\D/g, '');
+        const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
+        const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
 
-      const totalSaidas = launchesData.reduce((acc, l) => {
-          const value = l.valorLiquido || l.valorTotalNota || 0;
-           // NF-e de Entrada (Compra de produto) ou NFS-e de Serviço Tomado
-          if (l.type === 'entrada' || (l.type === 'servico' && (l.tomador?.cnpj === activeCompanyCnpj))) {
-              return acc + value;
-          }
-          return acc;
-      }, 0);
+        // Entradas (Income)
+        if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
+          totalEntradas += value; // Venda de produto
+        } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
+          totalEntradas += value; // Prestação de serviço
+        }
+
+        // Saídas (Expenses)
+        if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
+          totalSaidas += value; // Compra de produto
+        } else if (l.type === 'servico' && tomadorCnpj === activeCompanyCnpj) {
+          totalSaidas += value; // Tomada de serviço
+        }
+      });
+
 
       setStats(prev => [
           { ...prev[0], amount: formatCurrency(totalEntradas) },
@@ -152,12 +160,22 @@ export function DashboardClient() {
           
           if (monthlyTotals[key]) {
             const value = l.valorLiquido || l.valorTotalNota || 0;
-            // Income
-            if (l.type === 'saida' || (l.type === 'servico' && (l.prestador?.cnpj === activeCompanyCnpj))) {
+            const emitenteCnpj = l.emitente?.cnpj?.replace(/\D/g, '');
+            const destinatarioCnpj = l.destinatario?.cnpj?.replace(/\D/g, '');
+            const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
+            const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
+
+            // Entradas (Income) for chart
+            if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
               monthlyTotals[key].entradas += value;
-            } 
-            // Expense
-            else if (l.type === 'entrada' || (l.type === 'servico' && (l.tomador?.cnpj === activeCompanyCnpj))) {
+            } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
+              monthlyTotals[key].entradas += value;
+            }
+            
+            // Saídas (Expenses) for chart
+            if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
+              monthlyTotals[key].saidas += value;
+            } else if (l.type === 'servico' && tomadorCnpj === activeCompanyCnpj) {
               monthlyTotals[key].saidas += value;
             }
           }
@@ -268,3 +286,5 @@ export function DashboardClient() {
     </div>
   )
 }
+
+    
