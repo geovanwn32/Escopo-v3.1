@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -73,6 +74,15 @@ export default function FolhaDePagamentoPage() {
             description: "A lógica para esta ação ainda não foi implementada.",
         });
     }
+    
+    const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
+        const numericValue = parseFloat(value.replace(',', '.')) || 0;
+        setEvents(prevEvents =>
+            prevEvents.map(event =>
+                event.id === eventId ? { ...event, [field]: numericValue } : event
+            )
+        );
+    };
 
     const handleAddEvent = (rubrica: Rubrica) => {
         const newEvent: PayrollEvent = {
@@ -191,6 +201,12 @@ export default function FolhaDePagamentoPage() {
     const isEventRemovable = (eventId: string) => {
         return !['salario_base', 'inss', 'irrf'].includes(eventId);
     };
+
+    const isFieldEditable = (event: PayrollEvent, field: 'referencia' | 'provento'): boolean => {
+      if (event.rubrica.tipo === 'desconto') return false; // Descontos não são editáveis diretamente
+      if (event.id === 'salario_base' && field === 'provento') return false; // Salário base não é editável diretamente
+      return true;
+    }
 
 
     return (
@@ -343,9 +359,27 @@ export default function FolhaDePagamentoPage() {
                                         <TableCell><PayrollEventBadge type={event.rubrica.incideINSS ? 'S' : 'N'} /></TableCell>
                                         <TableCell><PayrollEventBadge type={event.rubrica.incideFGTS ? 'S' : 'N'} /></TableCell>
                                         <TableCell><PayrollEventBadge type={event.rubrica.incideIRRF ? 'S' : 'N'} /></TableCell>
-                                        <TableCell>{event.referencia?.toFixed(2).replace('.', ',')}</TableCell>
-                                        <TableCell className="text-right font-medium">{event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                                        <TableCell className="text-right font-medium text-red-600">{event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                                        <TableCell>
+                                            <Input
+                                                type="text"
+                                                className="h-8 w-20 text-right"
+                                                value={event.referencia?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
+                                                readOnly={!isFieldEditable(event, 'referencia')}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                             <Input
+                                                type="text"
+                                                className="h-8 w-28 text-right"
+                                                value={event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                onChange={(e) => handleEventChange(event.id, 'provento', e.target.value)}
+                                                readOnly={!isFieldEditable(event, 'provento')}
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium text-red-600">
+                                            {event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
