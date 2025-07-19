@@ -189,18 +189,17 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     }, [payrollId, user, activeCompany, toast, router, recalculateAndSetState]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
-        const sanitizedValue = value.replace(/\./g, '').replace(',', '.');
-        const numericValue = parseFloat(sanitizedValue) || 0;
+        const sanitizedValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
         
         let updatedEvents = events.map(event =>
-            event.id === eventId ? { ...event, [field]: numericValue } : event
+            event.id === eventId ? { ...event, [field]: sanitizedValue } : event
         );
 
         const currentEvent = updatedEvents.find(e => e.id === eventId);
         
         if (selectedEmployee && currentEvent && field === 'referencia') {
             const currentEventsWithoutCalculated = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
-            const calculatedEvent = calculateAutomaticEvent(currentEvent.rubrica, selectedEmployee, currentEventsWithoutCalculated, numericValue);
+            const calculatedEvent = calculateAutomaticEvent(currentEvent.rubrica, selectedEmployee, currentEventsWithoutCalculated, sanitizedValue);
             if (calculatedEvent) {
                 updatedEvents = updatedEvents.map(event =>
                     event.id === eventId ? { ...event, ...calculatedEvent } : event
@@ -414,13 +413,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
 
     const isFieldEditable = (event: PayrollEvent): boolean => {
-      if (['inss', 'irrf'].includes(event.id)) {
-        return false;
-      }
-      if (event.id === 'salario_base') {
-        return false;
-      }
-      return true;
+      // Allow editing unless it's a core system-calculated event
+      return !['salario_base', 'inss', 'irrf'].includes(event.id);
     }
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -439,6 +433,13 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             </div>
         );
     }
+
+    const formatNumberForDisplay = (num: number, options?: Intl.NumberFormatOptions) => {
+        return num.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            ...options
+        });
+    };
 
     return (
         <div className="space-y-4">
@@ -623,11 +624,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             <Input
                                                 type="text"
                                                 className="h-8 w-20 text-right"
-                                                value={event.referencia.toLocaleString('pt-BR', {
-                                                  minimumFractionDigits: 2,
-                                                  maximumFractionDigits: 10,
-                                                })}
-                                                onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
+                                                defaultValue={formatNumberForDisplay(event.referencia, { maximumFractionDigits: 10 })}
+                                                onBlur={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
                                                 readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
@@ -635,8 +633,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                              <Input
                                                 type="text"
                                                 className="h-8 w-28 text-right"
-                                                value={event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                onChange={(e) => handleEventChange(event.id, 'provento', e.target.value)}
+                                                defaultValue={formatNumberForDisplay(event.provento)}
+                                                onBlur={(e) => handleEventChange(event.id, 'provento', e.target.value)}
                                                 readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
@@ -644,8 +642,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             <Input
                                                 type="text"
                                                 className="h-8 w-28 text-right"
-                                                value={event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                onChange={(e) => handleEventChange(event.id, 'desconto', e.target.value)}
+                                                defaultValue={formatNumberForDisplay(event.desconto)}
+                                                onBlur={(e) => handleEventChange(event.id, 'desconto', e.target.value)}
                                                 readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
@@ -679,14 +677,14 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                         </div>
                         <div className="flex gap-6 text-right">
                            <div className="space-y-1">
-                             <p className="font-semibold text-lg">{totalProventos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                             <p className="font-semibold text-lg">{formatNumberForDisplay(totalProventos, { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                             <div className="space-y-1">
-                             <p className="font-semibold text-lg text-red-600">{totalDescontos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                             <p className="font-semibold text-lg text-red-600">{formatNumberForDisplay(totalDescontos, { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                            <div className="space-y-1">
                                 <p className="text-sm text-muted-foreground">Líquido à Receber:</p>
-                                <p className="font-bold text-lg text-blue-700">{liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                <p className="font-bold text-lg text-blue-700">{formatNumberForDisplay(liquido, { style: 'currency', currency: 'BRL' })}</p>
                            </div>
                         </div>
                     </div>
@@ -717,5 +715,3 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 }
 
 export default PayrollPageWrapper;
-
-    
