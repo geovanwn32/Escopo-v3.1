@@ -6,7 +6,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileCog } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ImportAccountingModal } from "@/components/fiscal/import-accounting-modal";
 
 interface XmlFile {
   file: {
@@ -102,6 +103,7 @@ export default function FiscalPage() {
   const [loadingLaunches, setLoadingLaunches] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
@@ -455,6 +457,9 @@ endDate.setHours(23,59,59,999);
           <Button variant="outline" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
+          <Button variant="outline" onClick={() => setIsAccountingModalOpen(true)}>
+            <FileCog className="mr-2 h-4 w-4" /> Importar para a contabilidade
+          </Button>
         </CardContent>
       </Card>
 
@@ -734,6 +739,14 @@ endDate.setHours(23,59,59,999);
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
+        />
+      )}
+       {isAccountingModalOpen && user && activeCompany && (
+        <ImportAccountingModal
+          isOpen={isAccountingModalOpen}
+          onClose={() => setIsAccountingModalOpen(false)}
+          userId={user.uid}
+          companyId={activeCompany.id}
         />
       )}
     </div>
