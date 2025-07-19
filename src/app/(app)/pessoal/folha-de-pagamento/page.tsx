@@ -46,6 +46,7 @@ import type { Payroll } from '@/types/payroll';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { generatePayslipPdf } from '@/services/payslip-service';
+import { calculateAutomaticEvent } from '@/services/payroll-calculator.service';
 
 export interface PayrollEvent {
     id: string; 
@@ -198,18 +199,15 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         );
 
         const currentEvent = updatedEvents.find(e => e.id === eventId);
+        const currentEventsWithoutCalculated = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
 
         if (selectedEmployee && currentEvent && field === 'referencia') {
-            // --- Auto-calculation logic ---
-            if (currentEvent.rubrica.descricao.includes('Horas Extras 50%')) {
-                const hourlyRate = selectedEmployee.salarioBase / 220;
-                const overtimePay = hourlyRate * 1.5 * numericValue;
+            const calculatedEvent = calculateAutomaticEvent(currentEvent.rubrica, selectedEmployee, currentEventsWithoutCalculated, numericValue);
+            if (calculatedEvent) {
                 updatedEvents = updatedEvents.map(event =>
-                    event.id === eventId ? { ...event, provento: parseFloat(overtimePay.toFixed(2)) } : event
+                    event.id === eventId ? { ...event, ...calculatedEvent } : event
                 );
             }
-             // Add more auto-calculation rules here for other rubricas if needed
-            // else if (currentEvent.rubrica.codigo === '...') { ... }
         }
         
         recalculateAndSetState(updatedEvents, selectedEmployee);
@@ -219,15 +217,18 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     const handleAddEvent = (rubrica: Rubrica) => {
         if (!selectedEmployee) return;
 
+        const currentEvents = events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
+        const calculatedEvent = calculateAutomaticEvent(rubrica, selectedEmployee, currentEvents);
+
         const newEvent: PayrollEvent = {
             id: rubrica.id!,
             rubrica: rubrica,
-            referencia: 0,
-            provento: 0,
-            desconto: 0,
+            referencia: calculatedEvent?.referencia || 0,
+            provento: calculatedEvent?.provento || 0,
+            desconto: calculatedEvent?.desconto || 0,
         };
 
-        const updatedEvents = [...events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!)), newEvent];
+        const updatedEvents = [...currentEvents, newEvent];
         recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
         setIsRubricaModalOpen(false);
@@ -278,11 +279,23 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
         setIsCalculating(true);
         try {
-            recalculateAndSetState(events, selectedEmployee);
+            // Recalculate everything to be sure
+            const currentEvents = events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
+            let finalEvents = [...currentEvents];
+            
+            for(let i = 0; i < finalEvents.length; i++) {
+                const event = finalEvents[i];
+                const calculated = calculateAutomaticEvent(event.rubrica, selectedEmployee, finalEvents, event.referencia);
+                if (calculated) {
+                    finalEvents[i] = { ...event, ...calculated };
+                }
+            }
+            
+            recalculateAndSetState(finalEvents, selectedEmployee);
             setStatus('calculated');
             toast({
                 title: 'Cálculo Realizado!',
-                description: 'Os valores de INSS e IRRF foram recalculados.'
+                description: 'Os valores foram recalculados e salvos.'
             });
             
             await handleSave(true);
@@ -408,13 +421,11 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
     const isFieldEditable = (event: PayrollEvent, field: 'referencia' | 'provento'): boolean => {
       if (['inss', 'irrf'].includes(event.id)) return false;
-      if (event.rubrica.tipo === 'desconto') return false; // Descontos não são editáveis diretamente
-      if (event.id === 'salario_base' && field === 'provento') return false; // Salário base não é editável diretamente
-      
-      // Bloqueia provento se for calculado automaticamente a partir da referência
-      if (field === 'provento' && event.rubrica.descricao.includes('Horas Extras')) {
-          return false;
-      }
+      if (event.id === 'salario_base') return false; // Salário base não é editável diretamente
+      if (field === 'provento') return false; // Proventos e descontos são sempre calculados
+
+      const needsReference = ['horas extras', 'adicional noturno'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
+      if (!needsReference && field === 'referencia') return false;
       
       return true;
     }
@@ -619,7 +630,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             <Input
                                                 type="text"
                                                 className="h-8 w-20 text-right"
-                                                value={(event.referencia ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                                value={event.referencia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                                                 onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
                                                 readOnly={!isFieldEditable(event, 'referencia')}
                                             />
