@@ -47,15 +47,15 @@ export default function FiscalPage() {
             const xmlDoc = parser.parseFromString(fileContent, "text/xml");
             
             const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            const nfse = xmlDoc.getElementsByTagName('CompNfse')[0];
+            const nfse = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
 
             let type: XmlFile['type'] = 'desconhecido';
             let emitCnpj: string | null = null;
             let destCnpj: string | null = null;
 
             if (nfeProc) {
-                emitCnpj = nfeProc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
-                destCnpj = nfeProc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                emitCnpj = nfeProc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                destCnpj = nfeProc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
                 
                 if (emitCnpj === activeCompanyCnpj) {
                     type = 'saida';
@@ -63,12 +63,19 @@ export default function FiscalPage() {
                     type = 'entrada';
                 }
             } else if (nfse) {
-                // For NFS-e, the issuer is 'Prestador' and recipient is 'Tomador'
-                emitCnpj = nfse.getElementsByTagName('PrestadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent ?? null;
-                destCnpj = nfse.getElementsByTagName('TomadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent ?? null;
+                // Handle different NFS-e structures
+                if (nfse.tagName === 'NFSe') {
+                    emitCnpj = nfse.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                    destCnpj = nfse.getElementsByTagName('toma')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                } else { // CompNfse
+                    emitCnpj = nfse.getElementsByTagName('PrestadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                    destCnpj = nfse.getElementsByTagName('TomadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                }
                 
-                if(emitCnpj === activeCompanyCnpj) {
-                    type = 'servico';
+                if (emitCnpj === activeCompanyCnpj) {
+                    type = 'servico'; // Assuming issuer is always providing the service
+                } else if (destCnpj === activeCompanyCnpj) {
+                    type = 'servico'; // Service taken by the company
                 }
             }
 
