@@ -23,8 +23,10 @@ export function calculateAutomaticEvent(
 ): Partial<CalculatedEvent> | null {
 
     const baseSalary = employee.salarioBase;
-    const currentProventos = allEvents.filter(e => e.rubrica.incideINSS).reduce((acc, e) => acc + e.provento, 0);
-    const inssCalculationBase = currentProventos > 0 ? currentProventos : baseSalary;
+
+    // Correctly determine the calculation base by looking for the base salary event or using the employee's base salary directly.
+    const baseSalaryEvent = allEvents.find(e => e.rubrica.id === 'salario_base');
+    const inssCalculationBase = baseSalaryEvent ? baseSalaryEvent.provento : baseSalary;
 
 
     if (rubrica.codigo === '0005') { 
