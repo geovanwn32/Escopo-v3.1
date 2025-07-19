@@ -203,6 +203,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
 
     const handleAddEvent = (rubrica: Rubrica) => {
+        if (!selectedEmployee) return;
+
         const newEvent: PayrollEvent = {
             id: rubrica.id!,
             rubrica: rubrica,
@@ -211,13 +213,16 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             desconto: 0,
         };
 
-        setEvents(prevEvents => [...prevEvents, newEvent]);
+        const updatedEvents = [...events, newEvent];
+        recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
         setIsRubricaModalOpen(false);
     };
 
     const handleRemoveEvent = (eventId: string) => {
-        setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+        if (!selectedEmployee) return;
+        const updatedEvents = events.filter(event => event.id !== eventId);
+        recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
     };
 
