@@ -24,61 +24,41 @@ import {
   X,
   Trash2,
   Filter,
+  FileText,
 } from "lucide-react";
 import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
 
-const initialEvents = [
-  {
-    id: 1,
-    checked: true,
-    isAddition: true,
-    date: '14/06/2023',
-    event: '1',
-    historic: 'SALÁRIO BASE',
-    cp: 'S' as 'S' | 'N',
-    fg: 'S' as 'S' | 'N',
-    ir: 'S' as 'S' | 'N',
-    reference: '17,00',
-    earning: 1133.33,
-    deduction: 0.00,
-  },
-  {
-    id: 2,
-    checked: false,
-    isAddition: false,
-    date: '14/06/2023',
-    event: '201',
-    historic: 'INSS SOBRE SALÁRIOS',
-    cp: 'N' as 'S' | 'N',
-    fg: 'N' as 'S' | 'N',
-    ir: 'N' as 'S' | 'N',
-    reference: '7,50',
-    earning: 0.00,
-    deduction: 85.00,
-  },
-  {
-    id: 3,
-    checked: false,
-    isAddition: true,
-    date: '14/06/2023',
-    event: '263',
-    historic: 'ARREDONDAMENTO ATUAL',
-    cp: 'N' as 'S' | 'N',
-    fg: 'N' as 'S' | 'N',
-    ir: 'N' as 'S' | 'N',
-    reference: '1,00',
-    earning: 0.67,
-    deduction: 0.00,
-  },
-];
+interface PayrollEvent {
+    id: number;
+    checked: boolean;
+    isAddition: boolean;
+    date: string;
+    event: string;
+    historic: string;
+    cp: 'S' | 'N';
+    fg: 'S' | 'N';
+    ir: 'S' | 'N';
+    reference: string;
+    earning: number;
+    deduction: number;
+}
 
 export default function FolhaDePagamentoPage() {
-    const [events, setEvents] = useState(initialEvents);
+    const [events, setEvents] = useState<PayrollEvent[]>([]);
+    const { toast } = useToast();
 
     const totalEarnings = events.reduce((acc, event) => acc + event.earning, 0);
     const totalDeductions = events.reduce((acc, event) => acc + event.deduction, 0);
     const netPay = totalEarnings - totalDeductions;
+
+    const handleActionClick = (actionName: string) => {
+        toast({
+            title: `Ação: ${actionName}`,
+            description: "A lógica para esta ação ainda não foi implementada.",
+        });
+    }
 
     return (
         <div className="space-y-4">
@@ -88,13 +68,9 @@ export default function FolhaDePagamentoPage() {
                     <HelpCircle className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon"><Plus /></Button>
-                    <Button variant="outline" size="icon"><Save /></Button>
-                    <Button variant="outline" size="icon"><Calculator /></Button>
-                    <Button variant="outline" size="icon"><Info /></Button>
-                    <Button variant="outline" size="icon"><Paperclip /></Button>
-                    <Button variant="outline" size="icon"><Calendar /></Button>
-                    <Button variant="outline">PG</Button>
+                    <Button variant="outline" onClick={() => handleActionClick('Salvar')}><Save className="mr-2 h-4 w-4"/> Salvar</Button>
+                    <Button variant="destructive" onClick={() => handleActionClick('Excluir')}><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
+                    <Button onClick={() => handleActionClick('Calcular')}><Calculator className="mr-2 h-4 w-4"/> Calcular</Button>
                 </div>
             </div>
 
@@ -104,14 +80,14 @@ export default function FolhaDePagamentoPage() {
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Empregado</label>
                             <div className="relative">
-                                <Input defaultValue="Funcionário Teste - 1" className="pr-10" />
+                                <Input placeholder="Selecione um funcionário" className="pr-10" />
                                 <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
                             </div>
                         </div>
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Período</label>
                              <div className="flex items-center gap-2">
-                                <Input defaultValue="Período de: 14/06/2023 à 30/06/2023 - Mensal" />
+                                <Input placeholder="Ex: 06/2024" />
                                 <Button variant="ghost" size="icon"><RefreshCw className="h-4 w-4 text-blue-600"/></Button>
                                 <Button variant="ghost" size="icon"><X className="h-4 w-4 text-red-600"/></Button>
                             </div>
@@ -133,13 +109,16 @@ export default function FolhaDePagamentoPage() {
 
                      <div className="flex justify-between items-center bg-muted p-2 rounded-md">
                         <div className="flex items-center gap-2">
-                           <p className="text-sm">01 de 1 Registro</p>
+                           <p className="text-sm">0 de 0 Registros</p>
                            <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" disabled><ChevronsLeft className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronLeft className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronRight className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronsRight className="h-4 w-4"/></Button>
                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm"><Plus className="mr-2 h-4 w-4"/> Adicionar Evento</Button>
                         </div>
                     </div>
 
@@ -169,7 +148,19 @@ export default function FolhaDePagamentoPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {events.map((event) => (
+                                {events.length === 0 ? (
+                                     <TableRow>
+                                        <TableCell colSpan={10}>
+                                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                                <div className="p-4 bg-muted rounded-full mb-4">
+                                                    <FileText className="h-10 w-10 text-muted-foreground" />
+                                                </div>
+                                                <h3 className="text-xl font-semibold">Nenhum evento lançado</h3>
+                                                <p className="text-muted-foreground mt-2">Clique em "Adicionar Evento" para começar.</p>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : events.map((event) => (
                                     <TableRow key={event.id}>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
@@ -215,7 +206,7 @@ export default function FolhaDePagamentoPage() {
                                 <Button variant="ghost" size="icon" disabled><ChevronRight className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronsRight className="h-4 w-4"/></Button>
                             </div>
-                             <p>3 Registros</p>
+                             <p>{events.length} Registros</p>
                         </div>
                         <div className="flex gap-6 text-right">
                            <div className="space-y-1">
