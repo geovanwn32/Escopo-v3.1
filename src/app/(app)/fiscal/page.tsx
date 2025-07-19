@@ -29,14 +29,9 @@ export default function FiscalPage() {
     if (typeof window !== 'undefined') {
         const companyId = sessionStorage.getItem('activeCompanyId');
         if (user && companyId) {
-            // In a real app, you would fetch the company details using the ID
-            // For now, we'll assume the CNPJ is stored in session storage for simplicity
-            // This would ideally be fetched from Firestore to be secure and reliable
             const companyData = sessionStorage.getItem(`company_${companyId}`);
              if (companyData) {
                  setActiveCompanyCnpj(JSON.parse(companyData).cnpj);
-             } else {
-                // A better approach would be to fetch from Firestore here if not in session
              }
         }
     }
@@ -51,28 +46,39 @@ export default function FiscalPage() {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(fileContent, "text/xml");
             
-            const emitCnpj = xmlDoc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent;
-            const destCnpj = xmlDoc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent;
-            
             const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
             const nfse = xmlDoc.getElementsByTagName('CompNfse')[0];
 
             let type: XmlFile['type'] = 'desconhecido';
+            let emitCnpj: string | null = null;
+            let destCnpj: string | null = null;
+
             if (nfeProc) {
-                // It's an NF-e, check if entrada or saida
-                type = emitCnpj === activeCompanyCnpj ? 'saida' : 'entrada';
+                emitCnpj = nfeProc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                destCnpj = nfeProc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent ?? null;
+                
+                if (emitCnpj === activeCompanyCnpj) {
+                    type = 'saida';
+                } else if (destCnpj === activeCompanyCnpj) {
+                    type = 'entrada';
+                }
             } else if (nfse) {
-                // It's an NFS-e (nota de serviço)
-                type = 'servico';
+                // For NFS-e, the issuer is 'Prestador' and recipient is 'Tomador'
+                emitCnpj = nfse.getElementsByTagName('PrestadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent ?? null;
+                destCnpj = nfse.getElementsByTagName('TomadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent ?? null;
+                
+                if(emitCnpj === activeCompanyCnpj) {
+                    type = 'servico';
+                }
             }
 
-            if (emitCnpj === activeCompanyCnpj || destCnpj === activeCompanyCnpj) {
+            if (type !== 'desconhecido') {
               return { file, status: 'pending', type } as XmlFile;
             } else {
               toast({
                 variant: "destructive",
                 title: `Arquivo Inválido: ${file.name}`,
-                description: "O CNPJ do emitente ou destinatário não corresponde à empresa ativa.",
+                description: "O CNPJ do emitente ou destinatário não corresponde à empresa ativa, ou o tipo de nota é desconhecido.",
               })
               return null;
             }
@@ -96,10 +102,7 @@ export default function FiscalPage() {
   };
   
   const handleLaunch = (file: XmlFile) => {
-    // Placeholder for launch logic
     console.log(`Launching form for ${file.file.name} of type ${file.type}`);
-    // Here you would open the correct modal/form based on file.type
-    // e.g. if(file.type === 'saida') { openSaidaForm(file) }
     setXmlFiles(files => files.map(f => f.file.name === file.file.name ? { ...f, status: 'launched' } : f));
     toast({
         title: "Lançamento realizado!",
