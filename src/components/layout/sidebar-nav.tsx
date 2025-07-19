@@ -72,7 +72,7 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
       <SidebarHeader className="h-14 justify-center text-background group-data-[collapsible=icon]:justify-center">
         <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg text-sidebar-foreground">
           <BookCheck className="size-7 text-primary" />
-          <span className="group-data-[collapsible=icon]:hidden">Contabilizei</span>
+          <span className="group-data-[collapsible=icon]:hidden">Escopo</span>
         </Link>
       </SidebarHeader>
       <SidebarContent className="flex-1 p-2">

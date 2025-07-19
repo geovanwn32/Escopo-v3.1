@@ -60,7 +60,7 @@ export function LoginForm() {
         <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
             <BookCheck className="h-8 w-8 text-primary" />
         </div>
-        <CardTitle>Bem-vindo ao Contabilizei</CardTitle>
+        <CardTitle>Bem-vindo ao Escopo</CardTitle>
         <CardDescription>Faça login para aceder à sua conta.</CardDescription>
       </CardHeader>
       <CardContent>
