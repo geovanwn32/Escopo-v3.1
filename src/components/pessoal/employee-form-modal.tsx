@@ -31,7 +31,7 @@ const employeeSchema = z.object({
   sexo: z.string().min(1, "Sexo é obrigatório"),
   nomeMae: z.string().min(1, "Nome da mãe é obrigatório"),
   nomePai: z.string().optional(),
-  email: z.string().email("Email inválido").optional(),
+  email: z.string().email("Email inválido").optional().or(z.literal('')),
   telefone: z.string().min(10, "Telefone inválido"),
 
   // Address
@@ -72,6 +72,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
       complemento: "",
       bairro: "",
       cidade: "",
+      uf: "",
       cargo: "",
       departamento: "",
       salarioBase: "",
