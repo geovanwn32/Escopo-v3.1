@@ -67,38 +67,16 @@ const launchSchema = z.object({
 
 type FormData = z.infer<typeof launchSchema>;
 
-const fieldMappings = {
-    // NFS-e Parties
-    'prestador.nome': ['RazaoSocial', 'xNome', 'Nome'],
-    'prestador.cnpj': ['Cnpj', 'CNPJ'],
-    'tomador.nome': ['RazaoSocial', 'xNome', 'Nome'],
-    'tomador.cnpj': ['Cnpj', 'CNPJ'],
-
-    // NF-e Parties
-    'emitente.nome': ['xNome', 'RazaoSocial'],
-    'emitente.cnpj': ['CNPJ'],
-    'destinatario.nome': ['xNome', 'RazaoSocial'],
-    'destinatario.cnpj': ['CNPJ'],
-
-    // General Info
-    'numeroNfse': ['Numero', 'nNFSe'],
-    'date': ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi'],
-    'chaveNfe': ['Id'],
-
-    // Service Details
-    'discriminacao': ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl'],
-    'itemLc116': ['ItemListaServico', 'cServico'],
-
-    // Values
-    'valorServicos': ['ValorServicos', 'vServ'],
-    'valorPis': ['ValorPis', 'vPIS'],
-    'valorCofins': ['ValorCofins', 'vCOFINS'],
-    'valorIr': ['ValorIr', 'vIR'],
-    'valorInss': ['ValorInss', 'vINSS'],
-    'valorCsll': ['ValorCsll', 'vCSLL'],
-    'valorLiquido': ['ValorLiquidoNfse', 'vLiq', 'vNF'],
-    'valorProdutos': ['vProd'],
-    'valorTotalNota': ['vNF'],
+// Helper to query multiple tags, returning the first one found.
+const querySelectorText = (element: Element | Document | null, selectors: string[]): string => {
+  if (!element) return '';
+  for (const selector of selectors) {
+    const el = element.querySelector(selector);
+    if (el?.textContent) {
+      return el.textContent.trim();
+    }
+  }
+  return '';
 };
 
 
@@ -112,79 +90,51 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     }
 
     const data: Partial<FormData> = {};
-
-    function processNode(node: Element) {
-        const nodeName = node.tagName.split(':').pop() || node.tagName;
-
-        let currentContext = '';
-        const parentName = node.parentElement?.tagName.split(':').pop() || node.parentElement?.tagName;
-
-        // Determine context based on parent node
-        if (['emit', 'Emitente'].includes(parentName || '')) {
-            currentContext = type === 'servico' ? '' : 'emitente';
-        } else if (['dest', 'Destinatario'].includes(parentName || '')) {
-            currentContext = type === 'servico' ? '' : 'destinatario';
-        } else if (['PrestadorServico', 'prest'].includes(parentName || '')) {
-            currentContext = type === 'servico' ? 'prestador' : '';
-        } else if (['TomadorServico', 'toma'].includes(parentName || '')) {
-            currentContext = type === 'servico' ? 'tomador' : '';
-        }
-
-        for (const [field, tags] of Object.entries(fieldMappings)) {
-            if (tags.includes(nodeName)) {
-                let [primaryKey, secondaryKey] = field.split('.');
-                
-                let effectivePrimaryKey = primaryKey;
-                if (currentContext && primaryKey === currentContext) {
-                    // This is a direct match, like <RazaoSocial> inside <PrestadorServico>
-                } else if (!['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey)) {
-                    // This is a non-party field, like 'date' or 'valorServicos'
-                } else {
-                    // This tag is a party member, but not in the right context. Skip it.
-                    continue;
-                }
-                
-                const value = node.textContent?.trim() || '';
-
-                if (secondaryKey) {
-                    (data as any)[effectivePrimaryKey] = {
-                        ...((data as any)[effectivePrimaryKey] || {}),
-                        [secondaryKey]: value,
-                    };
-                } else {
-                    if (primaryKey === 'date') {
-                        data.date = new Date(value);
-                    } else if (primaryKey === 'chaveNfe') {
-                        data.chaveNfe = value.replace(/\D/g, '');
-                    } else {
-                        const schemaForField = (launchSchema.shape as any)[primaryKey];
-                         if (schemaForField?._def?.innerType instanceof z.ZodNumber) {
-                             (data as any)[primaryKey] = parseFloat(value) || 0;
-                        } else {
-                           (data as any)[primaryKey] = value;
-                        }
-                    }
-                }
-            }
-        }
-        
-        for (const childNode of Array.from(node.children)) {
-            processNode(childNode);
-        }
-    }
-
-    processNode(xmlDoc.documentElement);
     
-    // Fallback for vNF which can exist in multiple places
-    if (!data.valorTotalNota && data.emitente) {
-        const vNFNode = xmlDoc.querySelector('vNF');
-        if (vNFNode) data.valorTotalNota = parseFloat(vNFNode.textContent || '0');
-    }
-     if (!data.valorLiquido && type === 'servico') {
-        const vLiqNode = xmlDoc.querySelector('ValorLiquidoNfse');
-        if (vLiqNode) data.valorLiquido = parseFloat(vLiqNode.textContent || '0');
-    }
+    // Function to get party data (name, cnpj) from a specific node
+    const getNodeData = (node: Element | null) => {
+        if (!node) return { nome: null, cnpj: null };
+        return {
+            nome: querySelectorText(node, ['RazaoSocial', 'xNome', 'Nome']),
+            cnpj: querySelectorText(node, ['Cnpj', 'CNPJ'])
+        };
+    };
 
+    // --- General Data ---
+    const dateStr = querySelectorText(xmlDoc, ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi']);
+    data.date = dateStr ? new Date(dateStr) : new Date();
+
+    if (type === 'servico') {
+        // --- NFS-e Parsing ---
+        const prestadorNode = xmlDoc.querySelector('PrestadorServico, prest');
+        const tomadorNode = xmlDoc.querySelector('TomadorServico, toma');
+        
+        data.prestador = getNodeData(prestadorNode);
+        data.tomador = getNodeData(tomadorNode);
+
+        data.numeroNfse = querySelectorText(xmlDoc, ['Numero', 'nNFSe']);
+        data.discriminacao = querySelectorText(xmlDoc, ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl']);
+        data.itemLc116 = querySelectorText(xmlDoc, ['ItemListaServico', 'cServico']);
+        data.valorServicos = parseFloat(querySelectorText(xmlDoc, ['ValorServicos', 'vServ']) || '0');
+        data.valorPis = parseFloat(querySelectorText(xmlDoc, ['ValorPis', 'vPIS']) || '0');
+        data.valorCofins = parseFloat(querySelectorText(xmlDoc, ['ValorCofins', 'vCOFINS']) || '0');
+        data.valorIr = parseFloat(querySelectorText(xmlDoc, ['ValorIr', 'vIR']) || '0');
+        data.valorInss = parseFloat(querySelectorText(xmlDoc, ['ValorInss', 'vINSS']) || '0');
+        data.valorCsll = parseFloat(querySelectorText(xmlDoc, ['ValorCsll', 'vCSLL']) || '0');
+        data.valorLiquido = parseFloat(querySelectorText(xmlDoc, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
+        
+    } else {
+        // --- NF-e Parsing ---
+        const emitNode = xmlDoc.querySelector('emit');
+        const destNode = xmlDoc.querySelector('dest');
+        
+        data.emitente = getNodeData(emitNode);
+        data.destinatario = getNodeData(destNode);
+
+        data.chaveNfe = querySelectorText(xmlDoc, ['infNFe > Id', 'Id']).replace(/\D/g, '');
+        data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
+        data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
+    }
 
     return data;
 }
