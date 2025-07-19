@@ -9,14 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Calendar as CalendarIcon, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { DateInput } from '@/components/ui/date-input';
 
 interface EmployeeFormModalProps {
   isOpen: boolean;
@@ -142,7 +139,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
                 <TabsContent value="personal" className="space-y-4">
                   <FormField control={form.control} name="nomeCompleto" render={({ field }) => ( <FormItem><FormLabel>Nome Completo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className="font-normal justify-start">{field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
                        const { value } = e.target;
                        e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
@@ -183,7 +180,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId }: EmployeeFormModal
 
                 <TabsContent value="contract" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                     <FormField control={form.control} name="dataAdmissao" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Admissão</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className="font-normal justify-start">{field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
+                     <FormField control={form.control} name="dataAdmissao" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Admissão</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
                      <FormField control={form.control} name="cargo" render={({ field }) => ( <FormItem><FormLabel>Cargo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
