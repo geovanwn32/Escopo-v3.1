@@ -71,7 +71,7 @@ type FormData = z.infer<typeof launchSchema>;
 function parseXml(xmlString: string): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-    const get = (tag: string, parent: Element | Document = xmlDoc) => parent.querySelector(tag)?.textContent?.trim() ?? '';
+    const get = (tag: string, parent: Element | Document | null) => parent?.querySelector(tag)?.textContent?.trim() ?? '';
     
     let data: Partial<FormData> = {};
 
@@ -80,51 +80,55 @@ function parseXml(xmlString: string): Partial<FormData> {
 
     if (nfeProc) {
         const infNFe = nfeProc.querySelector('infNFe');
-        const emit = infNFe?.querySelector('emit');
-        const dest = infNFe?.querySelector('dest');
-        const total = infNFe?.querySelector('total ICMSTot');
-        
-        data.chaveNfe = infNFe?.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
-        data.date = new Date(get('dhEmi', infNFe!));
-        data.emitente = {
-            nome: get('xNome', emit!),
-            cnpj: get('CNPJ', emit!),
-        };
-        data.destinatario = {
-            nome: get('xNome', dest!),
-            cnpj: get('CNPJ', dest!),
-        };
-        data.valorProdutos = parseFloat(get('vProd', total!) || '0');
-        data.valorTotalNota = parseFloat(get('vNF', total!) || '0');
+        if (infNFe) {
+            const emit = infNFe.querySelector('emit');
+            const dest = infNFe.querySelector('dest');
+            const total = infNFe.querySelector('total ICMSTot');
+            
+            data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
+            data.date = new Date(get('dhEmi', infNFe));
+            data.emitente = {
+                nome: get('xNome', emit),
+                cnpj: get('CNPJ', emit),
+            };
+            data.destinatario = {
+                nome: get('xNome', dest),
+                cnpj: get('CNPJ', dest),
+            };
+            data.valorProdutos = parseFloat(get('vProd', total) || '0');
+            data.valorTotalNota = parseFloat(get('vNF', total) || '0');
+        }
 
     } else if (nfse) {
         const infNfse = nfse.querySelector('InfNfse, Nfse infNfse');
-        const prestador = nfse.querySelector('PrestadorServico, prest');
-        const tomador = nfse.querySelector('TomadorServico, toma');
-        const servico = nfse.querySelector('Servico, serv');
-        const valores = nfse.querySelector('Valores, ValoresNfse');
+        if (infNfse) {
+            const prestador = nfse.querySelector('PrestadorServico, prest');
+            const tomador = nfse.querySelector('TomadorServico, toma');
+            const servico = nfse.querySelector('Servico, serv');
+            const valores = nfse.querySelector('Valores, ValoresNfse');
 
-        data.numeroNfse = get('Numero', infNfse!) || get('nNFSe', infNfse!);
-        data.date = new Date(get('DataEmissao', infNfse!) || get('dCompet', infNfse!));
-        
-        data.prestador = {
-            nome: prestador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
-            cnpj: prestador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
-        };
-        data.tomador = {
-            nome: tomador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
-            cnpj: tomador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
-        };
+            data.numeroNfse = get('Numero', infNfse) || get('nNFSe', infNfse);
+            data.date = new Date(get('DataEmissao', infNfse) || get('dCompet', infNfse));
+            
+            data.prestador = {
+                nome: prestador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
+                cnpj: prestador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+            };
+            data.tomador = {
+                nome: tomador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
+                cnpj: tomador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+            };
 
-        data.discriminacao = get('Discriminacao, xDescricao', servico!);
-        data.itemLc116 = get('ItemListaServico, cServico', servico!);
-        data.valorServicos = parseFloat(get('ValorServicos, vServ', valores!) || '0');
-        data.valorPis = parseFloat(get('ValorPis, vPIS', valores!) || '0');
-        data.valorCofins = parseFloat(get('ValorCofins, vCOFINS', valores!) || '0');
-        data.valorIr = parseFloat(get('ValorIr, vIR', valores!) || '0');
-        data.valorInss = parseFloat(get('ValorInss, vINSS', valores!) || '0');
-        data.valorCsll = parseFloat(get('ValorCsll, vCSLL', valores!) || '0');
-        data.valorLiquido = parseFloat(get('ValorLiquidoNfse, vLiq', valores!) || '0');
+            data.discriminacao = get('Discriminacao, xDescricao', servico);
+            data.itemLc116 = get('ItemListaServico, cServico', servico);
+            data.valorServicos = parseFloat(get('ValorServicos, vServ', valores) || '0');
+            data.valorPis = parseFloat(get('ValorPis, vPIS', valores) || '0');
+            data.valorCofins = parseFloat(get('ValorCofins, vCOFINS', valores) || '0');
+            data.valorIr = parseFloat(get('ValorIr, vIR', valores) || '0');
+            data.valorInss = parseFloat(get('ValorInss, vINSS', valores) || '0');
+            data.valorCsll = parseFloat(get('ValorCsll, vCSLL', valores) || '0');
+            data.valorLiquido = parseFloat(get('ValorLiquidoNfse, vLiq', valores) || '0');
+        }
     }
     return data;
 }
