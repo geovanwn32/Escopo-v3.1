@@ -35,8 +35,8 @@ const launchSchema = z.object({
   type: z.string(),
   value: z.number(),
   date: z.date(),
-  chaveNfe: z.string().optional(),
-  numeroNfse: z.string().optional(),
+  chaveNfe: z.string().optional().nullable(),
+  numeroNfse: z.string().optional().nullable(),
 });
 
 function parseXml(xmlString: string) {
@@ -53,10 +53,10 @@ function parseXml(xmlString: string) {
         const dateStr = get('dhEmi');
         data.date = dateStr ? new Date(dateStr) : new Date();
 
-    } else if (get('NFSe')) { // NFS-e
-        data.numeroNfse = get('nNFSe') || 'Número não encontrado';
-        data.value = parseFloat(get('vLiq') || get('vServ') || '0');
-        const dateStr = get('dhProc') || get('dCompet');
+    } else if (get('NFSe') || get('CompNfse')) { // NFS-e
+        data.numeroNfse = get('nNFSe') || get('Numero') || 'Número não encontrado';
+        data.value = parseFloat(get('vLiq') || get('vServ') || get('ValorLiquidoNfse') || '0');
+        const dateStr = get('dhProc') || get('dCompet') || get('DataEmissao');
         data.date = dateStr ? new Date(dateStr) : new Date();
     }
     return data;
@@ -77,15 +77,15 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, userId, companyId, o
   const handleSubmit = async () => {
     setLoading(true);
     try {
-        const launchData: z.infer<typeof launchSchema> = {
+        const launchData = {
             fileName: xmlFile.file.name,
             type: xmlFile.type,
             value: parsedData.value || 0,
             date: parsedData.date || new Date(),
-            chaveNfe: parsedData.chaveNfe,
-            numeroNfse: parsedData.numeroNfse
+            chaveNfe: parsedData.chaveNfe || null,
+            numeroNfse: parsedData.numeroNfse || null,
         };
-
+        
         await launchSchema.parseAsync(launchData);
 
         const launchesRef = collection(db, `users/${userId}/companies/${companyId}/launches`);
@@ -157,5 +157,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, userId, companyId, o
     </Dialog>
   );
 }
-
-    
