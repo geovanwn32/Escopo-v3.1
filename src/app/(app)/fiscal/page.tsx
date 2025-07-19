@@ -375,7 +375,7 @@ export default function FiscalPage() {
             const launchDate = new Date(launch.date);
             launchDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-            endDate.setHours(23,59,59,999);
+endDate.setHours(23,59,59,999);
             dateMatch = launchDate <= endDate;
         }
 
@@ -576,6 +576,7 @@ export default function FiscalPage() {
                         <TableRow>
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
+                            <TableHead>Prestador/Emitente</TableHead>
                             <TableHead>Chave/Número</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -584,7 +585,7 @@ export default function FiscalPage() {
                     <TableBody>
                         {filteredLaunches.length === 0 ? (
                              <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
+                                <TableCell colSpan={6} className="h-24 text-center">
                                     Nenhum resultado encontrado para os filtros aplicados.
                                 </TableCell>
                             </TableRow>
@@ -595,6 +596,9 @@ export default function FiscalPage() {
                                     <Badge variant="secondary">
                                       {launch.type.charAt(0).toUpperCase() + launch.type.slice(1)}
                                     </Badge>
+                                </TableCell>
+                                <TableCell className="max-w-[200px] truncate">
+                                    {launch.prestador?.nome || launch.emitente?.nome || 'N/A'}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="text-right font-medium">
@@ -662,5 +666,7 @@ export default function FiscalPage() {
       )}
     </div>
   );
+
+    
 
     
