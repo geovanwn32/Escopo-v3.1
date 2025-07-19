@@ -71,78 +71,81 @@ type FormData = z.infer<typeof launchSchema>;
 function parseXml(xmlString: string): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+    const errorNode = xmlDoc.querySelector("parsererror");
+    if (errorNode) {
+        console.error("Error parsing XML:", errorNode.textContent);
+        return {};
+    }
 
-    // Helper function that tries multiple selectors
-    const get = (selectors: string[], parent: Element | Document | null = xmlDoc): string => {
-        if (!parent) return '';
+    const get = (selectors: string[], parentNode?: Element | null): string => {
+        const parent = parentNode || xmlDoc;
         for (const selector of selectors) {
             const element = parent.querySelector(selector);
-            if (element && element.textContent) {
+            if (element?.textContent) {
                 return element.textContent.trim();
             }
         }
         return '';
     };
-    
+
+    const getFloat = (selectors: string[], parentNode?: Element | null): number => {
+      const textValue = get(selectors, parentNode);
+      return parseFloat(textValue || '0');
+    }
+
     let data: Partial<FormData> = {};
 
-    const nfeProc = xmlDoc.querySelector('nfeProc');
-    const nfse = xmlDoc.querySelector('NFSe, CompNfse');
+    const infNFe = xmlDoc.querySelector('infNFe');
+    const infNfse = xmlDoc.querySelector('InfNfse, infNfse');
 
-    if (nfeProc) {
-        const infNFe = nfeProc.querySelector('infNFe');
-        if (infNFe) {
-            const emit = infNFe.querySelector('emit');
-            const dest = infNFe.querySelector('dest');
-            const total = infNFe.querySelector('total ICMSTot');
-            
-            data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
-            const dateStr = get(['dhEmi'], infNFe);
-            if (dateStr) data.date = new Date(dateStr);
+    if (infNFe) { // It's an NF-e
+        const emit = infNFe.querySelector('emit');
+        const dest = infNFe.querySelector('dest');
+        const total = infNFe.querySelector('total ICMSTot');
+        
+        data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
+        const dateStr = get(['dhEmi'], infNFe);
+        if (dateStr) data.date = new Date(dateStr);
 
-            data.emitente = {
-                nome: get(['xNome'], emit),
-                cnpj: get(['CNPJ'], emit),
-            };
-            data.destinatario = {
-                nome: get(['xNome'], dest),
-                cnpj: get(['CNPJ'], dest),
-            };
-            data.valorProdutos = parseFloat(get(['vProd'], total) || '0');
-            data.valorTotalNota = parseFloat(get(['vNF'], total) || '0');
-        }
+        data.emitente = {
+            nome: get(['xNome'], emit),
+            cnpj: get(['CNPJ'], emit),
+        };
+        data.destinatario = {
+            nome: get(['xNome'], dest),
+            cnpj: get(['CNPJ'], dest),
+        };
+        data.valorProdutos = getFloat(['vProd'], total);
+        data.valorTotalNota = getFloat(['vNF'], total);
 
-    } else if (nfse) {
-        const infNfse = nfse.querySelector('InfNfse, Nfse infNfse');
-        if (infNfse) {
-            const prestadorNode = nfse.querySelector('PrestadorServico, prest');
-            const tomadorNode = nfse.querySelector('TomadorServico, toma');
-            const servicoNode = nfse.querySelector('Servico, serv');
-            const valoresNode = nfse.querySelector('Valores, ValoresNfse, Valor');
+    } else if (infNfse) { // It's an NFS-e
+        const prestadorNode = xmlDoc.querySelector('PrestadorServico, prest');
+        const tomadorNode = xmlDoc.querySelector('TomadorServico, toma');
+        const servicoNode = xmlDoc.querySelector('Servico, serv');
+        const valoresNode = xmlDoc.querySelector('Valores, ValoresNfse, Valor');
 
-            data.numeroNfse = get(['Numero', 'nNFSe'], infNfse);
-            const dateStr = get(['DataEmissao', 'dCompet'], infNfse);
-            if (dateStr) data.date = new Date(dateStr);
-            
-            data.prestador = {
-                nome: get(['RazaoSocial', 'xNome'], prestadorNode),
-                cnpj: get(['Cnpj', 'CNPJ'], prestadorNode),
-            };
-            data.tomador = {
-                nome: get(['RazaoSocial', 'xNome'], tomadorNode),
-                cnpj: get(['Cnpj', 'CNPJ'], tomadorNode),
-            };
+        data.numeroNfse = get(['Numero', 'nNFSe'], infNfse);
+        const dateStr = get(['DataEmissao', 'dCompet', 'dtEmissao'], infNfse);
+        if (dateStr) data.date = new Date(dateStr);
+        
+        data.prestador = {
+            nome: get(['RazaoSocial', 'xNome'], prestadorNode),
+            cnpj: get(['Cnpj', 'CNPJ'], prestadorNode),
+        };
+        data.tomador = {
+            nome: get(['RazaoSocial', 'xNome'], tomadorNode),
+            cnpj: get(['Cnpj', 'CNPJ'], tomadorNode),
+        };
 
-            data.discriminacao = get(['Discriminacao', 'xDescricao'], servicoNode);
-            data.itemLc116 = get(['ItemListaServico', 'cServico'], servicoNode);
-            data.valorServicos = parseFloat(get(['ValorServicos', 'vServ'], valoresNode) || '0');
-            data.valorPis = parseFloat(get(['ValorPis', 'vPIS'], valoresNode) || '0');
-            data.valorCofins = parseFloat(get(['ValorCofins', 'vCOFINS'], valoresNode) || '0');
-            data.valorIr = parseFloat(get(['ValorIr', 'vIR'], valoresNode) || '0');
-            data.valorInss = parseFloat(get(['ValorInss', 'vINSS'], valoresNode) || '0');
-            data.valorCsll = parseFloat(get(['ValorCsll', 'vCSLL'], valoresNode) || '0');
-            data.valorLiquido = parseFloat(get(['ValorLiquidoNfse', 'vLiq'], valoresNode) || '0');
-        }
+        data.discriminacao = get(['Discriminacao', 'discriminacao', 'xDescricao'], servicoNode);
+        data.itemLc116 = get(['ItemListaServico', 'cServico'], servicoNode);
+        data.valorServicos = getFloat(['ValorServicos', 'vServ'], valoresNode);
+        data.valorPis = getFloat(['ValorPis', 'vPIS'], valoresNode);
+        data.valorCofins = getFloat(['ValorCofins', 'vCOFINS'], valoresNode);
+        data.valorIr = getFloat(['ValorIr', 'vIR'], valoresNode);
+        data.valorInss = getFloat(['ValorInss', 'vINSS'], valoresNode);
+        data.valorCsll = getFloat(['ValorCsll', 'vCSLL'], valoresNode);
+        data.valorLiquido = getFloat(['ValorLiquidoNfse', 'vLiq'], valoresNode);
     }
     return data;
 }
@@ -520,5 +523,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     </Dialog>
   );
 }
-
-    
