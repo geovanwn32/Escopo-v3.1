@@ -228,7 +228,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             desconto: calculatedEvent?.desconto || 0,
         };
 
-        const updatedEvents = [...currentEvents, newEvent];
+        const updatedEvents = [...events, newEvent];
         recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
         setIsRubricaModalOpen(false);
@@ -419,22 +419,13 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         return !['salario_base', 'inss', 'irrf'].includes(eventId);
     };
 
-    const isFieldEditable = (event: PayrollEvent, field: 'referencia' | 'provento'): boolean => {
-      if (['inss', 'irrf'].includes(event.id)) return false;
-      if (event.id === 'salario_base') return false; 
-      
-      if (field === 'provento') {
-          // Proventos e descontos são sempre calculados, exceto para eventos manuais sem lógica automática
-          const hasAutomaticCalculation = ['horas extras', 'adicional noturno', 'periculosidade', 'insalubridade', 'salário família', 'vale-transporte'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
-          return !hasAutomaticCalculation;
+    const isFieldEditable = (event: PayrollEvent): boolean => {
+      // Core system-calculated events are never editable.
+      if (['inss', 'irrf', 'salario_base'].includes(event.id)) {
+        return false;
       }
-
-      // A referência é editável se for um evento que depende dela, como horas.
-      const needsReference = ['horas extras', 'adicional noturno'].some(term => event.rubrica.descricao.toLowerCase().includes(term));
-      if (needsReference && field === 'referencia') return true;
-
-      // Por padrão, a referência não é editável para a maioria dos outros eventos automáticos.
-      return false;
+      // All other events are manually editable.
+      return true;
     }
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -639,7 +630,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                                 className="h-8 w-20 text-right"
                                                 value={event.referencia.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                                                 onChange={(e) => handleEventChange(event.id, 'referencia', e.target.value)}
-                                                readOnly={!isFieldEditable(event, 'referencia')}
+                                                readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
                                         <TableCell className="text-right">
@@ -648,7 +639,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                                 className="h-8 w-28 text-right"
                                                 value={event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 onChange={(e) => handleEventChange(event.id, 'provento', e.target.value)}
-                                                readOnly={!isFieldEditable(event, 'provento')}
+                                                readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
                                         <TableCell className="text-right font-medium text-red-600">
