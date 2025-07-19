@@ -77,12 +77,8 @@ const createAccountingEntriesFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-        // Initialize Firebase Admin SDK if not already initialized
-        if (!admin.apps.length) {
-          admin.initializeApp({
-            credential: admin.credential.applicationDefault(),
-            databaseURL: `https://${process.env.GCLOUD_PROJECT}.firebaseio.com`
-          });
+        if (admin.apps.length === 0) {
+            admin.initializeApp();
         }
         const db = admin.firestore();
 
