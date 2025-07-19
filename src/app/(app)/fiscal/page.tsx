@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { collection, addDoc, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { useAuth } from "@/lib/auth";
 import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface XmlFile {
   file: {
@@ -28,7 +29,7 @@ interface XmlFile {
   error?: string;
 }
 
-interface Launch {
+export interface Launch {
     id: string;
     fileName: string;
     type: string;
@@ -71,6 +72,9 @@ export default function FiscalPage() {
   const [activeCompanyCnpj, setActiveCompanyCnpj] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
+  const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -135,7 +139,7 @@ export default function FiscalPage() {
     return () => unsubscribe();
   }, [activeCompanyId, user, toast]);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const newFilesPromises = Array.from(event.target.files)
         .filter(file => file.type === 'text/xml' || file.name.endsWith('.xml'))
@@ -143,42 +147,43 @@ export default function FiscalPage() {
             const fileContent = await file.text();
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(fileContent, "text/xml");
-            
-            let type: XmlFile['type'] = 'desconhecido';
             const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
-            const findCnpj = (xml: Document, potentialTags: string[]) => {
-              for (const tag of potentialTags) {
-                // Search for tags globally, ignoring namespaces
-                const nodeList = xml.getElementsByTagNameNS('*', tag);
-                if (nodeList.length > 0) {
-                  const cnpjNode = nodeList[0].getElementsByTagNameNS('*', 'CNPJ')[0];
-                  if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
-                }
+            let type: XmlFile['type'] = 'desconhecido';
+
+            const findCnpj = (potentialParents: string[], cnpjTagName: string) => {
+              for (const parentTag of potentialParents) {
+                  const parentNode = xmlDoc.getElementsByTagName(parentTag)[0];
+                  if (parentNode) {
+                      const cnpjNode = parentNode.getElementsByTagName(cnpjTagName)[0];
+                      if (cnpjNode && cnpjNode.textContent) {
+                          return cnpjNode.textContent.replace(/\D/g, '');
+                      }
+                  }
               }
               return null;
-            }
+            };
 
-            // NF-e (Produto) - Higher priority
+            // NF-e (Produto) - tem prioridade
             if (xmlDoc.getElementsByTagName('nfeProc').length > 0) {
-                const emitCnpj = findCnpj(xmlDoc, ['emit']);
-                const destCnpj = findCnpj(xmlDoc, ['dest']);
+                const emitCnpj = findCnpj(['emit'], 'CNPJ');
+                const destCnpj = findCnpj(['dest'], 'CNPJ');
 
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida'; // Selling a product
+                    type = 'saida'; // Venda de produto
                 } else if (destCnpj === normalizedActiveCnpj) {
-                    type = 'entrada'; // Buying a product
+                    type = 'entrada'; // Compra de produto
                 }
             } 
             // NFS-e (Serviço)
-            else if (xmlDoc.getElementsByTagNameNS('*', 'NFSe').length > 0) {
-                 const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico']);
-                 const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico']);
+            else if (xmlDoc.getElementsByTagName('NFSe').length > 0 || xmlDoc.getElementsByTagName('CompNfse').length > 0) {
+                 const prestadorCnpj = findCnpj(['prest', 'PrestadorServico', 'emit'], 'CNPJ');
+                 const tomadorCnpj = findCnpj(['toma', 'TomadorServico', 'dest'], 'CNPJ');
 
                 if (prestadorCnpj === normalizedActiveCnpj) {
-                  type = 'servico'; // Providing a service (income)
+                  type = 'servico'; // Prestação de serviço (entrada de receita)
                 } else if (tomadorCnpj === normalizedActiveCnpj) {
-                  type = 'saida'; // Taking a service (expense)
+                  type = 'saida'; // Tomada de serviço (despesa)
                 }
             }
             
@@ -206,7 +211,7 @@ export default function FiscalPage() {
         const uniqueNewFiles = newFiles.filter(f => !existingFileNames.has(f.file.name));
         return [...prevFiles, ...uniqueNewFiles];
       });
-      // Clear file input to allow re-uploading the same file
+      // Limpa o input de arquivo para permitir o re-upload do mesmo arquivo
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -225,15 +230,51 @@ export default function FiscalPage() {
     fileInputRef.current?.click();
   };
   
-  const handleLaunch = (file: XmlFile) => {
+  const handleLaunchFromXml = (file: XmlFile) => {
+    setModalMode('create');
     const fileObject = new File([file.content], file.file.name, { type: file.file.type });
     setSelectedXml({ ...file, file: fileObject });
+    setEditingLaunch(null);
     setIsModalOpen(true);
   };
+  
+  const handleViewLaunch = (launch: Launch) => {
+    setModalMode('view');
+    setEditingLaunch(launch);
+    setSelectedXml(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditLaunch = (launch: Launch) => {
+    setModalMode('edit');
+    setEditingLaunch(launch);
+    setSelectedXml(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteLaunch = async (launchId: string) => {
+    if (!user || !activeCompanyId) return;
+    try {
+        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompanyId}/launches`, launchId);
+        await deleteDoc(launchRef);
+        toast({
+            title: "Lançamento excluído com sucesso!"
+        });
+    } catch (error) {
+        console.error("Error deleting launch: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao excluir lançamento",
+            description: "Não foi possível remover o lançamento."
+        });
+    }
+  };
+
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedXml(null);
+    setEditingLaunch(null);
   }
 
   const handleLaunchSuccess = (fileName: string) => {
@@ -301,7 +342,7 @@ export default function FiscalPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" onClick={() => handleLaunch(xmlFile)} disabled={xmlFile.status === 'launched' || xmlFile.type === 'desconhecido'}>
+                      <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status === 'launched' || xmlFile.type === 'desconhecido'}>
                         {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
                         {xmlFile.status === 'pending' ? 'Lançar' : 'Lançado'}
                       </Button>
@@ -365,18 +406,34 @@ export default function FiscalPage() {
                                         </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                        <DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleViewLaunch(launch)}>
                                             <Eye className="mr-2 h-4 w-4" />
                                             Visualizar
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleEditLaunch(launch)}>
                                             <Pencil className="mr-2 h-4 w-4" />
                                             Alterar
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-destructive">
-                                            <Trash2 className="mr-2 h-4 w-4" />
-                                            Excluir
-                                        </DropdownMenuItem>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                     <Trash2 className="mr-2 h-4 w-4" />
+                                                     Excluir
+                                                </DropdownMenuItem>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta ação não pode ser desfeita. O lançamento fiscal será permanentemente removido.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteLaunch(launch.id)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </TableCell>
@@ -387,11 +444,13 @@ export default function FiscalPage() {
             )}
         </CardContent>
       </Card>
-      {selectedXml && user && activeCompanyId && (
+      {isModalOpen && user && activeCompanyId && (
         <LaunchFormModal 
             isOpen={isModalOpen}
             onClose={handleModalClose}
-            xmlFile={{ ...selectedXml, file: new File([selectedXml.content], selectedXml.file.name, {type: selectedXml.file.type}) }}
+            xmlFile={selectedXml}
+            launch={editingLaunch}
+            mode={modalMode}
             userId={user.uid}
             companyId={activeCompanyId}
             onLaunchSuccess={handleLaunchSuccess}
@@ -400,3 +459,5 @@ export default function FiscalPage() {
     </div>
   );
 }
+
+    
