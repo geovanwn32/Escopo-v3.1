@@ -109,7 +109,9 @@ export default function FiscalPage() {
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   
-  const [xmlFilter, setXmlFilter] = useState("");
+  const [xmlNameFilter, setXmlNameFilter] = useState("");
+  const [xmlTypeFilter, setXmlTypeFilter] = useState("");
+  const [xmlStatusFilter, setXmlStatusFilter] = useState("");
   const [xmlCurrentPage, setXmlCurrentPage] = useState(1);
   const xmlItemsPerPage = 5;
 
@@ -393,7 +395,7 @@ endDate.setHours(23,59,59,999);
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterStartDate, filterEndDate]);
 
-  const clearFilters = () => {
+  const clearLaunchesFilters = () => {
     setFilterKey("");
     setFilterType("");
     setFilterStartDate(undefined);
@@ -416,10 +418,23 @@ endDate.setHours(23,59,59,999);
 
   // XML files filtering and pagination logic
   const filteredXmlFiles = useMemo(() => {
-    return xmlFiles.filter(file => 
-      file.file.name.toLowerCase().includes(xmlFilter.toLowerCase())
-    );
-  }, [xmlFiles, xmlFilter]);
+    return xmlFiles.filter(file => {
+        const nameMatch = file.file.name.toLowerCase().includes(xmlNameFilter.toLowerCase());
+        const typeMatch = xmlTypeFilter ? file.type === xmlTypeFilter : true;
+        const statusMatch = xmlStatusFilter ? file.status === xmlStatusFilter : true;
+        return nameMatch && typeMatch && statusMatch;
+    });
+  }, [xmlFiles, xmlNameFilter, xmlTypeFilter, xmlStatusFilter]);
+
+  useEffect(() => {
+    setXmlCurrentPage(1);
+  }, [xmlNameFilter, xmlTypeFilter, xmlStatusFilter]);
+
+  const clearXmlFilters = () => {
+    setXmlNameFilter("");
+    setXmlTypeFilter("");
+    setXmlStatusFilter("");
+  };
 
   const totalXmlPages = Math.ceil(filteredXmlFiles.length / xmlItemsPerPage);
   const paginatedXmlFiles = filteredXmlFiles.slice(
@@ -470,25 +485,39 @@ endDate.setHours(23,59,59,999);
             <CardDescription>Gerencie e realize o lançamento dos arquivos XML importados.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
                 <div className="relative w-full sm:max-w-xs">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                      placeholder="Filtrar por nome do arquivo..."
-                      value={xmlFilter}
-                      onChange={(e) => {
-                        setXmlFilter(e.target.value);
-                        setXmlCurrentPage(1); // Reset page on filter
-                      }}
+                      placeholder="Filtrar por nome..."
+                      value={xmlNameFilter}
+                      onChange={(e) => setXmlNameFilter(e.target.value)}
                       className="pl-8"
                   />
                 </div>
-                 {xmlFilter && (
-                    <Button variant="ghost" onClick={() => setXmlFilter("")}>
-                        <FilterX className="mr-2 h-4 w-4" />
-                        Limpar Filtro
-                    </Button>
-                )}
+                <Select value={xmlTypeFilter} onValueChange={setXmlTypeFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="entrada">Entrada</SelectItem>
+                        <SelectItem value="saida">Saída</SelectItem>
+                        <SelectItem value="servico">Serviço</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Select value={xmlStatusFilter} onValueChange={setXmlStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                        <SelectItem value="launched">Lançado</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Button variant="ghost" onClick={clearXmlFilters} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                </Button>
             </div>
             <Table>
               <TableHeader>
@@ -544,7 +573,7 @@ endDate.setHours(23,59,59,999);
                 )) : (
                    <TableRow>
                       <TableCell colSpan={4} className="h-24 text-center">
-                          Nenhum arquivo encontrado.
+                          Nenhum arquivo encontrado para os filtros aplicados.
                       </TableCell>
                   </TableRow>
                 )}
@@ -617,7 +646,7 @@ endDate.setHours(23,59,59,999);
                         />
                     </PopoverContent>
                 </Popover>
-                <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto">
+                <Button variant="ghost" onClick={clearLaunchesFilters} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" />
                     Limpar Filtros
                 </Button>
@@ -751,5 +780,8 @@ endDate.setHours(23,59,59,999);
       )}
     </div>
   );
+
+    
+
 
     
