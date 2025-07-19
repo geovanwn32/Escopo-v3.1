@@ -38,9 +38,9 @@ interface LaunchFormModalProps {
 }
 
 const partySchema = z.object({
-  nome: z.string().optional(),
-  cnpj: z.string().optional(),
-}).optional();
+  nome: z.string().optional().nullable(),
+  cnpj: z.string().optional().nullable(),
+}).optional().nullable();
 
 const launchSchema = z.object({
   fileName: z.string(),
@@ -153,17 +153,10 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                         data.chaveNfe = value.replace(/\D/g, '');
                     } else {
                         const schemaForField = (launchSchema.shape as any)[primaryKey];
-                        if (schemaForField instanceof z.ZodOptional || schemaForField instanceof z.ZodNullable) {
-                            if (schemaForField._def.innerType instanceof z.ZodNumber) {
-                                (data as any)[primaryKey] = parseFloat(value) || 0;
-                            } else {
-                               (data as any)[primaryKey] = value;
-                            }
-                        } else if (schemaForField instanceof z.ZodNumber) {
-                            (data as any)[primaryKey] = parseFloat(value) || 0;
-                        }
-                        else {
-                            (data as any)[primaryKey] = value;
+                        if (schemaForField?._def?.innerType instanceof z.ZodNumber) {
+                             (data as any)[primaryKey] = parseFloat(value) || 0;
+                        } else {
+                           (data as any)[primaryKey] = value;
                         }
                     }
                 }
@@ -298,31 +291,40 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     }
     setLoading(true);
     try {
-        const dataToSave: Partial<FormData> = {
-          ...formData,
-          date: formData.date || new Date(),
-          fileName: formData.fileName || 'Lançamento Manual',
-          type: formData.type || 'desconhecido',
+        const cleanedData = { ...formData };
+        if (cleanedData.prestador?.cnpj) cleanedData.prestador.cnpj = cleanedData.prestador.cnpj.replace(/\D/g, '');
+        if (cleanedData.tomador?.cnpj) cleanedData.tomador.cnpj = cleanedData.tomador.cnpj.replace(/\D/g, '');
+        if (cleanedData.emitente?.cnpj) cleanedData.emitente.cnpj = cleanedData.emitente.cnpj.replace(/\D/g, '');
+        if (cleanedData.destinatario?.cnpj) cleanedData.destinatario.cnpj = cleanedData.destinatario.cnpj.replace(/\D/g, '');
+
+        const dataToSave = {
+            fileName: 'Lançamento Manual',
+            type: 'desconhecido',
+            date: new Date(),
+            chaveNfe: null,
+            numeroNfse: null,
+            prestador: null,
+            tomador: null,
+            discriminacao: null,
+            itemLc116: null,
+            valorServicos: null,
+            valorPis: null,
+            valorCofins: null,
+            valorIr: null,
+            valorInss: null,
+            valorCsll: null,
+            valorLiquido: null,
+            emitente: null,
+            destinatario: null,
+            valorProdutos: null,
+            valorTotalNota: null,
+            ...cleanedData
         };
 
-        if (dataToSave.prestador?.cnpj) dataToSave.prestador.cnpj = dataToSave.prestador.cnpj.replace(/\D/g, '');
-        if (dataToSave.tomador?.cnpj) dataToSave.tomador.cnpj = dataToSave.tomador.cnpj.replace(/\D/g, '');
-        if (dataToSave.emitente?.cnpj) dataToSave.emitente.cnpj = dataToSave.emitente.cnpj.replace(/\D/g, '');
-        if (dataToSave.destinatario?.cnpj) dataToSave.destinatario.cnpj = dataToSave.destinatario.cnpj.replace(/\D/g, '');
-
-        // Convert undefined to null before saving
-        Object.keys(dataToSave).forEach(key => {
-            const typedKey = key as keyof typeof dataToSave;
-            if (dataToSave[typedKey] === undefined) {
-                (dataToSave as any)[typedKey] = null;
-            }
-            if (typeof dataToSave[typedKey] === 'object' && dataToSave[typedKey] !== null) {
-              const nestedObj = dataToSave[typedKey] as any;
-              Object.keys(nestedObj).forEach(nestedKey => {
-                if(nestedObj[nestedKey] === undefined) {
-                  nestedObj[nestedKey] = null;
-                }
-              });
+        Object.keys(dataToSave).forEach((keyStr) => {
+            const key = keyStr as keyof typeof dataToSave;
+            if (dataToSave[key] === undefined) {
+                (dataToSave as any)[key] = null;
             }
         });
         
