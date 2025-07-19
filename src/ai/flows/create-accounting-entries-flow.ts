@@ -40,23 +40,28 @@ const aiprompt = ai.definePrompt({
         - 'Servico' (service provided by the company) is a type of 'Saida' and should generate revenue.
         - The description should be concise and informative.
         - The amount for debit and credit must be identical and positive.
+        - **Crucially, you must include the 'fiscalLaunchId' field in your output, matching the 'id' of the original fiscal launch document.**
 
         Example for a Sale ('saida'):
-        Launch: { "type": "saida", "valorTotalNota": 500, "destinatario": { "nome": "Cliente A" } ... }
+        Launch: { "id": "xyz123", "type": "saida", "valorTotalNota": 500, "destinatario": { "nome": "Cliente A" } ... }
         Entry: 
         { 
+          "date": "2024-01-15",
           "description": "Venda de mercadoria para Cliente A",
           "debit": { "account": "Caixa/Clientes", "amount": 500 },
-          "credit": { "account": "Receita de Vendas", "amount": 500 }
+          "credit": { "account": "Receita de Vendas", "amount": 500 },
+          "fiscalLaunchId": "xyz123"
         }
 
         Example for a Purchase ('entrada'):
-        Launch: { "type": "entrada", "valorTotalNota": 1000, "emitente": { "nome": "Fornecedor B" } ... }
+        Launch: { "id": "abc789", "type": "entrada", "valorTotalNota": 1000, "emitente": { "nome": "Fornecedor B" } ... }
         Entry: 
         { 
+          "date": "2024-01-16",
           "description": "Compra de mercadoria de Fornecedor B",
           "debit": { "account": "Estoque/Despesas", "amount": 1000 },
-          "credit": { "account": "Caixa/Fornecedores", "amount": 1000 }
+          "credit": { "account": "Caixa/Fornecedores", "amount": 1000 },
+          "fiscalLaunchId": "abc789"
         }
 
         Now, process these launches:
