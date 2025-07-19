@@ -104,56 +104,46 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     const data: Partial<FormData> = {};
 
-    function processNode(node: Element, parentKey: string = '') {
+    function processNode(node: Element, parentContext: string = '') {
         const nodeName = node.tagName.split(':').pop() || node.tagName;
 
-        let contextKey = parentKey;
+        let currentContext = parentContext;
 
-        // Determine context (emitente, destinatario, etc.)
         if (['emit', 'Emitente', 'PrestadorServico', 'prest'].includes(nodeName)) {
-            contextKey = (type === 'servico' || type === 'saida') ? 'prestador' : 'emitente';
+            currentContext = (type === 'servico' || type === 'saida') ? 'prestador' : 'emitente';
         } else if (['dest', 'Destinatario', 'TomadorServico', 'toma'].includes(nodeName)) {
-             contextKey = (type === 'servico' || type === 'saida') ? 'tomador' : 'destinatario';
+             currentContext = (type === 'servico' || type === 'saida') ? 'tomador' : 'destinatario';
         } else if (['ICMSTot', 'Valores', 'ValoresNfse', 'Valor'].includes(nodeName)){
-            contextKey = 'valores';
+            currentContext = 'valores';
         }
 
-        // Check against mappings
         for (const [field, tags] of Object.entries(fieldMappings)) {
             if (tags.includes(nodeName)) {
                 let [primaryKey, secondaryKey] = field.split('.');
                 
-                // Adjust for context
-                if (['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey) && contextKey && contextKey !== primaryKey) {
-                   if (type === 'servico' && primaryKey === 'emitente' && contextKey === 'prestador') {
-                     // allow emitente/prestador as synonyms for servico
-                   } else if (type === 'servico' && primaryKey === 'destinatario' && contextKey === 'tomador') {
-                    // allow tomador/destinatario as synonyms for servico
-                   } else if ((type === 'entrada' || type === 'saida') && primaryKey === 'prestador' && contextKey === 'emitente') {
-                     // allow prestador/emitente for nfe
-                   } else if ((type === 'entrada' || type === 'saida') && primaryKey === 'tomador' && contextKey === 'destinatario') {
-                     // allow tomador/destinatario for nfe
-                   }
-                   else {
-                       continue;
+                let effectivePrimaryKey = primaryKey;
+                if (['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey)) {
+                   if (currentContext) {
+                        // Use the current context if it's one of the party types
+                        effectivePrimaryKey = currentContext;
                    }
                 }
                 
                 const value = node.textContent?.trim() || '';
 
-                if (secondaryKey) { // Nested field like prestador.nome
-                    (data as any)[primaryKey] = {
-                        ...((data as any)[primaryKey] || {}),
+                if (secondaryKey) {
+                    (data as any)[effectivePrimaryKey] = {
+                        ...((data as any)[effectivePrimaryKey] || {}),
                         [secondaryKey]: value,
                     };
-                } else { // Top-level field
+                } else {
                      if (primaryKey === 'date') {
                         data.date = new Date(value);
                     } else if (primaryKey === 'chaveNfe') {
                         data.chaveNfe = value.replace(/\D/g, '');
                     } else {
                         const schemaForField = (launchSchema.shape as any)[primaryKey];
-                        if (schemaForField?._def?.innerType instanceof z.ZodNumber) {
+                         if (schemaForField?._def?.innerType instanceof z.ZodNumber) {
                              (data as any)[primaryKey] = parseFloat(value) || 0;
                         } else {
                            (data as any)[primaryKey] = value;
@@ -163,15 +153,13 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
             }
         }
         
-        // Recurse for children
         for (const childNode of Array.from(node.children)) {
-            processNode(childNode, contextKey);
+            processNode(childNode, currentContext);
         }
     }
 
     processNode(xmlDoc.documentElement);
     
-    // Fallback for values not in a specific group
     if (!data.valorTotalNota && data.emitente) data.valorTotalNota = (data as any)['vNF'];
     if (!data.valorLiquido && (data.prestador || type === 'servico')) {
         data.valorLiquido = (data as any)['vLiq'] || (data as any)['vNF'] || data.valorLiquido;
@@ -293,7 +281,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
     const getSafeNumber = (value: any): number | null => {
         if (value === null || value === undefined || value === '') return null;
-        const num = Number(value);
+        const num = Number(String(value).replace(/[^0-9,.-]/g, '').replace(',', '.'));
         return isNaN(num) ? null : num;
     };
 
@@ -306,10 +294,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
             fileName: formData.fileName || 'Lançamento Manual',
             type: formData.type || 'desconhecido',
             date: formData.date && isValid(formData.date) ? formData.date : new Date(),
-
             chaveNfe: getSafeString(formData.chaveNfe),
             numeroNfse: getSafeString(formData.numeroNfse),
-
             prestador: {
               nome: getSafeString(formData.prestador?.nome),
               cnpj: getSafeString(formData.prestador?.cnpj?.replace(/\D/g, '')),
@@ -326,10 +312,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
               nome: getSafeString(formData.destinatario?.nome),
               cnpj: getSafeString(formData.destinatario?.cnpj?.replace(/\D/g, '')),
             },
-
             discriminacao: getSafeString(formData.discriminacao),
             itemLc116: getSafeString(formData.itemLc116),
-
             valorServicos: getSafeNumber(formData.valorServicos),
             valorPis: getSafeNumber(formData.valorPis),
             valorCofins: getSafeNumber(formData.valorCofins),
