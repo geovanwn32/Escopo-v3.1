@@ -100,10 +100,13 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         }
     }, [user]);
 
-    const recalculateAndSetState = useCallback((currentEvents: PayrollEvent[], employee: Employee): PayrollCalculationResult => {
+    const recalculateAndSetState = useCallback((currentEvents: PayrollEvent[], employee: Employee | null): PayrollCalculationResult | null => {
+        if (!employee) return null;
+        
         const result = calculatePayroll(employee, currentEvents);
         setCalculationResult(result);
             
+        // Filter out old calculated events to avoid duplicates
         const updatedEvents = [...currentEvents.filter(e => !['inss', 'irrf', 'fgts'].includes(e.rubrica.id!))];
 
         const addOrUpdateEvent = (newEvent: PayrollEvent) => {
@@ -194,11 +197,12 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const numericValue = parseFloat(value.replace(',', '.')) || 0;
-        setEvents(prevEvents =>
-            prevEvents.map(event =>
-                event.id === eventId ? { ...event, [field]: numericValue } : event
-            )
+        
+        const updatedEvents = events.map(event =>
+            event.id === eventId ? { ...event, [field]: numericValue } : event
         );
+        
+        recalculateAndSetState(updatedEvents, selectedEmployee);
         setStatus('draft');
     };
 
@@ -228,7 +232,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
-        
+        setIsEmployeeModalOpen(false);
+
         const baseSalaryEvent: PayrollEvent = {
             id: 'salario_base',
             rubrica: {
@@ -245,10 +250,10 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             provento: employee.salarioBase,
             desconto: 0
         };
-
+        
+        // Starts the event list with just the base salary and recalculates everything.
         recalculateAndSetState([baseSalaryEvent], employee);
         setStatus('draft');
-        setIsEmployeeModalOpen(false);
     };
 
     const handleCalculate = async () => {
@@ -303,6 +308,10 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         setIsSaving(true);
         
         const calcResult = calculatePayroll(selectedEmployee, events);
+        if (!calcResult) {
+            setIsSaving(false);
+            return;
+        }
 
         const finalStatus = isCalculation ? 'calculated' : 'draft';
 
@@ -365,6 +374,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         }
 
         const calcResult = calculatePayroll(selectedEmployee, events);
+        if (!calcResult) return;
 
         const payrollData: Payroll = {
             id: currentPayrollId || undefined,
