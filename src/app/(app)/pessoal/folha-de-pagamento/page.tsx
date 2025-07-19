@@ -190,7 +190,6 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     }, [payrollId, user, activeCompany, toast, router, recalculateAndSetState]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
-        // Remove thousand separators (.), then replace decimal separator (,) with a dot (.)
         const sanitizedValue = value.replace(/\./g, '').replace(',', '.');
         const numericValue = parseFloat(sanitizedValue) || 0;
         
@@ -199,9 +198,9 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         );
 
         const currentEvent = updatedEvents.find(e => e.id === eventId);
-        const currentEventsWithoutCalculated = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
-
+        
         if (selectedEmployee && currentEvent && field === 'referencia') {
+            const currentEventsWithoutCalculated = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
             const calculatedEvent = calculateAutomaticEvent(currentEvent.rubrica, selectedEmployee, currentEventsWithoutCalculated, numericValue);
             if (calculatedEvent) {
                 updatedEvents = updatedEvents.map(event =>
@@ -262,7 +261,6 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             desconto: 0
         };
         
-        // Starts the event list with just the base salary and recalculates everything.
         recalculateAndSetState([baseSalaryEvent], employee);
         setStatus('draft');
     };
@@ -279,7 +277,6 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
         setIsCalculating(true);
         try {
-            // Recalculate everything to be sure
             const currentEvents = events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
             let finalEvents = [...currentEvents];
             
@@ -342,7 +339,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             employeeName: selectedEmployee.nomeCompleto,
             period,
             status: finalStatus,
-            events: events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!)), // Salva sem os calculados
+            events: events.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!)),
             totals: { totalProventos: calcResult.totalProventos, totalDescontos: calcResult.totalDescontos, liquido: calcResult.liquido },
             baseINSS: calcResult.baseINSS,
             baseIRRF: calcResult.baseIRRF,
@@ -353,14 +350,12 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
 
         try {
             if (currentPayrollId) {
-                // Update existing payroll
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
                 await setDoc(payrollRef, { ...payrollData, updatedAt: serverTimestamp() }, { merge: true });
                 if (!isCalculation) {
                     toast({ title: `Folha de pagamento atualizada como Rascunho!` });
                 }
             } else {
-                // Create new payroll
                 const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
                 const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
                 setCurrentPayrollId(docRef.id);
@@ -404,7 +399,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
             employeeName: selectedEmployee.nomeCompleto,
             period,
             status,
-            events, // Passa os eventos incluindo os calculados
+            events, 
             totals: { totalProventos: calcResult.totalProventos, totalDescontos: calcResult.totalDescontos, liquido: calcResult.liquido },
             baseINSS: calcResult.baseINSS,
             baseIRRF: calcResult.baseIRRF,
@@ -420,17 +415,15 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     };
 
     const isFieldEditable = (event: PayrollEvent): boolean => {
-      // Core system-calculated events are never editable.
       if (['inss', 'irrf', 'salario_base'].includes(event.id)) {
         return false;
       }
-      // All other events are manually editable.
       return true;
     }
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = e.target.value;
-        value = value.replace(/\D/g, ''); // Remove non-digit characters
+        value = value.replace(/\D/g, ''); 
         if (value.length > 2) {
             value = `${value.slice(0, 2)}/${value.slice(2, 6)}`;
         }
@@ -633,7 +626,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                                 readOnly={!isFieldEditable(event)}
                                             />
                                         </TableCell>
-                                        <TableCell className="text-right">
+                                        <TableCell>
                                              <Input
                                                 type="text"
                                                 className="h-8 w-28 text-right"
@@ -643,7 +636,13 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                                             />
                                         </TableCell>
                                         <TableCell className="text-right font-medium text-red-600">
-                                            {event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            <Input
+                                                type="text"
+                                                className="h-8 w-28 text-right"
+                                                value={event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                onChange={(e) => handleEventChange(event.id, 'desconto', e.target.value)}
+                                                readOnly={!isFieldEditable(event)}
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 ))}
