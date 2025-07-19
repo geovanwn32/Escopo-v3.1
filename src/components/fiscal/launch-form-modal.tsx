@@ -71,7 +71,18 @@ type FormData = z.infer<typeof launchSchema>;
 function parseXml(xmlString: string): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-    const get = (tag: string, parent: Element | Document | null) => parent?.querySelector(tag)?.textContent?.trim() ?? '';
+
+    // Helper function that tries multiple selectors
+    const get = (selectors: string[], parent: Element | Document | null = xmlDoc): string => {
+        if (!parent) return '';
+        for (const selector of selectors) {
+            const element = parent.querySelector(selector);
+            if (element && element.textContent) {
+                return element.textContent.trim();
+            }
+        }
+        return '';
+    };
     
     let data: Partial<FormData> = {};
 
@@ -86,48 +97,51 @@ function parseXml(xmlString: string): Partial<FormData> {
             const total = infNFe.querySelector('total ICMSTot');
             
             data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
-            data.date = new Date(get('dhEmi', infNFe));
+            const dateStr = get(['dhEmi'], infNFe);
+            if (dateStr) data.date = new Date(dateStr);
+
             data.emitente = {
-                nome: get('xNome', emit),
-                cnpj: get('CNPJ', emit),
+                nome: get(['xNome'], emit),
+                cnpj: get(['CNPJ'], emit),
             };
             data.destinatario = {
-                nome: get('xNome', dest),
-                cnpj: get('CNPJ', dest),
+                nome: get(['xNome'], dest),
+                cnpj: get(['CNPJ'], dest),
             };
-            data.valorProdutos = parseFloat(get('vProd', total) || '0');
-            data.valorTotalNota = parseFloat(get('vNF', total) || '0');
+            data.valorProdutos = parseFloat(get(['vProd'], total) || '0');
+            data.valorTotalNota = parseFloat(get(['vNF'], total) || '0');
         }
 
     } else if (nfse) {
         const infNfse = nfse.querySelector('InfNfse, Nfse infNfse');
         if (infNfse) {
-            const prestador = nfse.querySelector('PrestadorServico, prest');
-            const tomador = nfse.querySelector('TomadorServico, toma');
-            const servico = nfse.querySelector('Servico, serv');
-            const valores = nfse.querySelector('Valores, ValoresNfse');
+            const prestadorNode = nfse.querySelector('PrestadorServico, prest');
+            const tomadorNode = nfse.querySelector('TomadorServico, toma');
+            const servicoNode = nfse.querySelector('Servico, serv');
+            const valoresNode = nfse.querySelector('Valores, ValoresNfse, Valor');
 
-            data.numeroNfse = get('Numero', infNfse) || get('nNFSe', infNfse);
-            data.date = new Date(get('DataEmissao', infNfse) || get('dCompet', infNfse));
+            data.numeroNfse = get(['Numero', 'nNFSe'], infNfse);
+            const dateStr = get(['DataEmissao', 'dCompet'], infNfse);
+            if (dateStr) data.date = new Date(dateStr);
             
             data.prestador = {
-                nome: prestador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
-                cnpj: prestador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+                nome: get(['RazaoSocial', 'xNome'], prestadorNode),
+                cnpj: get(['Cnpj', 'CNPJ'], prestadorNode),
             };
             data.tomador = {
-                nome: tomador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
-                cnpj: tomador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+                nome: get(['RazaoSocial', 'xNome'], tomadorNode),
+                cnpj: get(['Cnpj', 'CNPJ'], tomadorNode),
             };
 
-            data.discriminacao = get('Discriminacao, xDescricao', servico);
-            data.itemLc116 = get('ItemListaServico, cServico', servico);
-            data.valorServicos = parseFloat(get('ValorServicos, vServ', valores) || '0');
-            data.valorPis = parseFloat(get('ValorPis, vPIS', valores) || '0');
-            data.valorCofins = parseFloat(get('ValorCofins, vCOFINS', valores) || '0');
-            data.valorIr = parseFloat(get('ValorIr, vIR', valores) || '0');
-            data.valorInss = parseFloat(get('ValorInss, vINSS', valores) || '0');
-            data.valorCsll = parseFloat(get('ValorCsll, vCSLL', valores) || '0');
-            data.valorLiquido = parseFloat(get('ValorLiquidoNfse, vLiq', valores) || '0');
+            data.discriminacao = get(['Discriminacao', 'xDescricao'], servicoNode);
+            data.itemLc116 = get(['ItemListaServico', 'cServico'], servicoNode);
+            data.valorServicos = parseFloat(get(['ValorServicos', 'vServ'], valoresNode) || '0');
+            data.valorPis = parseFloat(get(['ValorPis', 'vPIS'], valoresNode) || '0');
+            data.valorCofins = parseFloat(get(['ValorCofins', 'vCOFINS'], valoresNode) || '0');
+            data.valorIr = parseFloat(get(['ValorIr', 'vIR'], valoresNode) || '0');
+            data.valorInss = parseFloat(get(['ValorInss', 'vINSS'], valoresNode) || '0');
+            data.valorCsll = parseFloat(get(['ValorCsll', 'vCSLL'], valoresNode) || '0');
+            data.valorLiquido = parseFloat(get(['ValorLiquidoNfse', 'vLiq'], valoresNode) || '0');
         }
     }
     return data;
@@ -372,35 +386,35 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="valorServicos">Valor dos Serviços</Label>
-                        <Input id="valorServicos" name="valorServicos" value={getInputValue('valorServicos')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorServicos" name="valorServicos" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorServicos') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                      <div className="space-y-2">
                         <Label htmlFor="valorPis">PIS</Label>
-                        <Input id="valorPis" name="valorPis" value={getInputValue('valorPis')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorPis" name="valorPis" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorPis') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="valorCofins">COFINS</Label>
-                        <Input id="valorCofins" name="valorCofins" value={getInputValue('valorCofins')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorCofins" name="valorCofins" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorCofins') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="valorCsll">CSLL</Label>
-                        <Input id="valorCsll" name="valorCsll" value={getInputValue('valorCsll')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorCsll" name="valorCsll" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorCsll') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                      <div className="space-y-2">
                         <Label htmlFor="valorInss">INSS</Label>
-                        <Input id="valorInss" name="valorInss" value={getInputValue('valorInss')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorInss" name="valorInss" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorInss') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="valorIr">IR</Label>
-                        <Input id="valorIr" name="valorIr" value={getInputValue('valorIr')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                        <Input id="valorIr" name="valorIr" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorIr') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="valorLiquido" className="font-bold">Valor Líquido</Label>
-                        <Input id="valorLiquido" name="valorLiquido" value={getInputValue('valorLiquido')} onChange={handleNumericInputChange} readOnly={isReadOnly} className="font-bold" />
+                        <Input id="valorLiquido" name="valorLiquido" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorLiquido') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} className="font-bold" />
                     </div>
                 </div>
             </AccordionContent>
@@ -408,9 +422,70 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     </Accordion>
   );
 
+  const renderNfeFields = () => (
+    <Accordion type="multiple" defaultValue={['general', 'emitter', 'recipient', 'products']} className="w-full">
+        <AccordionItem value="general">
+            <AccordionTrigger>Informações Gerais</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="chaveNfe">Chave da NF-e</Label>
+                    <Input id="chaveNfe" name="chaveNfe" value={getInputValue('chaveNfe')} onChange={handleInputChange} readOnly={isReadOnly || !!xmlFile} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="date">Data de Emissão</Label>
+                        <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
+                    </div>
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="emitter">
+            <AccordionTrigger>Emitente</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="emitente.nome">Razão Social</Label>
+                    <Input id="emitente.nome" name="emitente.nome" value={getInputValue('emitente.nome')} onChange={handleInputChange} readOnly={isReadOnly} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="emitente.cnpj">CNPJ</Label>
+                    <Input id="emitente.cnpj" name="emitente.cnpj" value={formatCnpj(getInputValue('emitente.cnpj'))} readOnly={isReadOnly || !!getInputValue('emitente.cnpj')} />
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="recipient">
+            <AccordionTrigger>Destinatário</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="destinatario.nome">Razão Social</Label>
+                    <Input id="destinatario.nome" name="destinatario.nome" value={getInputValue('destinatario.nome')} onChange={handleInputChange} readOnly={isReadOnly} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="destinatario.cnpj">CNPJ</Label>
+                    <Input id="destinatario.cnpj" name="destinatario.cnpj" value={formatCnpj(getInputValue('destinatario.cnpj'))} readOnly={isReadOnly || !!getInputValue('destinatario.cnpj')} />
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+         <AccordionItem value="products">
+            <AccordionTrigger>Produtos e Valores</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="valorProdutos">Valor dos Produtos</Label>
+                        <Input id="valorProdutos" name="valorProdutos" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorProdutos') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="valorTotalNota" className="font-bold">Valor Total da Nota</Label>
+                        <Input id="valorTotalNota" name="valorTotalNota" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorTotalNota') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} className="font-bold" />
+                    </div>
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+    </Accordion>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
           <DialogDescription asChild>
@@ -427,22 +502,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           {formData.type === 'servico' || (formData.type === 'saida' && (!!formData.prestador || manualLaunchType === 'servico')) ? (
             renderNfseFields()
           ) : (
-             <div className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="chaveNfe">Chave da NF-e</Label>
-                    <Input id="chaveNfe" name="chaveNfe" value={getInputValue('chaveNfe')} onChange={handleInputChange} readOnly={isReadOnly || !!xmlFile} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="date">Data</Label>
-                        <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="valorTotalNota">Valor Total</Label>
-                        <Input id="valorTotalNota" name="valorTotalNota" value={getInputValue('valorTotalNota')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
-                    </div>
-                </div>
-             </div>
+            renderNfeFields()
           )}
         </div>
         <DialogFooter>
@@ -460,3 +520,5 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     </Dialog>
   );
 }
+
+    
