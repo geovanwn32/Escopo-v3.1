@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +18,6 @@ import {
   Save,
   Calculator,
   Info,
-  Paperclip,
-  Calendar,
   RefreshCw,
   X,
   Trash2,
@@ -29,25 +27,45 @@ import {
 import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth';
+import type { Company } from '@/app/(app)/fiscal/page';
+import type { Rubrica } from '@/types/rubrica';
+import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
 
 interface PayrollEvent {
-    id: number;
+    id: string; // Use rubrica's id or a unique generated id
     checked: boolean;
-    isAddition: boolean;
+    isAddition: boolean; // Not clear from UI, default to true
     date: string;
-    event: string;
-    historic: string;
+    eventCode: string;
+    description: string;
     cp: 'S' | 'N';
     fg: 'S' | 'N';
     ir: 'S' | 'N';
     reference: string;
     earning: number;
     deduction: number;
+    type: 'provento' | 'desconto';
 }
 
 export default function FolhaDePagamentoPage() {
     const [events, setEvents] = useState<PayrollEvent[]>([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const { user } = useAuth();
     const { toast } = useToast();
+
+     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+                if (companyDataString) {
+                    setActiveCompany(JSON.parse(companyDataString));
+                }
+            }
+        }
+    }, [user]);
 
     const totalEarnings = events.reduce((acc, event) => acc + event.earning, 0);
     const totalDeductions = events.reduce((acc, event) => acc + event.deduction, 0);
@@ -59,6 +77,27 @@ export default function FolhaDePagamentoPage() {
             description: "A lógica para esta ação ainda não foi implementada.",
         });
     }
+
+    const handleAddEvent = (rubrica: Rubrica) => {
+        const newEvent: PayrollEvent = {
+            id: rubrica.id!,
+            checked: false,
+            isAddition: true,
+            date: new Date().toLocaleDateString('pt-BR'), // Or period date
+            eventCode: rubrica.codigo,
+            description: rubrica.descricao,
+            cp: rubrica.incideINSS ? 'S' : 'N',
+            fg: rubrica.incideFGTS ? 'S' : 'N',
+            ir: rubrica.incideIRRF ? 'S' : 'N',
+            reference: '0',
+            earning: rubrica.tipo === 'provento' ? 0 : 0, // Should be calculated
+            deduction: rubrica.tipo === 'desconto' ? 0 : 0, // Should be calculated
+            type: rubrica.tipo,
+        };
+
+        setEvents(prevEvents => [...prevEvents, newEvent]);
+        setIsModalOpen(false);
+    };
 
     return (
         <div className="space-y-4">
@@ -118,7 +157,7 @@ export default function FolhaDePagamentoPage() {
                            </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm"><Plus className="mr-2 h-4 w-4"/> Adicionar Evento</Button>
+                            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} disabled={!activeCompany}><Plus className="mr-2 h-4 w-4"/> Adicionar Evento</Button>
                         </div>
                     </div>
 
@@ -172,8 +211,8 @@ export default function FolhaDePagamentoPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>{event.date}</TableCell>
-                                        <TableCell>{event.event}</TableCell>
-                                        <TableCell>{event.historic}</TableCell>
+                                        <TableCell>{event.eventCode}</TableCell>
+                                        <TableCell>{event.description}</TableCell>
                                         <TableCell><PayrollEventBadge type={event.cp} /></TableCell>
                                         <TableCell><PayrollEventBadge type={event.fg} /></TableCell>
                                         <TableCell><PayrollEventBadge type={event.ir} /></TableCell>
@@ -223,6 +262,16 @@ export default function FolhaDePagamentoPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {user && activeCompany && (
+                <RubricaSelectionModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSelect={handleAddEvent}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                />
+            )}
         </div>
     );
 }
