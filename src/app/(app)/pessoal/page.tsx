@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -163,8 +164,13 @@ export default function PessoalPage() {
                     <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
                      <TableCell>
-                      <Badge variant={getStatusVariant(payroll.status)} className="capitalize">
-                         {payroll.status}
+                      <Badge 
+                        variant={getStatusVariant(payroll.status)} 
+                        className={cn("capitalize", {
+                            'bg-green-600 hover:bg-green-600/90 text-white': payroll.status === 'calculated',
+                        })}
+                      >
+                         {payroll.status === 'draft' ? 'Rascunho' : payroll.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">

@@ -148,6 +148,7 @@ export default function FolhaDePagamentoPage() {
                 event.id === eventId ? { ...event, [field]: numericValue } : event
             )
         );
+        setStatus('draft');
     };
 
     const handleAddEvent = (rubrica: Rubrica) => {
