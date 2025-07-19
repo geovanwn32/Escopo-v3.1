@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc } from "firebase/firestore";
+import Link from 'next/link';
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { PlusCircle, BookOpen, ChevronsRightLeft, BookLock, ChevronDown, Loader2, MoreHorizontal, Eye, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, BookOpen, ChevronsRightLeft, BookLock, ChevronDown, Loader2, MoreHorizontal, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, BookUser } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { SimpleEntryModal } from "@/components/contabil/simple-entry-modal";
@@ -136,9 +137,11 @@ export default function ContabilPage() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="outline" disabled>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Novo Plano de Contas
+                <Button variant="outline" asChild>
+                  <Link href="/plano-de-contas">
+                    <BookUser className="mr-2 h-4 w-4" />
+                    Plano de Contas
+                  </Link>
                 </Button>
             </div>
         </div>
