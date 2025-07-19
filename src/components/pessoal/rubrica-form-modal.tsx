@@ -29,6 +29,7 @@ const rubricaSchema = z.object({
   codigo: z.string().min(1, "Código é obrigatório").max(4, "Código pode ter no máximo 4 caracteres."),
   descricao: z.string().min(1, "Descrição é obrigatória"),
   tipo: z.enum(['provento', 'desconto'], { required_error: "Tipo é obrigatório." }),
+  naturezaESocial: z.string().min(4, "Natureza deve ter 4 dígitos.").max(4, "Natureza deve ter 4 dígitos."),
   incideINSS: z.boolean().default(false),
   incideFGTS: z.boolean().default(false),
   incideIRRF: z.boolean().default(false),
@@ -43,6 +44,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
         codigo: '',
         descricao: '',
         tipo: 'provento',
+        naturezaESocial: '',
         incideINSS: false,
         incideFGTS: false,
         incideIRRF: false,
@@ -60,6 +62,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
                 codigo: '',
                 descricao: '',
                 tipo: 'provento',
+                naturezaESocial: '',
                 incideINSS: false,
                 incideFGTS: false,
                 incideIRRF: false,
@@ -115,11 +118,14 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Código</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Descrição</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição da Rubrica</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
             </div>
-            <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="provento">Provento</SelectItem><SelectItem value="desconto">Desconto</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="provento">Provento</SelectItem><SelectItem value="desconto">Desconto</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="naturezaESocial" render={({ field }) => ( <FormItem><FormLabel>Natureza eSocial</FormLabel><FormControl><Input {...field} maxLength={4} /></FormControl><FormMessage /></FormItem> )} />
+            </div>
             
             <div>
                 <FormLabel>Incidências</FormLabel>
@@ -134,7 +140,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
                                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
-                                    <FormLabel>INSS</FormLabel>
+                                    <FormLabel>Incidência INSS</FormLabel>
                                     <FormDescription>Incide para o cálculo da contribuição previdenciária.</FormDescription>
                                 </div>
                             </FormItem>
@@ -149,7 +155,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
                                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
-                                    <FormLabel>FGTS</FormLabel>
+                                    <FormLabel>Incidência FGTS</FormLabel>
                                     <FormDescription>Incide para o cálculo do Fundo de Garantia.</FormDescription>
                                 </div>
                             </FormItem>
@@ -164,7 +170,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
                                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
-                                    <FormLabel>IRRF</FormLabel>
+                                    <FormLabel>Incidência IRRF</FormLabel>
                                     <FormDescription>Incide para o cálculo do Imposto de Renda Retido na Fonte.</FormDescription>
                                 </div>
                             </FormItem>

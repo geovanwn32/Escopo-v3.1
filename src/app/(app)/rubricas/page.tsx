@@ -145,6 +145,7 @@ export default function RubricasPage() {
                   <TableHead>Descrição</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Incidências</TableHead>
+                   <TableHead>Natureza eSocial</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -163,6 +164,7 @@ export default function RubricasPage() {
                         {rubrica.incideFGTS && <Badge variant="outline">FGTS</Badge>}
                         {rubrica.incideIRRF && <Badge variant="outline">IRRF</Badge>}
                     </TableCell>
+                    <TableCell className="font-mono">{rubrica.naturezaESocial}</TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
