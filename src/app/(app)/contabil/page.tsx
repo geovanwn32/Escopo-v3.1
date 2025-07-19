@@ -7,21 +7,6 @@ import Link from "next/link";
 export default function ContabilPage() {
   return (
     <div className="space-y-6">
-        <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Módulo Contábil</h1>
-            <div className="flex gap-2">
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Novo Lançamento
-                </Button>
-                 <Button variant="outline" asChild>
-                  <Link href="/contabil/plano-de-contas">
-                    <BookUser className="mr-2 h-4 w-4" />
-                    Plano de Contas
-                  </Link>
-                </Button>
-            </div>
-        </div>
         <Card>
             <CardHeader>
             <CardTitle>Diário Contábil</CardTitle>
