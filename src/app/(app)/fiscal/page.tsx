@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, AlertTriangle } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -54,8 +54,15 @@ export default function FiscalPage() {
             
             // Standard NFe (Product)
             if (nfeProc) {
-                emitCnpj = nfeProc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                destCnpj = nfeProc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                const emitNode = nfeProc.getElementsByTagName('emit')[0];
+                if (emitNode) {
+                    emitCnpj = emitNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                }
+                const destNode = nfeProc.getElementsByTagName('dest')[0];
+                if (destNode) {
+                    destCnpj = destNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                }
+
                 if (emitCnpj === activeCompanyCnpj) {
                     type = 'saida';
                 } else if (destCnpj === activeCompanyCnpj) {
@@ -63,7 +70,7 @@ export default function FiscalPage() {
                 }
             } else {
                 // Service Notes (NFS-e) - check multiple formats
-                const nfseRoots = ['NFSe', 'CompNfse', 'GerarNfseResposta'];
+                const nfseRoots = ['NFSe', 'CompNfse', 'GerarNfseResposta', 'ConsultarNfseResposta', 'ConsultarLoteRpsResposta'];
                 let nfseNode = null;
                 for (const root of nfseRoots) {
                     const nodes = xmlDoc.getElementsByTagName(root);
@@ -72,28 +79,56 @@ export default function FiscalPage() {
                         break;
                     }
                 }
+                
+                // If no root found, maybe it's inside another tag like 'nfse'
+                if (!nfseNode) {
+                  const genericNfse = xmlDoc.getElementsByTagName('nfse')[0];
+                  if(genericNfse) nfseNode = genericNfse;
+                }
 
                 if (nfseNode) {
-                    const issuerTags = ['PrestadorServico', 'emit', 'prest'];
-                    const takerTags = ['TomadorServico', 'dest', 'toma'];
+                    const issuerTags = ['PrestadorServico', 'emit', 'prest', 'CnpjPrestador', 'Prestador'];
+                    const takerTags = ['TomadorServico', 'dest', 'toma', 'CnpjTomador', 'Tomador'];
                     
                     const findCnpj = (baseNode: Element, tags: string[]) => {
                         for (const tag of tags) {
-                            const parent = baseNode.getElementsByTagName(tag)[0];
-                            if (parent) {
-                                const cnpjNode = parent.getElementsByTagName('CNPJ')[0] || parent.getElementsByTagName('Cnpj')[0];
+                            const parentElements = baseNode.getElementsByTagName(tag);
+                            if (parentElements.length > 0) {
+                                // Search for CNPJ inside the parent tag
+                                const cnpjNode = parentElements[0].getElementsByTagName('CNPJ')[0] || parentElements[0].getElementsByTagName('Cnpj')[0];
                                 if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
+                                
+                                // Check if the parent tag itself contains the CNPJ value
+                                if (parentElements[0].textContent && parentElements[0].textContent.replace(/\D/g, '').length === 14) {
+                                  return parentElements[0].textContent.replace(/\D/g, '');
+                                }
                             }
                         }
-                        // Fallback for direct search inside infNFSe etc.
-                        const directCnpj = baseNode.getElementsByTagName('CNPJ')[0] || baseNode.getElementsByTagName('Cnpj')[0];
-                        if (directCnpj && directCnpj.textContent) return directCnpj.textContent.replace(/\D/g, '');
+                        
+                        // Fallback: search for any CNPJ tag within the base node
+                        const allCnpjs = baseNode.getElementsByTagName('CNPJ');
+                        if (allCnpjs.length > 0 && allCnpjs[0].textContent) return allCnpjs[0].textContent.replace(/\D/g, '');
+                        
+                        const allCnpjsLower = baseNode.getElementsByTagName('Cnpj');
+                        if (allCnpjsLower.length > 0 && allCnpjsLower[0].textContent) return allCnpjsLower[0].textContent.replace(/\D/g, '');
 
                         return null;
                     }
 
-                    emitCnpj = findCnpj(nfseNode, issuerTags);
-                    destCnpj = findCnpj(nfseNode, takerTags);
+                    // Try to find specific issuer and taker CNPJs first
+                    const prestNode = nfseNode.getElementsByTagName('prest')[0] || nfseNode.getElementsByTagName('PrestadorServico')[0] || nfseNode.getElementsByTagName('emit')[0];
+                    if (prestNode) {
+                        emitCnpj = prestNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                    }
+
+                    const tomaNode = nfseNode.getElementsByTagName('toma')[0] || nfseNode.getElementsByTagName('TomadorServico')[0] || nfseNode.getElementsByTagName('dest')[0];
+                    if (tomaNode) {
+                       destCnpj = tomaNode.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
+                    }
+
+                    // If not found, use the more generic search
+                    if (!emitCnpj) emitCnpj = findCnpj(nfseNode, issuerTags);
+                    if (!destCnpj) destCnpj = findCnpj(nfseNode, takerTags);
                     
                     if (emitCnpj === activeCompanyCnpj || destCnpj === activeCompanyCnpj) {
                         type = 'servico';
