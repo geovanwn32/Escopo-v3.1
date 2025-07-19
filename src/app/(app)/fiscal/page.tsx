@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -146,42 +145,37 @@ export default function FiscalPage() {
             let type: XmlFile['type'] = 'desconhecido';
             const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
 
-            const findCnpj = (xml: Document, parents: string[], child: string) => {
-              for (const parentTag of parents) {
-                const parentNodeList = xml.getElementsByTagName(parentTag);
-                 for (let i = 0; i < parentNodeList.length; i++) {
-                    const parentNode = parentNodeList[i];
-                    if (parentNode) {
-                      const cnpjNode = parentNode.getElementsByTagName(child)[0];
-                      if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
-                    }
-                 }
+            const findCnpj = (xml: Document, potentialTags: string[]) => {
+              for (const tag of potentialTags) {
+                const nodeList = xml.getElementsByTagName(tag);
+                if (nodeList.length > 0) {
+                  const cnpjNode = nodeList[0].getElementsByTagName('CNPJ')[0];
+                  if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
+                }
               }
               return null;
             }
 
-            // NF-e (Produto)
-            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            if (nfeProc) {
-                const emitCnpj = findCnpj(xmlDoc, ['emit'], 'CNPJ');
-                const destCnpj = findCnpj(xmlDoc, ['dest'], 'CNPJ');
+            // NF-e (Produto) - Higher priority
+            if (xmlDoc.getElementsByTagName('nfeProc').length > 0) {
+                const emitCnpj = findCnpj(xmlDoc, ['emit']);
+                const destCnpj = findCnpj(xmlDoc, ['dest']);
 
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida';
+                    type = 'saida'; // Selling a product
                 } else if (destCnpj === normalizedActiveCnpj) {
-                    type = 'entrada';
+                    type = 'entrada'; // Buying a product
                 }
-            } else { // Check for NFS-e variants (Serviço)
-                const nfseNode = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
-                if (nfseNode) {
-                    const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico', 'emit'], 'CNPJ');
-                    const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico', 'dest'], 'CNPJ');
+            } 
+            // NFS-e (Serviço)
+            else if (xmlDoc.getElementsByTagName('NFSe').length > 0 || xmlDoc.getElementsByTagName('CompNfse').length > 0) {
+                const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico', 'emit']);
+                const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico', 'dest']);
 
-                    if (prestadorCnpj === normalizedActiveCnpj) {
-                      type = 'servico'; // Service provided = income
-                    } else if (tomadorCnpj === normalizedActiveCnpj) {
-                      type = 'saida'; // Service taken = expense
-                    }
+                if (prestadorCnpj === normalizedActiveCnpj) {
+                  type = 'servico'; // Providing a service (income)
+                } else if (tomadorCnpj === normalizedActiveCnpj) {
+                  type = 'saida'; // Taking a service (expense)
                 }
             }
             
@@ -378,3 +372,5 @@ export default function FiscalPage() {
     </div>
   );
 }
+
+    
