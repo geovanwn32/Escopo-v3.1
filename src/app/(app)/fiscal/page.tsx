@@ -6,12 +6,14 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp } from 'fireb
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2 } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 
 interface XmlFile {
   file: {
@@ -147,9 +149,10 @@ export default function FiscalPage() {
 
             const findCnpj = (xml: Document, potentialTags: string[]) => {
               for (const tag of potentialTags) {
-                const nodeList = xml.getElementsByTagName(tag);
+                // Search for tags globally, ignoring namespaces
+                const nodeList = xml.getElementsByTagNameNS('*', tag);
                 if (nodeList.length > 0) {
-                  const cnpjNode = nodeList[0].getElementsByTagName('CNPJ')[0];
+                  const cnpjNode = nodeList[0].getElementsByTagNameNS('*', 'CNPJ')[0];
                   if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
                 }
               }
@@ -168,9 +171,9 @@ export default function FiscalPage() {
                 }
             } 
             // NFS-e (Serviço)
-            else if (xmlDoc.getElementsByTagName('NFSe').length > 0 || xmlDoc.getElementsByTagName('CompNfse').length > 0) {
-                const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico', 'emit']);
-                const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico', 'dest']);
+            else if (xmlDoc.getElementsByTagNameNS('*', 'NFSe').length > 0) {
+                 const prestadorCnpj = findCnpj(xmlDoc, ['prest', 'PrestadorServico']);
+                 const tomadorCnpj = findCnpj(xmlDoc, ['toma', 'TomadorServico']);
 
                 if (prestadorCnpj === normalizedActiveCnpj) {
                   type = 'servico'; // Providing a service (income)
@@ -337,6 +340,7 @@ export default function FiscalPage() {
                             <TableHead>Tipo</TableHead>
                             <TableHead>Chave/Número</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -351,6 +355,30 @@ export default function FiscalPage() {
                                 <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="text-right font-medium">
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.value)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <span className="sr-only">Open menu</span>
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                        <DropdownMenuItem>
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            Visualizar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem>
+                                            <Pencil className="mr-2 h-4 w-4" />
+                                            Alterar
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Excluir
+                                        </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -372,5 +400,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
