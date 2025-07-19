@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,9 @@ import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-mo
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
+import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Payroll } from '@/types/payroll';
 
 export interface PayrollEvent {
     id: string; 
@@ -45,14 +49,27 @@ export interface PayrollEvent {
     desconto: number;
 }
 
+export interface PayrollTotals {
+    totalProventos: number;
+    totalDescontos: number;
+    liquido: number;
+}
+
 export default function FolhaDePagamentoPage() {
+    const searchParams = useSearchParams();
+    const payrollId = searchParams.get('id');
+
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [isCalculating, setIsCalculating] = useState(false);
-    
+    const [isLoading, setIsLoading] = useState(!!payrollId);
+    const [isSaving, setIsSaving] = useState(false);
+    const [currentPayrollId, setCurrentPayrollId] = useState<string | null>(payrollId);
+    const [period, setPeriod] = useState<string>('');
+
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -68,12 +85,50 @@ export default function FolhaDePagamentoPage() {
         }
     }, [user]);
 
-    const handleActionClick = (actionName: string) => {
-        toast({
-            title: `Ação: ${actionName}`,
-            description: "A lógica para esta ação ainda não foi implementada.",
-        });
-    }
+    useEffect(() => {
+        const fetchPayroll = async () => {
+            if (!payrollId || !user || !activeCompany) return;
+
+            setIsLoading(true);
+            try {
+                const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, payrollId);
+                const payrollSnap = await getDoc(payrollRef);
+
+                if (payrollSnap.exists()) {
+                    const payrollData = payrollSnap.data() as Payroll;
+                    
+                    const employeeRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/employees`, payrollData.employeeId);
+                    const employeeSnap = await getDoc(employeeRef);
+
+                    if (employeeSnap.exists()) {
+                         const employeeData = {
+                            id: employeeSnap.id,
+                            ...employeeSnap.data(),
+                            dataAdmissao: (employeeSnap.data().dataAdmissao as Timestamp).toDate(),
+                            dataNascimento: (employeeSnap.data().dataNascimento as Timestamp).toDate(),
+                        } as Employee
+                        setSelectedEmployee(employeeData);
+                    }
+                    
+                    setPeriod(payrollData.period);
+                    setEvents(payrollData.events);
+                    setCurrentPayrollId(payrollData.id!);
+
+                } else {
+                    toast({ variant: 'destructive', title: 'Folha de pagamento não encontrada.' });
+                }
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Erro ao carregar folha de pagamento.' });
+                console.error(error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (payrollId && user && activeCompany) {
+            fetchPayroll();
+        }
+    }, [payrollId, user, activeCompany, toast]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const numericValue = parseFloat(value.replace(',', '.')) || 0;
@@ -191,13 +246,51 @@ export default function FolhaDePagamentoPage() {
         }
     };
     
-    const { totalProventos, totalDescontos, liquido } = useMemo(() => {
+    const { totalProventos, totalDescontos, liquido } = useMemo<PayrollTotals>(() => {
         const totalProventos = events.reduce((acc, event) => acc + event.provento, 0);
         const totalDescontos = events.reduce((acc, event) => acc + event.desconto, 0);
         const liquido = totalProventos - totalDescontos;
         return { totalProventos, totalDescontos, liquido };
     }, [events]);
     
+    const handleSave = async () => {
+        if (!user || !activeCompany || !selectedEmployee || !period) {
+            toast({ variant: 'destructive', title: 'Dados incompletos', description: 'Selecione funcionário e período para salvar.' });
+            return;
+        }
+
+        setIsSaving(true);
+        const payrollData: Omit<Payroll, 'id' | 'createdAt'> = {
+            employeeId: selectedEmployee.id!,
+            employeeName: selectedEmployee.nomeCompleto,
+            period,
+            status: 'draft',
+            events,
+            totals: { totalProventos, totalDescontos, liquido },
+            updatedAt: serverTimestamp(),
+        };
+
+        try {
+            if (currentPayrollId) {
+                // Update existing payroll
+                const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, currentPayrollId);
+                await setDoc(payrollRef, payrollData, { merge: true });
+                toast({ title: 'Rascunho atualizado com sucesso!' });
+            } else {
+                // Create new payroll
+                const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
+                const docRef = await addDoc(payrollsRef, { ...payrollData, createdAt: serverTimestamp() });
+                setCurrentPayrollId(docRef.id);
+                toast({ title: 'Folha de pagamento salva como rascunho!' });
+            }
+        } catch (error) {
+            console.error("Error saving payroll:", error);
+            toast({ variant: 'destructive', title: 'Erro ao salvar rascunho' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const isEventRemovable = (eventId: string) => {
         return !['salario_base', 'inss', 'irrf'].includes(eventId);
     };
@@ -208,6 +301,13 @@ export default function FolhaDePagamentoPage() {
       return true;
     }
 
+    if (isLoading) {
+        return (
+            <div className="flex h-full w-full items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4">
@@ -217,8 +317,11 @@ export default function FolhaDePagamentoPage() {
                     <HelpCircle className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => handleActionClick('Salvar')}><Save className="mr-2 h-4 w-4"/> Salvar</Button>
-                    <Button variant="destructive" onClick={() => handleActionClick('Excluir')}><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
+                    <Button variant="outline" onClick={handleSave} disabled={isSaving || !selectedEmployee}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
+                        Salvar
+                    </Button>
+                    <Button variant="destructive" onClick={() => {}} disabled><Trash2 className="mr-2 h-4 w-4"/> Excluir</Button>
                     <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
                         Calcular
@@ -253,9 +356,9 @@ export default function FolhaDePagamentoPage() {
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Período</label>
                              <div className="flex items-center gap-2">
-                                <Input placeholder="Ex: 06/2024" />
-                                <Button variant="ghost" size="icon"><RefreshCw className="h-4 w-4 text-blue-600"/></Button>
-                                <Button variant="ghost" size="icon"><X className="h-4 w-4 text-red-600"/></Button>
+                                <Input placeholder="Ex: 07/2024" value={period} onChange={e => setPeriod(e.target.value)} />
+                                <Button variant="ghost" size="icon" disabled><RefreshCw className="h-4 w-4 text-blue-600"/></Button>
+                                <Button variant="ghost" size="icon" disabled><X className="h-4 w-4 text-red-600"/></Button>
                             </div>
                         </div>
                          <div className="space-y-1">
