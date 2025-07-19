@@ -67,8 +67,33 @@ const launchSchema = z.object({
 
 type FormData = z.infer<typeof launchSchema>;
 
+const fieldMappings = {
+    'prestador.nome': ['RazaoSocial', 'xNome', 'Nome'],
+    'prestador.cnpj': ['Cnpj', 'CNPJ'],
+    'tomador.nome': ['RazaoSocial', 'xNome', 'Nome'],
+    'tomador.cnpj': ['Cnpj', 'CNPJ'],
+    'emitente.nome': ['xNome', 'RazaoSocial'],
+    'emitente.cnpj': ['CNPJ'],
+    'destinatario.nome': ['xNome', 'RazaoSocial'],
+    'destinatario.cnpj': ['CNPJ'],
+    'numeroNfse': ['Numero', 'nNFSe'],
+    'date': ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi'],
+    'chaveNfe': ['Id'],
+    'discriminacao': ['Discriminacao', 'discriminacao', 'xDescricao'],
+    'itemLc116': ['ItemListaServico', 'cServico'],
+    'valorServicos': ['ValorServicos', 'vServ'],
+    'valorPis': ['ValorPis', 'vPIS'],
+    'valorCofins': ['ValorCofins', 'vCOFINS'],
+    'valorIr': ['ValorIr', 'vIR'],
+    'valorInss': ['ValorInss', 'vINSS'],
+    'valorCsll': ['ValorCsll', 'vCSLL'],
+    'valorLiquido': ['ValorLiquidoNfse', 'vLiq'],
+    'valorProdutos': ['vProd'],
+    'valorTotalNota': ['vNF'],
+};
 
-function parseXml(xmlString: string): Partial<FormData> {
+
+function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
     const errorNode = xmlDoc.querySelector("parsererror");
@@ -77,78 +102,70 @@ function parseXml(xmlString: string): Partial<FormData> {
         return {};
     }
 
-    const get = (selectors: string[], parentNode?: Element | null): string => {
-        const parent = parentNode || xmlDoc;
-        for (const selector of selectors) {
-            const element = parent.querySelector(selector);
-            if (element?.textContent) {
-                return element.textContent.trim();
+    const data: Partial<FormData> = {};
+
+    function processNode(node: Element, parentKey: string = '') {
+        const nodeName = node.tagName.split(':').pop() || node.tagName;
+
+        let contextKey = parentKey;
+
+        // Determine context (emitente, destinatario, etc.)
+        if (['emit', 'Emitente', 'PrestadorServico', 'prest'].includes(nodeName)) {
+            contextKey = (type === 'servico') ? 'prestador' : 'emitente';
+        } else if (['dest', 'Destinatario', 'TomadorServico', 'toma'].includes(nodeName)) {
+             contextKey = (type === 'servico') ? 'tomador' : 'destinatario';
+        } else if (['ICMSTot', 'Valores', 'ValoresNfse', 'Valor'].includes(nodeName)){
+            contextKey = 'valores';
+        }
+
+        // Check against mappings
+        for (const [field, tags] of Object.entries(fieldMappings)) {
+            if (tags.includes(nodeName)) {
+                let [primaryKey, secondaryKey] = field.split('.');
+                
+                // Adjust for context
+                if (['prestador', 'tomador', 'emitente', 'destinatario'].includes(primaryKey) && contextKey && contextKey !== primaryKey) {
+                   continue;
+                }
+                
+                const value = node.textContent?.trim() || '';
+
+                if (secondaryKey) { // Nested field like prestador.nome
+                    (data as any)[primaryKey] = {
+                        ...((data as any)[primaryKey] || {}),
+                        [secondaryKey]: value,
+                    };
+                } else { // Top-level field
+                     if (primaryKey === 'date') {
+                        data.date = new Date(value);
+                    } else if (primaryKey === 'chaveNfe') {
+                        data.chaveNfe = value.replace(/\D/g, '');
+                    } else if (typeof (launchSchema.shape as any)[primaryKey]?.parse(0) === 'number') {
+                        (data as any)[primaryKey] = parseFloat(value) || 0;
+                    } else {
+                        (data as any)[primaryKey] = value;
+                    }
+                }
             }
         }
-        return '';
-    };
-
-    const getFloat = (selectors: string[], parentNode?: Element | null): number => {
-      const textValue = get(selectors, parentNode);
-      return parseFloat(textValue || '0');
+        
+        // Recurse for children
+        for (const childNode of Array.from(node.children)) {
+            processNode(childNode, contextKey);
+        }
     }
 
-    let data: Partial<FormData> = {};
+    processNode(xmlDoc.documentElement);
+    
+    // Fallback for values not in a specific group
+    if (!data.valorTotalNota && data.emitente) data.valorTotalNota = (data as any)['vNF'];
+    if (!data.valorLiquido && data.prestador) data.valorLiquido = (data as any)['vLiq'];
 
-    const infNFe = xmlDoc.querySelector('infNFe');
-    const infNfse = xmlDoc.querySelector('InfNfse, infNfse');
 
-    if (infNFe) { // It's an NF-e
-        const emit = infNFe.querySelector('emit');
-        const dest = infNFe.querySelector('dest');
-        const total = infNFe.querySelector('total ICMSTot');
-        
-        data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
-        const dateStr = get(['dhEmi'], infNFe);
-        if (dateStr) data.date = new Date(dateStr);
-
-        data.emitente = {
-            nome: get(['xNome'], emit),
-            cnpj: get(['CNPJ'], emit),
-        };
-        data.destinatario = {
-            nome: get(['xNome'], dest),
-            cnpj: get(['CNPJ'], dest),
-        };
-        data.valorProdutos = getFloat(['vProd'], total);
-        data.valorTotalNota = getFloat(['vNF'], total);
-
-    } else if (infNfse) { // It's an NFS-e
-        const prestadorNode = xmlDoc.querySelector('PrestadorServico, prest');
-        const tomadorNode = xmlDoc.querySelector('TomadorServico, toma');
-        const servicoNode = xmlDoc.querySelector('Servico, serv');
-        const valoresNode = xmlDoc.querySelector('Valores, ValoresNfse, Valor');
-
-        data.numeroNfse = get(['Numero', 'nNFSe'], infNfse);
-        const dateStr = get(['DataEmissao', 'dCompet', 'dtEmissao'], infNfse);
-        if (dateStr) data.date = new Date(dateStr);
-        
-        data.prestador = {
-            nome: get(['RazaoSocial', 'xNome'], prestadorNode),
-            cnpj: get(['Cnpj', 'CNPJ'], prestadorNode),
-        };
-        data.tomador = {
-            nome: get(['RazaoSocial', 'xNome'], tomadorNode),
-            cnpj: get(['Cnpj', 'CNPJ'], tomadorNode),
-        };
-
-        data.discriminacao = get(['Discriminacao', 'discriminacao', 'xDescricao'], servicoNode);
-        data.itemLc116 = get(['ItemListaServico', 'cServico'], servicoNode);
-        data.valorServicos = getFloat(['ValorServicos', 'vServ'], valoresNode);
-        data.valorPis = getFloat(['ValorPis', 'vPIS'], valoresNode);
-        data.valorCofins = getFloat(['ValorCofins', 'vCOFINS'], valoresNode);
-        data.valorIr = getFloat(['ValorIr', 'vIR'], valoresNode);
-        data.valorInss = getFloat(['ValorInss', 'vINSS'], valoresNode);
-        data.valorCsll = getFloat(['ValorCsll', 'vCSLL'], valoresNode);
-        data.valorLiquido = getFloat(['ValorLiquidoNfse', 'vLiq'], valoresNode);
-    }
     return data;
 }
+
+
 
 export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunchType, mode, userId, company, onLaunchSuccess }: LaunchFormModalProps) {
   const [loading, setLoading] = useState(false);
@@ -181,7 +198,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     if (isOpen) {
       if (mode === 'create') {
         if (xmlFile) {
-          initialData = parseXml(xmlFile.content);
+          initialData = parseXmlAdvanced(xmlFile.content, xmlFile.type);
           initialData.type = xmlFile.type;
           initialData.fileName = xmlFile.file.name;
         } else if (manualLaunchType) {
@@ -333,7 +350,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
   };
   
   const renderNfseFields = () => (
-    <Accordion type="multiple" defaultValue={['general', 'service']} className="w-full">
+    <Accordion type="multiple" defaultValue={['general', 'service', 'prestador', 'tomador']} className="w-full">
         <AccordionItem value="general">
             <AccordionTrigger>Informações Gerais</AccordionTrigger>
             <AccordionContent className="space-y-4 px-1">
@@ -502,7 +519,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-          {formData.type === 'servico' || (formData.type === 'saida' && (!!formData.prestador || manualLaunchType === 'servico')) ? (
+          {formData.type === 'servico' ? (
             renderNfseFields()
           ) : (
             renderNfeFields()
