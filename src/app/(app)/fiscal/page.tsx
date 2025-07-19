@@ -46,36 +46,58 @@ export default function FiscalPage() {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(fileContent, "text/xml");
             
-            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            const nfse = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
-
             let type: XmlFile['type'] = 'desconhecido';
             let emitCnpj: string | null = null;
             let destCnpj: string | null = null;
 
+            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
+            
+            // Standard NFe (Product)
             if (nfeProc) {
                 emitCnpj = nfeProc.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
                 destCnpj = nfeProc.getElementsByTagName('dest')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                
                 if (emitCnpj === activeCompanyCnpj) {
                     type = 'saida';
                 } else if (destCnpj === activeCompanyCnpj) {
                     type = 'entrada';
                 }
-            } else if (nfse) {
-                // Handle different NFS-e structures
-                if (nfse.tagName === 'NFSe') {
-                    emitCnpj = nfse.getElementsByTagName('emit')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                    destCnpj = nfse.getElementsByTagName('toma')[0]?.getElementsByTagName('CNPJ')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                } else { // CompNfse
-                    emitCnpj = nfse.getElementsByTagName('PrestadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent?.replace(/\D/g, '') ?? null;
-                    destCnpj = nfse.getElementsByTagName('TomadorServico')[0]?.getElementsByTagName('Cnpj')[0]?.textContent?.replace(/\D/g, '') ?? null;
+            } else {
+                // Service Notes (NFS-e) - check multiple formats
+                const nfseRoots = ['NFSe', 'CompNfse', 'GerarNfseResposta'];
+                let nfseNode = null;
+                for (const root of nfseRoots) {
+                    const nodes = xmlDoc.getElementsByTagName(root);
+                    if (nodes.length > 0) {
+                        nfseNode = nodes[0];
+                        break;
+                    }
                 }
-                
-                if (emitCnpj === activeCompanyCnpj) {
-                    type = 'servico'; // Assuming issuer is always providing the service
-                } else if (destCnpj === activeCompanyCnpj) {
-                    type = 'servico'; // Service taken by the company
+
+                if (nfseNode) {
+                    const issuerTags = ['PrestadorServico', 'emit', 'prest'];
+                    const takerTags = ['TomadorServico', 'dest', 'toma'];
+                    
+                    const findCnpj = (baseNode: Element, tags: string[]) => {
+                        for (const tag of tags) {
+                            const parent = baseNode.getElementsByTagName(tag)[0];
+                            if (parent) {
+                                const cnpjNode = parent.getElementsByTagName('CNPJ')[0] || parent.getElementsByTagName('Cnpj')[0];
+                                if (cnpjNode && cnpjNode.textContent) return cnpjNode.textContent.replace(/\D/g, '');
+                            }
+                        }
+                        // Fallback for direct search inside infNFSe etc.
+                        const directCnpj = baseNode.getElementsByTagName('CNPJ')[0] || baseNode.getElementsByTagName('Cnpj')[0];
+                        if (directCnpj && directCnpj.textContent) return directCnpj.textContent.replace(/\D/g, '');
+
+                        return null;
+                    }
+
+                    emitCnpj = findCnpj(nfseNode, issuerTags);
+                    destCnpj = findCnpj(nfseNode, takerTags);
+                    
+                    if (emitCnpj === activeCompanyCnpj || destCnpj === activeCompanyCnpj) {
+                        type = 'servico';
+                    }
                 }
             }
 
