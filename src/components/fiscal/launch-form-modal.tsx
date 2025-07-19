@@ -204,7 +204,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
  const handleNumericInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: parseCurrency(value) }));
+    const numberValue = parseCurrency(value);
+    setFormData(prev => ({ ...prev, [name]: isNaN(numberValue) ? undefined : numberValue }));
  };
 
  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,12 +409,14 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
-          <DialogDescription>
-            <div className="flex items-center gap-2">
-                <span>Tipo:</span>
-                <Badge variant="secondary" className="text-base capitalize">{formData.type}</Badge>
+          <DialogDescription asChild>
+            <div>
+              <div className="flex items-center gap-2">
+                  <span>Tipo:</span>
+                  <Badge variant="secondary" className="text-base capitalize">{formData.type}</Badge>
+              </div>
+              {xmlFile && <p>Arquivo: <span className="font-semibold">{xmlFile.file.name}</span></p>}
             </div>
-            {xmlFile && <p>Arquivo: <span className="font-semibold">{xmlFile.file.name}</span></p>}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
