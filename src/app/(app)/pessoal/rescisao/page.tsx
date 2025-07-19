@@ -30,6 +30,7 @@ import { db } from '@/lib/firebase';
 import type { Termination } from '@/types/termination';
 import Link from 'next/link';
 import { DateInput } from '@/components/ui/date-input';
+import { generateTrctPdf } from '@/services/trct-service';
 
 
 function TerminationPageWrapper() {
@@ -90,7 +91,13 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
                     const empRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/employees`, data.employeeId);
                     const empSnap = await getDoc(empRef);
                     if (empSnap.exists()) {
-                        setSelectedEmployee({ id: empSnap.id, ...empSnap.data() } as Employee);
+                         const employeeData = {
+                            id: empSnap.id,
+                            ...empSnap.data(),
+                            dataAdmissao: (empSnap.data().dataAdmissao as Timestamp).toDate(),
+                            dataNascimento: (empSnap.data().dataNascimento as Timestamp).toDate(),
+                        } as Employee;
+                        setSelectedEmployee(employeeData);
                     }
                     
                     setTerminationDate((data.terminationDate as Timestamp).toDate());
@@ -150,6 +157,7 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
                 title: 'Cálculo Realizado!',
                 description: 'Os valores da rescisão foram calculados.'
             });
+            await handleSave();
 
         } catch (error) {
             console.error("Erro no cálculo da rescisão:", error);
@@ -173,11 +181,69 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
     }, [calculationResult]);
     
     const formatNumberForDisplay = (num?: number) => {
-        if (num === undefined) return '';
+        if (num === undefined || num === null) return '0,00';
         return num.toLocaleString('pt-BR', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
+    };
+
+    const handleSave = async () => {
+        if (!user || !activeCompany || !selectedEmployee || !calculationResult) {
+            toast({ variant: 'destructive', title: 'Dados incompletos', description: 'Calcule a rescisão antes de salvar.' });
+            return;
+        }
+
+        setIsSaving(true);
+        
+        const terminationData: Omit<Termination, 'id' | 'createdAt'> = {
+            employeeId: selectedEmployee.id!,
+            employeeName: selectedEmployee.nomeCompleto,
+            terminationDate: terminationDate!,
+            reason: terminationReason,
+            noticeType,
+            fgtsBalance,
+            result: calculationResult,
+            updatedAt: serverTimestamp(),
+        };
+
+        try {
+            if (currentTerminationId) {
+                const termRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`, currentTerminationId);
+                await setDoc(termRef, { ...terminationData, updatedAt: serverTimestamp() }, { merge: true });
+                toast({ title: `Rescisão atualizada com sucesso!` });
+            } else {
+                const termsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
+                const docRef = await addDoc(termsRef, { ...terminationData, createdAt: serverTimestamp() });
+                setCurrentTerminationId(docRef.id);
+                router.replace(`/pessoal/rescisao?id=${docRef.id}`, { scroll: false });
+                toast({ title: `Rescisão salva com sucesso!` });
+            }
+        } catch (error) {
+            console.error("Erro ao salvar rescisão:", error);
+            toast({ variant: 'destructive', title: 'Erro ao salvar rescisão' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleGeneratePdf = () => {
+        if (!activeCompany || !selectedEmployee || !calculationResult) {
+            toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
+            return;
+        }
+
+        const terminationData: Termination = {
+            id: currentTerminationId || undefined,
+            employeeId: selectedEmployee.id!,
+            employeeName: selectedEmployee.nomeCompleto,
+            terminationDate: terminationDate!,
+            reason: terminationReason,
+            noticeType,
+            fgtsBalance,
+            result: calculationResult,
+        };
+        generateTrctPdf(activeCompany, selectedEmployee, terminationData);
     };
 
     if (isLoading) {
@@ -202,11 +268,15 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
                     <h1 className="text-2xl font-bold">Cálculo de Rescisão</h1>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button onClick={handleSave} disabled={isSaving || !calculationResult}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>} 
+                        Salvar Rescisão
+                    </Button>
                     <Button onClick={handleCalculate} disabled={isCalculating || !selectedEmployee}>
                         {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Calculator className="mr-2 h-4 w-4"/>}
                         Calcular Rescisão
                     </Button>
-                     <Button variant="secondary" disabled>
+                     <Button variant="secondary" onClick={handleGeneratePdf} disabled={!calculationResult}>
                         <Printer className="mr-2 h-4 w-4" />
                         Visualizar TRCT
                     </Button>
@@ -329,14 +399,14 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
                     <div className="flex justify-end items-center mt-4">
                         <div className="flex gap-6 text-right">
                            <div className="space-y-1">
-                             <p className="font-semibold text-lg">{formatNumberForDisplay(totalProventos)}</p>
+                             <p className="font-semibold text-lg text-green-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalProventos)}</p>
                            </div>
                             <div className="space-y-1">
-                             <p className="font-semibold text-lg text-red-600">{formatNumberForDisplay(totalDescontos)}</p>
+                             <p className="font-semibold text-lg text-red-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalDescontos)}</p>
                            </div>
                            <div className="space-y-1">
                                 <p className="text-sm text-muted-foreground">Líquido da Rescisão:</p>
-                                <p className="font-bold text-lg text-blue-700">{formatNumberForDisplay(liquido)}</p>
+                                <p className="font-bold text-lg text-blue-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(liquido)}</p>
                            </div>
                         </div>
                     </div>

@@ -1,0 +1,154 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import type { Company } from '@/app/(app)/fiscal/page';
+import type { Employee } from '@/types/employee';
+import type { Termination } from '@/types/termination';
+import { format } from 'date-fns';
+
+const formatCurrency = (value: number | undefined | null): string => {
+  if (value === undefined || value === null) return 'R$ 0,00';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+const formatCnpj = (cnpj: string): string => {
+    return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+}
+
+const formatCpf = (cpf: string): string => {
+    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
+const formatDate = (date: Date | undefined): string => {
+    if (!date) return '';
+    return format(date, 'dd/MM/yyyy');
+}
+
+
+export function generateTrctPdf(company: Company, employee: Employee, termination: Termination) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
+
+  let y = 10;
+  
+  // Header
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Termo de Rescisão do Contrato de Trabalho - TRCT', pageWidth / 2, y, { align: 'center' });
+  y += 10;
+  
+  // Identification of Employer
+  doc.setFontSize(12);
+  doc.text('I - Identificação do Empregador', 14, y);
+  y += 5;
+  autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+          [{ content: '01 CNPJ/CEI/CNO', styles: { fontStyle: 'bold' } }, { content: '02 Razão Social/Nome', styles: { fontStyle: 'bold' } }],
+          [formatCnpj(company.cnpj), company.razaoSocial],
+      ]
+  });
+  y = (doc as any).lastAutoTable.finalY + 5;
+  
+  // Identification of Employee
+  doc.setFontSize(12);
+  doc.text('II - Identificação do Trabalhador', 14, y);
+  y += 5;
+   autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+          [{ content: '09 CPF', styles: { fontStyle: 'bold' } }, { content: '10 Nome do Trabalhador', styles: { fontStyle: 'bold' } }, { content: '12 Data de Nascimento', styles: { fontStyle: 'bold' } }],
+          [formatCpf(employee.cpf), employee.nomeCompleto, formatDate(employee.dataNascimento)],
+          [{ content: '14 Nome da Mãe', styles: { fontStyle: 'bold' } }, '', { content: '15 CTPS (Nº, Série, UF)', styles: { fontStyle: 'bold' } }],
+          [employee.nomeMae, '', ''], // Placeholder for CTPS
+      ]
+  });
+  y = (doc as any).lastAutoTable.finalY + 5;
+  
+  // Contract Data
+  doc.setFontSize(12);
+  doc.text('III - Dados do Contrato', 14, y);
+  y += 5;
+  autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+          [{ content: '21 Data de Admissão', styles: { fontStyle: 'bold' } }, { content: '22 Data de Afastamento', styles: { fontStyle: 'bold' } }, { content: '23 Causa do Afastamento', styles: { fontStyle: 'bold' } } ],
+          [formatDate(employee.dataAdmissao), formatDate(termination.terminationDate as Date), termination.reason],
+          [{ content: '26 Cargo', styles: { fontStyle: 'bold' } }, '', { content: '27 Salário Base', styles: { fontStyle: 'bold' } }],
+          [employee.cargo, '', formatCurrency(employee.salarioBase)]
+      ]
+  });
+  y = (doc as any).lastAutoTable.finalY + 5;
+
+  // Verbas Rescisórias
+  doc.setFontSize(12);
+  doc.text('IV - Discriminação das Verbas Rescisórias', 14, y);
+  y += 5;
+  
+   const tableRows = termination.result.events.map(event => [
+        event.descricao,
+        event.referencia,
+        formatCurrency(event.provento),
+        formatCurrency(event.desconto),
+    ]);
+
+    autoTable(doc, {
+        startY: y,
+        head: [['Verba Rescisória', 'Referência', 'Valor', 'Dedução']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 25, halign: 'center' },
+            2: { cellWidth: 30, halign: 'right' },
+            3: { cellWidth: 30, halign: 'right' },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY;
+
+    // Totals
+    autoTable(doc, {
+        startY: y,
+        theme: 'grid',
+        showHead: false,
+        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
+        body: [
+             [
+                { content: 'Total Bruto', styles: { halign: 'right' } },
+                { content: formatCurrency(termination.result.totalProventos), styles: { halign: 'right' } },
+            ],
+             [
+                { content: 'Total Deduções', styles: { halign: 'right' } },
+                { content: formatCurrency(termination.result.totalDescontos), styles: { halign: 'right' } },
+            ],
+            [
+                { content: 'Valor Líquido', styles: { halign: 'right' } },
+                { content: formatCurrency(termination.result.liquido), styles: { halign: 'right' } },
+            ]
+        ],
+        columnStyles: {
+            0: { cellWidth: 106.8 }, 
+            1: { cellWidth: 60 },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
+    
+    // Signatures
+    doc.setFontSize(10);
+    doc.text('__________________________________', 14, y);
+    doc.text('__________________________________', pageWidth / 2 + 10, y);
+    y += 4;
+    doc.text('Assinatura do Empregador', 14, y);
+    doc.text('Assinatura do Trabalhador', pageWidth / 2 + 10, y);
+
+
+  // Open the PDF in a new tab
+  doc.output('dataurlnewwindow');
+}
