@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import type { Launch } from '@/app/(app)/fiscal/page';
+import { Launch, Company } from '@/app/(app)/fiscal/page';
 import { parse, format, isValid } from 'date-fns';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
+import { Textarea } from '../ui/textarea';
 
 interface XmlFile {
   file: File;
@@ -30,56 +32,111 @@ interface LaunchFormModalProps {
   manualLaunchType: 'entrada' | 'saida' | 'servico' | null;
   mode: 'create' | 'edit' | 'view';
   userId: string;
-  companyId: string;
+  company: Company;
   onLaunchSuccess: (fileName: string) => void;
 }
+
+const partySchema = z.object({
+  nome: z.string().optional(),
+  cnpj: z.string().optional(),
+}).optional();
 
 const launchSchema = z.object({
   fileName: z.string(),
   type: z.string(),
-  value: z.number().min(0.01, "O valor deve ser maior que zero."),
   date: z.date(),
   chaveNfe: z.string().optional().nullable(),
   numeroNfse: z.string().optional().nullable(),
+  prestador: partySchema,
+  tomador: partySchema,
+  discriminacao: z.string().optional().nullable(),
+  itemLc116: z.string().optional().nullable(),
+  valorServicos: z.number().optional().nullable(),
+  valorPis: z.number().optional().nullable(),
+  valorCofins: z.number().optional().nullable(),
+  valorIr: z.number().optional().nullable(),
+  valorInss: z.number().optional().nullable(),
+  valorCsll: z.number().optional().nullable(),
+  valorLiquido: z.number().optional().nullable(),
+  emitente: partySchema,
+  destinatario: partySchema,
+  valorProdutos: z.number().optional().nullable(),
+  valorTotalNota: z.number().optional().nullable(),
 });
 
-function parseXml(xmlString: string) {
+type FormData = z.infer<typeof launchSchema>;
+
+
+function parseXml(xmlString: string): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-    const get = (tag: string, parent: Document | Element = xmlDoc) => parent.getElementsByTagName(tag)[0]?.textContent ?? '';
-    const getFromAnywhere = (tag: string) => xmlDoc.getElementsByTagNameNS('*', tag)[0]?.textContent ?? '';
+    const get = (tag: string, parent: Element | Document = xmlDoc) => parent.querySelector(tag)?.textContent?.trim() ?? '';
+    
+    let data: Partial<FormData> = {};
 
-    let data: Partial<z.infer<typeof launchSchema>> = {};
+    const nfeProc = xmlDoc.querySelector('nfeProc');
+    const nfse = xmlDoc.querySelector('NFSe, CompNfse');
 
-    // NF-e
-    const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-    if (nfeProc) { 
-        const infNFe = nfeProc.getElementsByTagName('infNFe')[0];
+    if (nfeProc) {
+        const infNFe = nfeProc.querySelector('infNFe');
+        const emit = infNFe?.querySelector('emit');
+        const dest = infNFe?.querySelector('dest');
+        const total = infNFe?.querySelector('total ICMSTot');
+        
         data.chaveNfe = infNFe?.getAttribute('Id')?.replace('NFe', '') || 'Chave não encontrada';
-        data.value = parseFloat(get('vNF', nfeProc) || '0');
-        const dateStr = get('dhEmi', nfeProc);
-        data.date = dateStr ? new Date(dateStr) : new Date();
+        data.date = new Date(get('dhEmi', infNFe!));
+        data.emitente = {
+            nome: get('xNome', emit!),
+            cnpj: get('CNPJ', emit!),
+        };
+        data.destinatario = {
+            nome: get('xNome', dest!),
+            cnpj: get('CNPJ', dest!),
+        };
+        data.valorProdutos = parseFloat(get('vProd', total!) || '0');
+        data.valorTotalNota = parseFloat(get('vNF', total!) || '0');
 
-    } 
-    // NFS-e
-    else { 
-        data.numeroNfse = getFromAnywhere('nNFSe') || getFromAnywhere('Numero') || 'Número não encontrado';
-        data.value = parseFloat(getFromAnywhere('vLiq') || getFromAnywhere('ValorLiquidoNfse') || getFromAnywhere('vServ') || '0');
-        const dateStr = getFromAnywhere('dhProc') || getFromAnywhere('dCompet') || getFromAnywhere('DataEmissao');
-        data.date = dateStr ? new Date(dateStr) : new Date();
+    } else if (nfse) {
+        const infNfse = nfse.querySelector('InfNfse, Nfse infNfse');
+        const prestador = nfse.querySelector('PrestadorServico, prest');
+        const tomador = nfse.querySelector('TomadorServico, toma');
+        const servico = nfse.querySelector('Servico, serv');
+        const valores = nfse.querySelector('Valores, ValoresNfse');
+
+        data.numeroNfse = get('Numero', infNfse!) || get('nNFSe', infNfse!);
+        data.date = new Date(get('DataEmissao', infNfse!) || get('dCompet', infNfse!));
+        
+        data.prestador = {
+            nome: prestador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
+            cnpj: prestador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+        };
+        data.tomador = {
+            nome: tomador?.querySelector('RazaoSocial, xNome')?.textContent?.trim() || '',
+            cnpj: tomador?.querySelector('Cnpj, CNPJ')?.textContent?.trim() || '',
+        };
+
+        data.discriminacao = get('Discriminacao, xDescricao', servico!);
+        data.itemLc116 = get('ItemListaServico, cServico', servico!);
+        data.valorServicos = parseFloat(get('ValorServicos, vServ', valores!) || '0');
+        data.valorPis = parseFloat(get('ValorPis, vPIS', valores!) || '0');
+        data.valorCofins = parseFloat(get('ValorCofins, vCOFINS', valores!) || '0');
+        data.valorIr = parseFloat(get('ValorIr, vIR', valores!) || '0');
+        data.valorInss = parseFloat(get('ValorInss, vINSS', valores!) || '0');
+        data.valorCsll = parseFloat(get('ValorCsll, vCSLL', valores!) || '0');
+        data.valorLiquido = parseFloat(get('ValorLiquidoNfse, vLiq', valores!) || '0');
     }
     return data;
 }
 
-export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunchType, mode, userId, companyId, onLaunchSuccess }: LaunchFormModalProps) {
+export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunchType, mode, userId, company, onLaunchSuccess }: LaunchFormModalProps) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<Partial<z.infer<typeof launchSchema>>>({});
+  const [formData, setFormData] = useState<Partial<FormData>>({});
   const { toast } = useToast();
   const isReadOnly = mode === 'view';
 
-  const formatCurrency = (value?: number) => {
-    if (value === undefined || isNaN(value)) return '';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  const formatCnpj = (cnpj?: string) => {
+    if (!cnpj) return '';
+    return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
   }
 
   const parseCurrency = (value: string): number => {
@@ -89,67 +146,73 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
 
   const formatDate = (date?: Date): string => {
     if (!date || !isValid(date)) return '';
-    return format(date, 'dd/MM/yyyy');
+    return format(date, 'yyyy-MM-dd');
   };
   
   const parseDate = (dateStr: string): Date | null => {
-    const parsed = parse(dateStr, 'dd/MM/yyyy', new Date());
+    const parsed = new Date(dateStr);
     return isValid(parsed) ? parsed : null;
   };
 
   useEffect(() => {
-    let initialData: Partial<z.infer<typeof launchSchema>> = {};
+    let initialData: Partial<FormData> = {};
     if (isOpen) {
       if (mode === 'create') {
         if (xmlFile) {
           initialData = parseXml(xmlFile.content);
           initialData.type = xmlFile.type;
+          initialData.fileName = xmlFile.file.name;
         } else if (manualLaunchType) {
           initialData = {
             type: manualLaunchType,
             date: new Date(),
-            value: 0,
-            fileName: 'Lançamento Manual'
+            fileName: 'Lançamento Manual',
           };
+          // Pre-fill company data for manual launches
+          if (manualLaunchType === 'servico') {
+            initialData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+          } else if (manualLaunchType === 'saida') {
+             initialData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
+          } else if (manualLaunchType === 'entrada') {
+             initialData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
+          }
         }
       } else if ((mode === 'edit' || mode === 'view') && launch) {
-        initialData = {
-          fileName: launch.fileName,
-          type: launch.type,
-          value: launch.value,
-          date: launch.date,
-          chaveNfe: launch.chaveNfe,
-          numeroNfse: launch.numeroNfse,
-        };
+        initialData = { ...launch };
       }
       setFormData(initialData);
     }
-  }, [isOpen, xmlFile, launch, manualLaunchType, mode]);
+  }, [isOpen, xmlFile, launch, manualLaunchType, mode, company]);
 
-  const handleInputChange = (field: keyof z.infer<typeof launchSchema>, value: string) => {
-    setFormData(prev => {
-        let parsedValue: any = value;
-        if (field === 'value') {
-            parsedValue = parseCurrency(value);
-        } else if (field === 'date') {
-            const date = parseDate(value);
-            if (date) {
-                parsedValue = date;
-            } else {
-                return { ...prev, [field]: undefined }; 
-            }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    const [section, field] = name.split('.');
+
+    if (field) { // Nested field like prestador.cnpj
+      setFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...(prev[section as keyof typeof prev] as object || {}),
+          [field]: value
         }
-        return { ...prev, [field]: parsedValue };
-    });
+      }));
+    } else { // Top-level field
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const getInputValue = (field: keyof z.infer<typeof launchSchema>): string => {
-        const value = formData[field];
-        if (value === undefined || value === null) return '';
-        if (field === 'value') return formatCurrency(value as number);
-        if (field === 'date') return formatDate(value as Date);
-        return String(value);
-  };
+ const handleNumericInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: parseCurrency(value) }));
+ };
+
+ const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const date = parseDate(value);
+    if(date) {
+        setFormData(prev => ({ ...prev, [name]: date }));
+    }
+ };
 
 
   const handleSubmit = async () => {
@@ -159,30 +222,44 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     }
     setLoading(true);
     try {
-        const launchData = {
-            fileName: xmlFile?.file.name || launch?.fileName || 'Lançamento Manual',
-            type: formData.type || 'desconhecido',
-            value: formData.value || 0,
-            date: formData.date || new Date(),
-            chaveNfe: formData.chaveNfe || null,
-            numeroNfse: formData.numeroNfse || null,
+        const dataToSave = {
+          ...formData,
+          date: formData.date || new Date(),
+          fileName: formData.fileName || 'Lançamento Manual',
+          type: formData.type || 'desconhecido',
         };
+
+        // Convert undefined to null before saving
+        Object.keys(dataToSave).forEach(key => {
+            const typedKey = key as keyof typeof dataToSave;
+            if (dataToSave[typedKey] === undefined) {
+                (dataToSave as any)[typedKey] = null;
+            }
+            if (typeof dataToSave[typedKey] === 'object' && dataToSave[typedKey] !== null) {
+              const nestedObj = dataToSave[typedKey] as any;
+              Object.keys(nestedObj).forEach(nestedKey => {
+                if(nestedObj[nestedKey] === undefined) {
+                  nestedObj[nestedKey] = null;
+                }
+              });
+            }
+        });
         
-        await launchSchema.parseAsync(launchData);
+        await launchSchema.parseAsync(dataToSave);
 
         if (mode === 'create') {
-            const launchesRef = collection(db, `users/${userId}/companies/${companyId}/launches`);
-            await addDoc(launchesRef, launchData);
+            const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+            await addDoc(launchesRef, dataToSave);
             toast({
                 title: "Lançamento realizado!",
-                description: launchData.fileName === 'Lançamento Manual' 
-                    ? `Lançamento manual de ${launchData.type} criado.`
-                    : `O arquivo ${launchData.fileName} foi lançado com sucesso.`
+                description: dataToSave.fileName === 'Lançamento Manual' 
+                    ? `Lançamento manual de ${dataToSave.type} criado.`
+                    : `O arquivo ${dataToSave.fileName} foi lançado com sucesso.`
             });
-            onLaunchSuccess(launchData.fileName);
+            onLaunchSuccess(dataToSave.fileName);
         } else if (mode === 'edit' && launch) {
-            const launchRef = doc(db, `users/${userId}/companies/${companyId}/launches`, launch.id);
-            await updateDoc(launchRef, launchData);
+            const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, launch.id);
+            await updateDoc(launchRef, dataToSave);
             toast({
                 title: "Lançamento atualizado!",
                 description: "As alterações foram salvas com sucesso."
@@ -221,73 +298,144 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
         case 'view': return 'Visualizar Lançamento Fiscal';
     }
   }
-
-  const getDescription = () => {
-    if (mode === 'create') {
-        if (xmlFile) {
-            return <>Confirme os dados do arquivo <span className="font-bold">{xmlFile.file.name}</span></>;
-        }
-        if (manualLaunchType) {
-            const typeText = {
-                entrada: "Nota de Entrada",
-                saida: "Nota de Saída",
-                servico: "Nota de Serviço"
-            }[manualLaunchType];
-            return <>Preencha os dados para uma nova <span className="font-bold">{typeText}</span>.</>;
-        }
+  
+  const getInputValue = (name: string) => {
+    const [section, field] = name.split('.');
+    if (field) {
+      const sectionData = formData[section as keyof typeof formData] as any;
+      return sectionData?.[field] ?? '';
     }
-    return <>Visualize ou edite os dados do lançamento fiscal <span className="font-bold">{launch?.fileName}</span>.</>;
-  }
-
-  const isKeyFieldReadOnly = isReadOnly || !!xmlFile;
+    const value = formData[name as keyof typeof formData] as any;
+    return value ?? '';
+  };
+  
+  const renderNfseFields = () => (
+    <Accordion type="multiple" defaultValue={['general', 'service']} className="w-full">
+        <AccordionItem value="general">
+            <AccordionTrigger>Informações Gerais</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="numeroNfse">Número da NFS-e</Label>
+                        <Input id="numeroNfse" name="numeroNfse" value={getInputValue('numeroNfse')} onChange={handleInputChange} readOnly={isReadOnly || !!xmlFile} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="date">Data de Emissão</Label>
+                        <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
+                    </div>
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="prestador">
+            <AccordionTrigger>Prestador do Serviço</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="prestador.nome">Razão Social</Label>
+                    <Input id="prestador.nome" name="prestador.nome" value={getInputValue('prestador.nome')} onChange={handleInputChange} readOnly={isReadOnly} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="prestador.cnpj">CNPJ</Label>
+                    <Input id="prestador.cnpj" name="prestador.cnpj" value={formatCnpj(getInputValue('prestador.cnpj'))} readOnly={isReadOnly} disabled />
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="tomador">
+            <AccordionTrigger>Tomador do Serviço</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="tomador.nome">Razão Social</Label>
+                    <Input id="tomador.nome" name="tomador.nome" value={getInputValue('tomador.nome')} onChange={handleInputChange} readOnly={isReadOnly} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="tomador.cnpj">CNPJ</Label>
+                    <Input id="tomador.cnpj" name="tomador.cnpj" value={formatCnpj(getInputValue('tomador.cnpj'))} readOnly={isReadOnly} disabled />
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+        <AccordionItem value="service">
+            <AccordionTrigger>Serviços e Impostos</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                 <div className="space-y-2">
+                    <Label htmlFor="discriminacao">Discriminação do Serviço</Label>
+                    <Textarea id="discriminacao" name="discriminacao" value={getInputValue('discriminacao')} onChange={handleInputChange} readOnly={isReadOnly} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="itemLc116">Item LC 116</Label>
+                        <Input id="itemLc116" name="itemLc116" value={getInputValue('itemLc116')} onChange={handleInputChange} readOnly={isReadOnly} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="valorServicos">Valor dos Serviços</Label>
+                        <Input id="valorServicos" name="valorServicos" value={getInputValue('valorServicos')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                     <div className="space-y-2">
+                        <Label htmlFor="valorPis">PIS</Label>
+                        <Input id="valorPis" name="valorPis" value={getInputValue('valorPis')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="valorCofins">COFINS</Label>
+                        <Input id="valorCofins" name="valorCofins" value={getInputValue('valorCofins')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="valorCsll">CSLL</Label>
+                        <Input id="valorCsll" name="valorCsll" value={getInputValue('valorCsll')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                     <div className="space-y-2">
+                        <Label htmlFor="valorInss">INSS</Label>
+                        <Input id="valorInss" name="valorInss" value={getInputValue('valorInss')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="valorIr">IR</Label>
+                        <Input id="valorIr" name="valorIr" value={getInputValue('valorIr')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="valorLiquido" className="font-bold">Valor Líquido</Label>
+                        <Input id="valorLiquido" name="valorLiquido" value={getInputValue('valorLiquido')} onChange={handleNumericInputChange} readOnly={isReadOnly} className="font-bold" />
+                    </div>
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+    </Accordion>
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{getTitle()}</DialogTitle>
           <DialogDescription>
-            {getDescription()}
+            <div className="flex items-center gap-2">
+                <span>Tipo:</span>
+                <Badge variant="secondary" className="text-base">{formData.type}</Badge>
+            </div>
+            {xmlFile && <p>Arquivo: <span className="font-semibold">{xmlFile.file.name}</span></p>}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="type" className="text-right">Tipo</Label>
-            <Input id="type" value={(formData.type || '').charAt(0).toUpperCase() + (formData.type || '').slice(1)} readOnly className="col-span-3 bg-muted" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="key" className="text-right">Chave/Número</Label>
-            <Input 
-                id="key" 
-                value={getInputValue(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse')}
-                onChange={(e) => handleInputChange(formData.chaveNfe ? 'chaveNfe' : 'numeroNfse', e.target.value)} 
-                readOnly={isKeyFieldReadOnly} 
-                className={`col-span-3 ${isKeyFieldReadOnly ? 'bg-muted' : ''}`}
-                placeholder={manualLaunchType === 'servico' ? 'Número da NFS-e' : 'Chave da NF-e'}
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="date" className="text-right">Data</Label>
-            <Input 
-                id="date" 
-                value={getInputValue('date')} 
-                onChange={(e) => handleInputChange('date', e.target.value)}
-                readOnly={isReadOnly} 
-                className={`col-span-3 ${isReadOnly ? 'bg-muted' : ''}`}
-                placeholder="dd/mm/aaaa"
-            />
-          </div>
-           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="value" className="text-right">Valor</Label>
-            <Input 
-                id="value" 
-                value={getInputValue('value')} 
-                onChange={(e) => handleInputChange('value', e.target.value)}
-                readOnly={isReadOnly} 
-                className={`col-span-3 ${isReadOnly ? 'bg-muted' : ''}`}
-                placeholder="R$ 0,00"
-            />
-          </div>
+        <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
+          {formData.type === 'servico' || formData.type === 'saida' && launch?.prestador ? (
+            renderNfseFields()
+          ) : (
+             <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="chaveNfe">Chave da NF-e</Label>
+                    <Input id="chaveNfe" name="chaveNfe" value={getInputValue('chaveNfe')} onChange={handleInputChange} readOnly={isReadOnly || !!xmlFile} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="date">Data</Label>
+                        <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="valorTotalNota">Valor Total</Label>
+                        <Input id="valorTotalNota" name="valorTotalNota" value={getInputValue('valorTotalNota')} onChange={handleNumericInputChange} readOnly={isReadOnly} />
+                    </div>
+                </div>
+             </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={loading}>
@@ -304,3 +452,5 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     </Dialog>
   );
 }
+
+    

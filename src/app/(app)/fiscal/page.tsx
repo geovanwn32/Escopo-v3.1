@@ -35,15 +35,41 @@ interface XmlFile {
   error?: string;
 }
 
+export interface Company {
+    id: string;
+    nomeFantasia: string;
+    razaoSocial: string;
+    cnpj: string;
+}
+
 export interface Launch {
     id: string;
     fileName: string;
     type: string;
-    value: number;
     date: Date;
     chaveNfe?: string;
     numeroNfse?: string;
+    
+    // NFS-e fields
+    prestador?: { nome: string; cnpj: string; };
+    tomador?: { nome: string; cnpj: string; };
+    discriminacao?: string;
+    itemLc116?: string;
+    valorServicos?: number;
+    valorPis?: number;
+    valorCofins?: number;
+    valorIr?: number;
+    valorInss?: number;
+    valorCsll?: number;
+    valorLiquido?: number;
+
+    // NF-e fields
+    emitente?: { nome: string; cnpj: string; };
+    destinatario?: { nome: string; cnpj: string; };
+    valorProdutos?: number;
+    valorTotalNota?: number;
 }
+
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -74,8 +100,7 @@ export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [loadingLaunches, setLoadingLaunches] = useState(true);
-  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
-  const [activeCompanyCnpj, setActiveCompanyCnpj] = useState<string | null>(null);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
@@ -98,10 +123,10 @@ export default function FiscalPage() {
     if (typeof window !== 'undefined') {
         const companyId = sessionStorage.getItem('activeCompanyId');
         if (user && companyId) {
-            setActiveCompanyId(companyId);
-            const companyData = sessionStorage.getItem(`company_${companyId}`);
-            if (companyData) {
-                setActiveCompanyCnpj(JSON.parse(companyData).cnpj);
+            const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+            if (companyDataString) {
+                const companyData = JSON.parse(companyDataString);
+                setActiveCompany(companyData);
             }
             const storedFiles = sessionStorage.getItem(`xmlFiles_${companyId}`);
             if (storedFiles) {
@@ -112,21 +137,21 @@ export default function FiscalPage() {
   }, [user]);
 
   useEffect(() => {
-    if (activeCompanyId) {
-        sessionStorage.setItem(`xmlFiles_${activeCompanyId}`, JSON.stringify(xmlFiles, replacer));
+    if (activeCompany) {
+        sessionStorage.setItem(`xmlFiles_${activeCompany.id}`, JSON.stringify(xmlFiles, replacer));
     }
-  }, [xmlFiles, activeCompanyId]);
+  }, [xmlFiles, activeCompany]);
 
 
   useEffect(() => {
-    if (!activeCompanyId) {
+    if (!activeCompany) {
         setLoadingLaunches(false);
         setLaunches([]);
         return;
     };
 
     setLoadingLaunches(true);
-    const launchesRef = collection(db, `users/${user!.uid}/companies/${activeCompanyId}/launches`);
+    const launchesRef = collection(db, `users/${user!.uid}/companies/${activeCompany.id}/launches`);
     const q = query(launchesRef, orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -151,9 +176,9 @@ export default function FiscalPage() {
     });
 
     return () => unsubscribe();
-  }, [activeCompanyId, user, toast]);
+  }, [activeCompany, user, toast]);
 
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const newFilesPromises = Array.from(event.target.files)
         .filter(file => file.type === 'text/xml' || file.name.endsWith('.xml'))
@@ -161,20 +186,25 @@ export default function FiscalPage() {
             const fileContent = await file.text();
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(fileContent, "text/xml");
-            const normalizedActiveCnpj = activeCompanyCnpj?.replace(/\D/g, '');
+            const normalizedActiveCnpj = activeCompany?.cnpj?.replace(/\D/g, '');
 
             let type: XmlFile['type'] = 'desconhecido';
 
-            const findCnpj = (potentialParents: (Document | Element)[], cnpjTagName: string): string | null => {
-                for (const parentNode of potentialParents) {
-                    if (parentNode) {
-                        const cnpjNodes = parentNode.getElementsByTagName(cnpjTagName);
-                        if (cnpjNodes.length > 0 && cnpjNodes[0].textContent) {
-                            return cnpjNodes[0].textContent.replace(/\D/g, '');
-                        }
-                    }
-                }
-                return null;
+            const findCnpj = (potentialParents: (Element | null | undefined)[], cnpjTagName: string): string | null => {
+              for (const parentNode of potentialParents) {
+                  if (parentNode) {
+                      const cnpjNodes = Array.from(parentNode.getElementsByTagName(cnpjTagName));
+                       if (cnpjNodes.length > 0 && cnpjNodes[0].textContent) {
+                           return cnpjNodes[0].textContent.replace(/\D/g, '');
+                       }
+                      // Fallback for namespaced tags
+                      const namespacedNodes = Array.from(parentNode.getElementsByTagNameNS('*', cnpjTagName));
+                       if (namespacedNodes.length > 0 && namespacedNodes[0].textContent) {
+                           return namespacedNodes[0].textContent.replace(/\D/g, '');
+                       }
+                  }
+              }
+              return null;
             };
 
             const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
@@ -183,20 +213,20 @@ export default function FiscalPage() {
             if (nfeProc) {
                 const emitNode = nfeProc.getElementsByTagName('emit')[0];
                 const destNode = nfeProc.getElementsByTagName('dest')[0];
-                const emitCnpj = findCnpj(emitNode ? [emitNode] : [], 'CNPJ');
-                const destCnpj = findCnpj(destNode ? [destNode] : [], 'CNPJ');
+                const emitCnpj = findCnpj([emitNode], 'CNPJ');
+                const destCnpj = findCnpj([destNode], 'CNPJ');
                 
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida'; // Venda de produto
+                    type = 'saida'; // Venda de produto (saída de mercadoria, mas entrada de receita)
                 } else if (destCnpj === normalizedActiveCnpj) {
                     type = 'entrada'; // Compra de produto
                 }
             } else if (nfse) {
-                const prestadorNode = nfse.getElementsByTagName('PrestadorServico')[0] || nfse.getElementsByTagName('prest')[0];
-                const tomadorNode = nfse.getElementsByTagName('TomadorServico')[0] || nfse.getElementsByTagName('toma')[0];
+                const prestadorNode = nfse.querySelector('PrestadorServico, prest');
+                const tomadorNode = nfse.querySelector('TomadorServico, toma');
 
-                const prestadorCnpj = findCnpj(prestadorNode ? [prestadorNode] : [], 'Cnpj');
-                const tomadorCnpj = findCnpj(tomadorNode ? [tomadorNode] : [], 'Cnpj');
+                const prestadorCnpj = findCnpj([prestadorNode], 'Cnpj');
+                const tomadorCnpj = findCnpj([tomadorNode], 'Cnpj');
 
                 if (prestadorCnpj === normalizedActiveCnpj) {
                     type = 'servico'; // Prestação de serviço (é uma entrada de receita)
@@ -229,7 +259,6 @@ export default function FiscalPage() {
         const uniqueNewFiles = newFiles.filter(f => !existingFileNames.has(f.file.name));
         return [...prevFiles, ...uniqueNewFiles];
       });
-      // Limpa o input de arquivo para permitir o re-upload do mesmo arquivo
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -237,7 +266,7 @@ export default function FiscalPage() {
   };
 
   const handleImportClick = () => {
-    if (!activeCompanyCnpj) {
+    if (!activeCompany) {
         toast({
             variant: "destructive",
             title: "Nenhuma empresa ativa",
@@ -282,12 +311,11 @@ export default function FiscalPage() {
   };
 
   const handleDeleteLaunch = async (launch: Launch) => {
-    if (!user || !activeCompanyId) return;
+    if (!user || !activeCompany) return;
     try {
-        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompanyId}/launches`, launch.id);
+        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, launch.id);
         await deleteDoc(launchRef);
         
-        // Reset the status of the corresponding XML file to 'pending'
         setXmlFiles(files => 
             files.map(f => 
                 f.file.name === launch.fileName ? { ...f, status: 'pending' } : f
@@ -570,7 +598,7 @@ export default function FiscalPage() {
                                 </TableCell>
                                 <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="text-right font-medium">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.value)}
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.valorLiquido || launch.valorTotalNota || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <DropdownMenu>
@@ -619,7 +647,7 @@ export default function FiscalPage() {
             )}
         </CardContent>
       </Card>
-      {isModalOpen && user && activeCompanyId && (
+      {isModalOpen && user && activeCompany && (
         <LaunchFormModal 
             isOpen={isModalOpen}
             onClose={handleModalClose}
@@ -628,7 +656,7 @@ export default function FiscalPage() {
             manualLaunchType={manualLaunchType}
             mode={modalMode}
             userId={user.uid}
-            companyId={activeCompanyId}
+            company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
         />
       )}
