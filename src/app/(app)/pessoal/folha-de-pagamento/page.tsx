@@ -31,6 +31,8 @@ import { useAuth } from '@/lib/auth';
 import type { Company } from '@/app/(app)/fiscal/page';
 import type { Rubrica } from '@/types/rubrica';
 import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
+import type { Employee } from '@/types/employee';
+import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 
 interface PayrollEvent {
     id: string; // Use rubrica's id or a unique generated id
@@ -50,8 +52,11 @@ interface PayrollEvent {
 
 export default function FolhaDePagamentoPage() {
     const [events, setEvents] = useState<PayrollEvent[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
+    const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -96,7 +101,13 @@ export default function FolhaDePagamentoPage() {
         };
 
         setEvents(prevEvents => [...prevEvents, newEvent]);
-        setIsModalOpen(false);
+        setIsRubricaModalOpen(false);
+    };
+
+    const handleSelectEmployee = (employee: Employee) => {
+        setSelectedEmployee(employee);
+        setEvents([]); // Reset events when changing employee
+        setIsEmployeeModalOpen(false);
     };
 
     return (
@@ -119,8 +130,22 @@ export default function FolhaDePagamentoPage() {
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Empregado</label>
                             <div className="relative">
-                                <Input placeholder="Selecione um funcionário" className="pr-10" />
-                                <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Selecione um funcionário"
+                                    className="pr-10"
+                                    readOnly
+                                    value={selectedEmployee ? selectedEmployee.nomeCompleto : ''}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                                    onClick={() => setIsEmployeeModalOpen(true)}
+                                    disabled={!activeCompany}
+                                >
+                                    <Search className="h-4 w-4 text-muted-foreground" />
+                                </Button>
                             </div>
                         </div>
                         <div className="space-y-1">
@@ -157,7 +182,7 @@ export default function FolhaDePagamentoPage() {
                            </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)} disabled={!activeCompany}><Plus className="mr-2 h-4 w-4"/> Adicionar Evento</Button>
+                            <Button variant="outline" size="sm" onClick={() => setIsRubricaModalOpen(true)} disabled={!activeCompany || !selectedEmployee}><Plus className="mr-2 h-4 w-4"/> Adicionar Evento</Button>
                         </div>
                     </div>
 
@@ -187,7 +212,19 @@ export default function FolhaDePagamentoPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {events.length === 0 ? (
+                                {!selectedEmployee ? (
+                                    <TableRow>
+                                        <TableCell colSpan={10}>
+                                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                                <div className="p-4 bg-muted rounded-full mb-4">
+                                                    <Search className="h-10 w-10 text-muted-foreground" />
+                                                </div>
+                                                <h3 className="text-xl font-semibold">Selecione um funcionário</h3>
+                                                <p className="text-muted-foreground mt-2">Use o botão de busca para escolher um funcionário e iniciar o cálculo.</p>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : events.length === 0 ? (
                                      <TableRow>
                                         <TableCell colSpan={10}>
                                             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -265,9 +302,19 @@ export default function FolhaDePagamentoPage() {
 
             {user && activeCompany && (
                 <RubricaSelectionModal
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
+                    isOpen={isRubricaModalOpen}
+                    onClose={() => setIsRubricaModalOpen(false)}
                     onSelect={handleAddEvent}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                />
+            )}
+
+            {user && activeCompany && (
+                <EmployeeSelectionModal
+                    isOpen={isEmployeeModalOpen}
+                    onClose={() => setIsEmployeeModalOpen(false)}
+                    onSelect={handleSelectEmployee}
                     userId={user.uid}
                     companyId={activeCompany.id}
                 />
