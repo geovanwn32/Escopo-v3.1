@@ -30,10 +30,14 @@ import { Badge } from "../ui/badge"
 interface Launch {
   id: string;
   type: 'entrada' | 'saida' | 'servico';
-  value: number;
   date: Date;
   fileName: string;
+  valorLiquido?: number;
+  valorTotalNota?: number;
+  prestador?: { cnpj?: string | null };
+  tomador?: { cnpj?: string | null };
 }
+
 
 interface StatCard {
   title: string;
@@ -59,6 +63,7 @@ export function DashboardClient() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const [activeCompanyCnpj, setActiveCompanyCnpj] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [stats, setStats] = useState<StatCard[]>([
@@ -73,6 +78,13 @@ export function DashboardClient() {
     if (typeof window !== 'undefined') {
       const companyId = sessionStorage.getItem('activeCompanyId');
       setActiveCompanyId(companyId);
+      if (companyId) {
+        const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+        if (companyDataString) {
+            const companyData = JSON.parse(companyDataString);
+            setActiveCompanyCnpj(companyData.cnpj?.replace(/\D/g, ''));
+        }
+      }
     }
   }, []);
 
@@ -87,15 +99,38 @@ export function DashboardClient() {
     const q = query(launchesRef, orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const launchesData = snapshot.docs.map(doc => {
+      const launchesData: Launch[] = snapshot.docs.map(doc => {
         const data = doc.data();
-        return { id: doc.id, ...data, date: (data.date as Timestamp).toDate() } as Launch;
+        return { 
+            id: doc.id, 
+            ...data, 
+            date: (data.date as Timestamp).toDate() 
+        } as Launch;
       });
       setLaunches(launchesData);
 
       // Calculate stats
-      const totalEntradas = launchesData.filter(l => l.type === 'entrada' || l.type === 'servico').reduce((acc, l) => acc + l.value, 0);
-      const totalSaidas = launchesData.filter(l => l.type === 'saida').reduce((acc, l) => acc + l.value, 0);
+      const totalEntradas = launchesData.reduce((acc, l) => {
+          const value = l.valorLiquido || l.valorTotalNota || 0;
+          if (l.type === 'saida') { // NF-e de Saída (Venda)
+              return acc + value;
+          }
+          if (l.type === 'servico' && l.prestador?.cnpj === activeCompanyCnpj) { // NFS-e Prestado
+              return acc + value;
+          }
+          return acc;
+      }, 0);
+
+      const totalSaidas = launchesData.reduce((acc, l) => {
+          const value = l.valorLiquido || l.valorTotalNota || 0;
+          if (l.type === 'entrada') { // NF-e de Entrada (Compra)
+              return acc + value;
+          }
+          if (l.type === 'servico' && l.tomador?.cnpj === activeCompanyCnpj) { // NFS-e Tomado
+              return acc + value;
+          }
+          return acc;
+      }, 0);
 
       setStats(prev => [
           { ...prev[0], amount: formatCurrency(totalEntradas) },
@@ -120,10 +155,14 @@ export function DashboardClient() {
           if (launchDate >= sixMonthsAgo) {
             const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
             if (monthlyTotals[key]) {
-              if (l.type === 'entrada' || l.type === 'servico') {
-                monthlyTotals[key].entradas += l.value;
-              } else if (l.type === 'saida') {
-                monthlyTotals[key].saidas += l.value;
+              const value = l.valorLiquido || l.valorTotalNota || 0;
+              // Income
+              if (l.type === 'saida' || (l.type === 'servico' && l.prestador?.cnpj === activeCompanyCnpj)) {
+                monthlyTotals[key].entradas += value;
+              } 
+              // Expense
+              else if (l.type === 'entrada' || (l.type === 'servico' && l.tomador?.cnpj === activeCompanyCnpj)) {
+                monthlyTotals[key].saidas += value;
               }
             }
           }
@@ -147,7 +186,7 @@ export function DashboardClient() {
     });
 
     return () => unsubscribe();
-  }, [user, activeCompanyId, toast]);
+  }, [user, activeCompanyId, activeCompanyCnpj, toast]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -216,12 +255,12 @@ export function DashboardClient() {
                             <TableRow key={launch.id}>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
                                 <TableCell>
-                                    <Badge variant={launch.type === 'saida' ? 'destructive' : 'secondary'}>
+                                    <Badge variant={launch.type === 'entrada' ? 'destructive' : 'secondary'}>
                                         {launch.type.charAt(0).toUpperCase() + launch.type.slice(1)}
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                    {formatCurrency(launch.value)}
+                                    {formatCurrency(launch.valorLiquido || launch.valorTotalNota || 0)}
                                 </TableCell>
                             </TableRow>
                         ))}
