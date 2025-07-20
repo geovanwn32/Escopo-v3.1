@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
@@ -57,11 +57,14 @@ export async function generateSalesReportPdf(userId: string, company: Company, d
     const q = query(launchesRef,
         where('date', '>=', startDate),
         where('date', '<=', endDate),
-        where('type', 'in', ['saida', 'servico'])
+        orderBy('date', 'desc')
     );
 
     const snapshot = await getDocs(q);
-    const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
+    const sales = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Launch))
+        .filter(launch => launch.type === 'saida' || launch.type === 'servico');
+
 
     if (sales.length === 0) {
         throw new Error("Nenhuma venda ou serviço encontrado para o período selecionado.");
