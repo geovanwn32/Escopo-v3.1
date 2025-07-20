@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, CalendarCheck, FileX } from "lucide-react";
+import { FileText, CalendarCheck, FileX, Users2 } from "lucide-react";
 import type { Employee } from '@/types/employee';
 import type { Company } from '@/types/company';
 import { useAuth } from '@/lib/auth';
@@ -18,9 +18,10 @@ import { db } from '@/lib/firebase';
 import type { Vacation } from '@/types/vacation';
 import type { Termination } from '@/types/termination';
 import { Timestamp } from 'firebase/firestore';
+import { generateDependentsListPdf } from '@/services/dependents-list-service';
 
 
-type DocumentType = 'contract' | 'vacation' | 'termination';
+type DocumentType = 'contract' | 'vacation' | 'termination' | 'dependents';
 
 export default function FichasPage() {
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -112,6 +113,9 @@ export default function FichasPage() {
                     generateTrctPdf(activeCompany, employee, termData);
                     break;
                 }
+                 case 'dependents':
+                    generateDependentsListPdf(activeCompany, employee);
+                    break;
             }
         } catch (error) {
             console.error(`Erro ao gerar documento ${documentType}:`, error);
@@ -137,6 +141,12 @@ export default function FichasPage() {
             title: 'Termo de Rescisão (TRCT)',
             description: 'Gere o Termo de Rescisão de Contrato de Trabalho para um funcionário desligado.',
             icon: FileX
+        },
+        { 
+            type: 'dependents' as DocumentType,
+            title: 'Relação de Dependentes',
+            description: 'Gere um documento com a lista de todos os dependentes de um funcionário.',
+            icon: Users2
         }
     ];
 
@@ -151,7 +161,7 @@ export default function FichasPage() {
                 <CardDescription>Selecione um documento abaixo para gerar. A maioria dos documentos requer a seleção de um funcionário.</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {documentCards.map((card) => (
                         <Card key={card.type} className="flex flex-col">
                             <CardHeader>
