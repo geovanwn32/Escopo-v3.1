@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Company } from '@/app/(app)/fiscal/page';
 import type { Payroll } from "@/types/payroll";
 import type { Termination } from "@/types/termination";
+import type { Thirteenth } from "@/types/thirteenth";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX } from "lucide-react";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [terminations, setTerminations] = useState<Termination[]>([]);
+  const [thirteenths, setThirteenths] = useState<Thirteenth[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
@@ -49,11 +51,12 @@ export default function PessoalPage() {
         setLoading(false);
         setPayrolls([]);
         setTerminations([]);
+        setThirteenths([]);
         return;
     };
 
     setLoading(true);
-    let activeListeners = 2;
+    let activeListeners = 3;
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) {
@@ -74,10 +77,7 @@ export default function PessoalPage() {
         onDone();
     }, (error) => {
         console.error("Erro ao buscar folhas de pagamento: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar folhas de pagamento",
-        });
+        toast({ variant: "destructive", title: "Erro ao buscar folhas de pagamento" });
         onDone();
     });
 
@@ -94,16 +94,30 @@ export default function PessoalPage() {
         onDone();
     }, (error) => {
         console.error("Erro ao buscar rescisões: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar rescisões",
-        });
+        toast({ variant: "destructive", title: "Erro ao buscar rescisões" });
+        onDone();
+    });
+
+    // 13th Salary listener
+    const thirteenthsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`);
+    const thirteenthsQuery = query(thirteenthsRef, orderBy('createdAt', 'desc'));
+    const unsubscribeThirteenths = onSnapshot(thirteenthsQuery, (snapshot) => {
+        const thirteenthsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+        } as Thirteenth));
+        setThirteenths(thirteenthsData);
+        onDone();
+    }, (error) => {
+        console.error("Erro ao buscar 13º Salário: ", error);
+        toast({ variant: "destructive", title: "Erro ao buscar 13º Salário" });
         onDone();
     });
 
     return () => {
         unsubscribePayrolls();
         unsubscribeTerminations();
+        unsubscribeThirteenths();
     };
   }, [user, activeCompany, toast]);
 
@@ -126,18 +140,24 @@ export default function PessoalPage() {
         toast({ variant: 'destructive', title: 'Erro ao excluir rescisão.' });
       }
   };
+  
+  const handleDeleteThirteenth = async (thirteenthId: string) => {
+      if (!user || !activeCompany) return;
+      try {
+        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`, thirteenthId));
+        toast({ title: 'Cálculo de 13º excluído com sucesso!' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao excluir cálculo.' });
+      }
+  };
 
 
   const getStatusVariant = (status: Payroll['status']): "secondary" | "default" | "outline" => {
     switch (status) {
-        case 'draft':
-            return 'secondary';
-        case 'calculated':
-            return 'default';
-        case 'finalized':
-            return 'outline'
-        default:
-            return 'secondary';
+        case 'draft': return 'secondary';
+        case 'calculated': return 'default';
+        case 'finalized': return 'outline'
+        default: return 'secondary';
     }
   }
 
@@ -149,6 +169,15 @@ export default function PessoalPage() {
         default: return status;
     }
   }
+
+  const getParcelLabel = (parcel: string): string => {
+    switch(parcel) {
+        case 'first': return '1ª Parcela';
+        case 'second': return '2ª Parcela';
+        case 'unique': return 'Parcela Única';
+        default: return parcel;
+    }
+  };
 
 
   return (
@@ -275,6 +304,94 @@ export default function PessoalPage() {
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                         <AlertDialogAction onClick={() => handleDeletePayroll(payroll.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           )}
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Cálculos de 13º Salário Salvos</CardTitle>
+          <CardDescription>Visualize os cálculos de 13º salário salvos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : thirteenths.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="p-4 bg-muted rounded-full mb-4">
+                  <Gift className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold">Nenhum cálculo de 13º salvo</h3>
+              <p className="text-muted-foreground mt-2">
+                {activeCompany ? 'Calcule um novo 13º para começar.' : 'Selecione uma empresa para visualizar os cálculos salvos.'}
+              </p>
+            </div>
+           ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Funcionário</TableHead>
+                  <TableHead>Ano</TableHead>
+                  <TableHead>Parcela</TableHead>
+                  <TableHead className="text-right">Líquido</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {thirteenths.map((thirteenth) => (
+                  <TableRow key={thirteenth.id}>
+                    <TableCell className="font-medium">{thirteenth.employeeName}</TableCell>
+                    <TableCell>{thirteenth.year}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{getParcelLabel(thirteenth.parcel)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(thirteenth.result.liquido)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/pessoal/decimo-terceiro?id=${thirteenth.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Acessar
+                                </Link>
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Excluir
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. O cálculo será permanentemente removido.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteThirteenth(thirteenth.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
