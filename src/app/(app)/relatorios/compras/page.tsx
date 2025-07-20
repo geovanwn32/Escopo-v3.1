@@ -55,7 +55,13 @@ export default function ComprasReportPage() {
 
         setIsGenerating(true);
         try {
-            await generatePurchasesReportPdf(user.uid, activeCompany, dateRange);
+            const success = await generatePurchasesReportPdf(user.uid, activeCompany, dateRange);
+            if (!success) {
+                toast({
+                    title: "Nenhuma compra encontrada",
+                    description: "Não há dados para gerar um relatório no período selecionado.",
+                });
+            }
         } catch (error) {
             console.error("Erro ao gerar relatório de compras:", error);
             toast({ variant: 'destructive', title: 'Erro ao gerar relatório', description: (error as Error).message });

@@ -36,7 +36,7 @@ const getPartnerName = (launch: Launch): string => {
     return 'N/A';
 };
 
-export async function generatePurchasesReportPdf(userId: string, company: Company, dateRange: DateRange) {
+export async function generatePurchasesReportPdf(userId: string, company: Company, dateRange: DateRange): Promise<boolean> {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
@@ -62,7 +62,7 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
         .filter(launch => launch.type === 'entrada');
 
     if (purchases.length === 0) {
-        throw new Error("Nenhuma compra encontrada para o período selecionado.");
+        return false;
     }
 
     // --- PDF GENERATION ---
@@ -122,4 +122,5 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     });
 
     doc.output('dataurlnewwindow');
+    return true;
 }
