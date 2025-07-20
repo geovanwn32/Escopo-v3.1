@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
-import { UserPlus, CheckCircle, Loader2 } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
@@ -67,7 +67,7 @@ export function RegisterForm() {
                 <UserPlus className="h-8 w-8 text-primary" />
             </div>
             <CardTitle>Crie a sua Conta</CardTitle>
-            <CardDescription>É rápido e fácil.</CardDescription>
+            <CardDescription>É rápido e fácil. Preencha os campos abaixo para começar.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -99,7 +99,7 @@ export function RegisterForm() {
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin" /> : <CheckCircle />}
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                   Registar
                 </Button>
               </form>
@@ -113,15 +113,16 @@ export function RegisterForm() {
           </CardContent>
         </Card>
       </div>
-      <div className="hidden bg-muted lg:flex items-center justify-center p-8">
-         <Image 
-            src="https://images.unsplash.com/photo-1636819483716-854492c76683?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjYWR1Y2V1JTIwJTIwY29udGFiaWxpZGFkZXxlbnwwfHx8fDE3NTI5Nzc2MTF8MA&ixlib=rb-4.1.0&q=80&w=1080"
-            alt="Pessoa trabalhando com calculadora e documentos contábeis" 
-            width={800} 
-            height={600}
-            data-ai-hint="office workspace"
-            className="rounded-lg shadow-2xl object-cover"
-         />
+      <div className="hidden bg-muted lg:flex flex-col justify-between p-8">
+        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
+            Contabilizei
+        </Link>
+         <div className="mt-auto">
+            <blockquote className="space-y-2">
+                <p className="text-lg">&ldquo;A contabilidade é a linguagem dos negócios. Dominá-la é o primeiro passo para o sucesso sustentável.&rdquo;</p>
+                <footer className="text-sm">Equipe Contabilizei</footer>
+            </blockquote>
+        </div>
       </div>
     </div>
   );
