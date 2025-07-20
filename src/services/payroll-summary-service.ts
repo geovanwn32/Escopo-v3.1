@@ -50,6 +50,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
+    const primaryColor = [51, 145, 255]; // #3391FF
     
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
