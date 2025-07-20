@@ -12,11 +12,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save } from 'lucide-react';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
 import { Employee } from '@/types/employee';
+import { Switch } from '../ui/switch';
 
 interface EmployeeFormModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ const employeeSchema = z.object({
   salarioBase: z.string().min(1, "Salário é obrigatório").transform(v => String(v).replace(',', '.')),
   tipoContrato: z.string().min(1, "Tipo de contrato é obrigatório"),
   jornadaTrabalho: z.string().min(1, "Jornada é obrigatória"),
+  ativo: z.boolean().default(true),
 });
 
 const formatCpf = (cpf: string) => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -78,6 +80,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                 cpf: formatCpf(employee.cpf),
                 cep: formatCep(employee.cep),
                 salarioBase: String(employee.salarioBase),
+                ativo: employee.ativo ?? true,
             });
         } else {
             form.reset({
@@ -100,6 +103,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
               departamento: "",
               salarioBase: "",
               jornadaTrabalho: "",
+              ativo: true,
             });
         }
     }
@@ -248,6 +252,26 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                      <FormField control={form.control} name="tipoContrato" render={({ field }) => ( <FormItem><FormLabel>Tipo de Contrato</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="clt">CLT</SelectItem><SelectItem value="pj">PJ</SelectItem><SelectItem value="estagio">Estágio</SelectItem><SelectItem value="temporario">Temporário</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                      <FormField control={form.control} name="jornadaTrabalho" render={({ field }) => ( <FormItem><FormLabel>Jornada de Trabalho</FormLabel><FormControl><Input {...field} placeholder="Ex: 40 horas semanais" /></FormControl><FormMessage /></FormItem> )} />
                   </div>
+                  <FormField
+                    control={form.control}
+                    name="ativo"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Funcionário Ativo</FormLabel>
+                          <FormDescription>
+                            Funcionários inativos não aparecerão em novos cálculos.
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </TabsContent>
               </div>
 

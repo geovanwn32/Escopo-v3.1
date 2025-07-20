@@ -30,4 +30,5 @@ export interface Employee {
   salarioBase: number;
   tipoContrato: string;
   jornadaTrabalho: string;
+  ativo: boolean;
 }

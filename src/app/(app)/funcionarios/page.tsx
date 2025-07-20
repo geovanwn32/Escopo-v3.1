@@ -15,6 +15,8 @@ import type { Employee } from '@/types/employee';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function FuncionariosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,7 +61,7 @@ export default function FuncionariosPage() {
             id: doc.id,
             ...doc.data(),
             dataNascimento: doc.data().dataNascimento.toDate(),
-            dataAdmissao: doc.data().dataAdmissao.toDate(),
+            dataAdmissao: doc.data().dataAdmissão.toDate(),
         } as Employee));
         setEmployees(employeesData);
         setLoading(false);
@@ -144,8 +146,8 @@ export default function FuncionariosPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Cargo</TableHead>
-                  <TableHead>Departamento</TableHead>
                   <TableHead>Admissão</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -154,8 +156,12 @@ export default function FuncionariosPage() {
                   <TableRow key={employee.id}>
                     <TableCell className="font-medium">{employee.nomeCompleto}</TableCell>
                     <TableCell>{employee.cargo}</TableCell>
-                    <TableCell>{employee.departamento}</TableCell>
                     <TableCell>{new Intl.DateTimeFormat('pt-BR').format(employee.dataAdmissao)}</TableCell>
+                    <TableCell>
+                      <Badge variant={employee.ativo ? "default" : "secondary"} className={cn(employee.ativo && 'bg-green-600 hover:bg-green-700')}>
+                        {employee.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
