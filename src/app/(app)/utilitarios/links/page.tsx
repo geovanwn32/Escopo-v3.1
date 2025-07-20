@@ -8,7 +8,7 @@ const usefulLinks = [
     { name: 'Receita Federal', url: 'https://www.gov.br/receitafederal' },
     { name: 'Sefaz GO (Economia - GO)', url: 'https://www.economia.go.gov.br/' },
     { name: 'SINTEGRA', url: 'http://www.sintegra.gov.br/' },
-    { name: 'ISS Aparecida de Goiânia', url: 'https://www.aparecida.go.gov.br/secretarias/secretaria-da-fazenda/iss-eletronico/' },
+    { name: 'ISS Aparecida de Goiânia', url: 'https://www.issnetonline.com.br/aparecida/online/login/login.aspx' },
     { name: 'Prefeitura de Goiânia', url: 'https://www.goiania.go.gov.br/' },
     { name: 'Prefeitura de Aparecida de Goiânia', url: 'https://www.aparecida.go.gov.br/' },
     { name: 'Portal da Nota Fiscal Eletrônica (NF-e)', url: 'https://www.nfe.fazenda.gov.br/portal/principal.aspx' },
