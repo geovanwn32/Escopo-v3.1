@@ -22,6 +22,8 @@ const companySchema = z.object({
   cnpj: z.string().refine((value) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(value), {
     message: "CNPJ inválido.",
   }),
+  cnaePrincipalCodigo: z.string().optional(),
+  cnaePrincipalDescricao: z.string().optional(),
   regimeTributario: z.string().optional(),
   inscricaoEstadual: z.string().optional(),
   inscricaoMunicipal: z.string().optional(),
@@ -44,6 +46,8 @@ const ensureSafeData = (data: any): CompanyFormData => {
         razaoSocial: data.razaoSocial || "",
         nomeFantasia: data.nomeFantasia || "",
         cnpj: data.cnpj || "",
+        cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
+        cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
         regimeTributario: data.regimeTributario || "",
         inscricaoEstadual: data.inscricaoEstadual || "",
         inscricaoMunicipal: data.inscricaoMunicipal || "",
@@ -167,6 +171,8 @@ export default function MinhaEmpresaPage() {
             
             form.setValue("razaoSocial", data.razao_social || "");
             form.setValue("nomeFantasia", data.nome_fantasia || "");
+            form.setValue("cnaePrincipalCodigo", String(data.cnae_fiscal || ""));
+            form.setValue("cnaePrincipalDescricao", data.cnae_fiscal_descricao || "");
             form.setValue("cep", data.cep || "");
             form.setValue("logradouro", data.logradouro || "");
             form.setValue("numero", data.numero || "");
@@ -322,6 +328,28 @@ export default function MinhaEmpresaPage() {
                                                 <SelectItem value="mei">Microempreendedor Individual (MEI)</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="cnaePrincipalCodigo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Código da Atividade Principal</FormLabel>
+                                        <FormControl><Input {...field} readOnly /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="cnaePrincipalDescricao"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Descrição da Atividade Principal</FormLabel>
+                                        <FormControl><Input {...field} readOnly /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
