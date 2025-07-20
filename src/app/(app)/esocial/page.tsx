@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, ListChecks, CheckCircle, Search, RefreshCw } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, ListChecks, CheckCircle, Search, RefreshCw, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -289,6 +289,32 @@ export default function EsocialPage() {
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
             
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <ShieldCheck className="h-6 w-6 text-green-600" />
+                        Configuração do Certificado Digital
+                    </CardTitle>
+                    <CardDescription>
+                        Certificado digital A1 utilizado para a assinatura e transmissão dos eventos.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <p className="font-semibold">Nome do Titular</p>
+                        <p className="text-muted-foreground">EMPRESA MODELO LTDA</p>
+                    </div>
+                    <div>
+                        <p className="font-semibold">Emitido por</p>
+                        <p className="text-muted-foreground">AC Certisign Múltipla</p>
+                    </div>
+                    <div>
+                        <p className="font-semibold">Validade</p>
+                        <p className="text-muted-foreground">25/12/2024</p>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Tabs defaultValue="tabelas" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="tabelas">Eventos de Tabela</TabsTrigger>
