@@ -35,115 +35,130 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   const pageWidth = doc.internal.pageSize.width;
   const primaryColor = [51, 145, 255]; // #3391FF
   const destructiveColor = [220, 38, 38];
-  let y = 15;
 
-  // --- HEADER ---
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Recibo de Pagamento de 13º Salário`, pageWidth / 2, y, { align: 'center' });
-  y += 5;
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano de Referência: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
-  y += 8;
-  doc.setFontSize(10);
-  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
-  doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
-  y += 5;
-  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
-  y += 10;
-  
-  // --- EMPLOYEE INFO ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('I - Identificação do Empregado', 14, y);
-  y += 5;
-   autoTable(doc, {
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      body: [
-          [{ content: 'Nome', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
-          [{ content: 'Cargo', styles: { fontStyle: 'bold' } }, employee.cargo],
-          [{ content: 'Data de Admissão', styles: { fontStyle: 'bold' } }, formatDate(employee.dataAdmissao)],
-      ],
-      columnStyles: { 0: { cellWidth: 40 } }
-  });
-  y = (doc as any).lastAutoTable.finalY + 8;
-  
-  // --- PAYROLL EVENTS ---
-  const tableRows = thirteenth.result.events.map(event => [
-        event.descricao,
-        event.referencia,
-        formatCurrency(event.provento),
-        formatCurrency(event.desconto),
-    ]);
+  const drawReceipt = (startY: number) => {
+    let y = startY;
+
+    // --- HEADER ---
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Recibo de Pagamento - 13º Salário`, pageWidth / 2, y + 3, { align: 'center' });
+    y += 5;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`;
+    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y + 3, { align: 'center' });
+    y += 5;
+    doc.text(companyAddress, pageWidth / 2, y + 3, { align: 'center' });
+    y += 8;
+
+    // --- COMPANY & EMPLOYEE INFO ---
+    autoTable(doc, {
+        startY: y,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
+        head: [
+            [{ content: 'Empregado(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
+        ],
+        body: [
+            [
+                { content: 'Nome:', styles: { fontStyle: 'bold' } },
+                { content: employee.nomeCompleto },
+            ],
+            [
+                { content: 'Cargo:', styles: { fontStyle: 'bold' } },
+                { content: employee.cargo },
+            ],
+            [
+                { content: 'Referência:', styles: { fontStyle: 'bold' } },
+                { content: `${getParcelLabel(thirteenth.parcel)} - ${thirteenth.year}` },
+            ],
+        ],
+        columnStyles: { 
+            0: { cellWidth: 25 },
+            1: { cellWidth: 'auto' },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY + 5;
+    
+    // --- PAYROLL EVENTS TABLE (Vertical Layout) ---
+    const tableRows = thirteenth.result.events.map(event => {
+        const proventoValue = event.provento ? event.provento.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
+        const descontoValue = event.desconto ? event.desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '';
+        return [
+            event.descricao,
+            event.referencia,
+            proventoValue,
+            descontoValue,
+        ];
+    });
 
     autoTable(doc, {
         startY: y,
-        head: [['Verba', 'Referência', 'Proventos (R$)', 'Descontos (R$)']],
+        head: [['Descrição', 'Referência', 'Proventos', 'Descontos']],
         body: tableRows,
         theme: 'grid',
-        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
+        headStyles: { fillColor: primaryColor, textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center' },
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
             0: { cellWidth: 'auto' },
-            1: { cellWidth: 25, halign: 'center' },
-            2: { cellWidth: 35, halign: 'right' },
-            3: { cellWidth: 35, halign: 'right' },
+            1: { cellWidth: 20, halign: 'right' },
+            2: { cellWidth: 25, halign: 'right' },
+            3: { cellWidth: 25, halign: 'right' },
         }
     });
     y = (doc as any).lastAutoTable.finalY;
 
-    // --- TOTALS ---
+    // --- TOTALS & SIGNATURE ---
      autoTable(doc, {
         startY: y,
         theme: 'grid',
         showHead: false,
-        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
         body: [
              [
                 { content: 'Total de Vencimentos:', styles: { halign: 'right' } },
                 { content: formatCurrency(thirteenth.result.totalProventos), styles: { halign: 'right' } },
-            ],
-             [
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
                 { content: formatCurrency(thirteenth.result.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
             ],
              [
+                { content: '', colSpan: 2 },
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
                 { content: formatCurrency(thirteenth.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255], textColor: primaryColor } },
             ],
         ],
-         columnStyles: {
-            0: { cellWidth: 126.8, styles: { cellPadding: { right: 2 } } },
-            1: { cellWidth: 50 },
+        columnStyles: {
+            0: { cellWidth: 'auto' }, 
+            1: { cellWidth: 25 },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 25 },
         }
     });
-    y = (doc as any).lastAutoTable.finalY + 10;
+    y = (doc as any).lastAutoTable.finalY + 8;
+    
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    const signatureText = `Declaro ter recebido a importância líquida descrita neste recibo.`;
+    doc.text(signatureText, 14, y, { maxWidth: pageWidth - 28 });
+    y += 8;
+    
+    doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
+    doc.text('Assinatura do Funcionário(a)', pageWidth / 2, y + 4, { align: 'center' });
+    
+    return y + 10;
+  };
+
+  // Draw first copy
+  const firstCopyEndY = drawReceipt(15);
   
-  // --- LEGAL BASIS ---
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('II - Embasamento Legal', 14, y);
-  y += 5;
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const legalText = `O presente recibo é emitido em conformidade com a Lei nº 4.090/62 e o Decreto nº 57.155/65, que regulamentam o pagamento da Gratificação de Natal (13º Salário).`;
-  doc.text(legalText, 14, y, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 });
-  y += 15;
+  // Draw separator
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(10, firstCopyEndY, pageWidth - 10, firstCopyEndY);
+  doc.setLineDashPattern([], 0);
 
-
-  // --- SIGNATURES ---
-  const city = company.cidade || " ";
-  const today = new Date();
-  doc.setFontSize(10);
-  doc.text(`${city}, ${format(today, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
-  y += 15;
-
-  doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
-  doc.text('Assinatura do Empregado(a)', pageWidth / 2, y + 4, { align: 'center' });
-  
+  // Draw second copy
+  drawReceipt(firstCopyEndY + 5);
 
   // Open the PDF in a new tab
   doc.output('dataurlnewwindow');

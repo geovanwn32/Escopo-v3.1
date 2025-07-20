@@ -142,7 +142,7 @@ export function calculateTermination(params: TerminationParams): TerminationResu
 
     // --- FGTS e Multa (Informativo/Base para outros cálculos, mas não entra no líquido) ---
      if (reason === 'dispensa_sem_justa_causa') {
-        const fgtsOnTermination = (salaryBalance + compensatedNoticeValue) * 0.08;
+        const fgtsOnTermination = (salaryBalance + proportionalThirteenth) * 0.08;
         const fgtsFine = (fgtsBalance + fgtsOnTermination) * 0.40;
          events.push({
             descricao: 'Multa de 40% sobre FGTS (valor a ser pago via GRRF)',
