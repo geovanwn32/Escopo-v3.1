@@ -9,9 +9,10 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import type { Company } from '@/app/(app)/fiscal/page';
 import type { Payroll } from "@/types/payroll";
+import type { Termination } from "@/types/termination";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  const [terminations, setTerminations] = useState<Termination[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
@@ -33,6 +35,8 @@ export default function PessoalPage() {
             const companyDataString = sessionStorage.getItem(`company_${companyId}`);
             if (companyDataString) {
                 setActiveCompany(JSON.parse(companyDataString));
+            } else {
+                setLoading(false);
             }
         } else {
             setLoading(false);
@@ -44,43 +48,85 @@ export default function PessoalPage() {
     if (!user || !activeCompany) {
         setLoading(false);
         setPayrolls([]);
+        setTerminations([]);
         return;
     };
 
     setLoading(true);
+    let activeListeners = 2;
+    const onDone = () => {
+        activeListeners--;
+        if (activeListeners === 0) {
+            setLoading(false);
+        }
+    };
+    
+    // Payrolls listener
     const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
-    const q = query(payrollsRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const payrollsQuery = query(payrollsRef, orderBy('createdAt', 'desc'));
+    const unsubscribePayrolls = onSnapshot(payrollsQuery, (snapshot) => {
         const payrollsData = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate(),
         } as Payroll));
         setPayrolls(payrollsData);
-        setLoading(false);
+        onDone();
     }, (error) => {
         console.error("Erro ao buscar folhas de pagamento: ", error);
         toast({
             variant: "destructive",
             title: "Erro ao buscar folhas de pagamento",
-            description: "Não foi possível carregar a lista de rascunhos."
         });
-        setLoading(false);
+        onDone();
     });
 
-    return () => unsubscribe();
+    // Terminations listener
+    const terminationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
+    const terminationsQuery = query(terminationsRef, orderBy('createdAt', 'desc'));
+    const unsubscribeTerminations = onSnapshot(terminationsQuery, (snapshot) => {
+        const terminationsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            terminationDate: doc.data().terminationDate?.toDate(),
+        } as Termination));
+        setTerminations(terminationsData);
+        onDone();
+    }, (error) => {
+        console.error("Erro ao buscar rescisões: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao buscar rescisões",
+        });
+        onDone();
+    });
+
+    return () => {
+        unsubscribePayrolls();
+        unsubscribeTerminations();
+    };
   }, [user, activeCompany, toast]);
 
   const handleDeletePayroll = async (payrollId: string) => {
       if (!user || !activeCompany) return;
       try {
         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, payrollId));
-        toast({ title: 'Rascunho excluído com sucesso!' });
+        toast({ title: 'Rascunho da Folha excluído com sucesso!' });
       } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao excluir rascunho.' });
+        toast({ variant: 'destructive', title: 'Erro ao excluir rascunho da folha.' });
       }
   };
+
+  const handleDeleteTermination = async (terminationId: string) => {
+      if (!user || !activeCompany) return;
+      try {
+        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`, terminationId));
+        toast({ title: 'Rescisão excluída com sucesso!' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao excluir rescisão.' });
+      }
+  };
+
 
   const getStatusVariant = (status: Payroll['status']): "secondary" | "default" | "outline" => {
     switch (status) {
@@ -122,7 +168,7 @@ export default function PessoalPage() {
             </Button>
             <Button className="w-full justify-start" variant="secondary" disabled><Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário</Button>
             <Button className="w-full justify-start" variant="secondary" disabled><SendToBack className="mr-2 h-4 w-4" /> Calcular Férias</Button>
-            <Button asChild className="w-full justify-start" variant="secondary">
+            <Button asChild className="w-full justify-start">
               <Link href="/pessoal/rescisao">
                 <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
               </Link>
@@ -221,6 +267,90 @@ export default function PessoalPage() {
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                         <AlertDialogAction onClick={() => handleDeletePayroll(payroll.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rescisões Salvas</CardTitle>
+          <CardDescription>Visualize os cálculos de rescisão salvos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : terminations.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="p-4 bg-muted rounded-full mb-4">
+                  <FileX className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold">Nenhuma rescisão salva</h3>
+              <p className="text-muted-foreground mt-2">
+                {activeCompany ? 'Calcule uma nova rescisão para começar.' : 'Selecione uma empresa para visualizar as rescisões salvas.'}
+              </p>
+            </div>
+           ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Funcionário</TableHead>
+                  <TableHead>Data de Afastamento</TableHead>
+                  <TableHead className="text-right">Líquido</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {terminations.map((termination) => (
+                  <TableRow key={termination.id}>
+                    <TableCell className="font-medium">{termination.employeeName}</TableCell>
+                    <TableCell>{new Intl.DateTimeFormat('pt-BR').format(termination.terminationDate as Date)}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(termination.result.liquido)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/pessoal/rescisao?id=${termination.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Acessar
+                                </Link>
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Excluir
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. A rescisão será permanentemente removida.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteTermination(termination.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
