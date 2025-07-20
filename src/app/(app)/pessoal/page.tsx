@@ -212,7 +212,11 @@ export default function PessoalPage() {
             <CardDescription>Gere relatórios importantes do departamento pessoal.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Button className="w-full justify-start"><BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha</Button>
+            <Button asChild className="w-full justify-start">
+              <Link href="/pessoal/resumo-folha">
+                <BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
