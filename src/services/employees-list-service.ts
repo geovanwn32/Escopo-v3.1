@@ -35,10 +35,13 @@ export async function generateEmployeesListPdf(userId: string, company: Company)
 
     // --- FETCH DATA ---
     const employeesRef = collection(db, `users/${userId}/companies/${company.id}/employees`);
-    const q = query(employeesRef, where('ativo', '==', true), orderBy('nomeCompleto', 'asc'));
+    const q = query(employeesRef, orderBy('nomeCompleto', 'asc'));
 
     const snapshot = await getDocs(q);
-    const employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee));
+    // Filter for active employees in the client
+    const employees = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Employee))
+        .filter(employee => employee.ativo === true);
 
     if (employees.length === 0) {
         throw new Error("Nenhum funcionário ativo encontrado.");
