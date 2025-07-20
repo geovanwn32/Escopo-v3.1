@@ -16,6 +16,11 @@ const formatCnpj = (cnpj: string): string => {
     return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
+const formatDate = (date: Date | undefined): string => {
+    if (!date) return '';
+    return format(date, 'dd/MM/yyyy');
+}
+
 const getParcelLabel = (parcel: string): string => {
     switch(parcel) {
         case 'first': return '1ª Parcela';
@@ -37,41 +42,47 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   y += 5;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
+  doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano de Referência: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
-  // --- IDENTIFICAÇÃO ---
+  // --- EMPLOYER INFO ---
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('I - Identificação do Empregador', 14, y);
+  y += 5;
   autoTable(doc, {
-    startY: y,
-    theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 2 },
-    body: [
-        [
-            { content: 'Empregador:', styles: { fontStyle: 'bold' } },
-            company.razaoSocial,
-            { content: 'Empregado(a):', styles: { fontStyle: 'bold' } },
-            employee.nomeCompleto,
-        ],
-        [
-            { content: 'CNPJ:', styles: { fontStyle: 'bold' } },
-            formatCnpj(company.cnpj),
-            { content: 'Cargo:', styles: { fontStyle: 'bold' } },
-            employee.cargo,
-        ],
-    ],
-    columnStyles: { 
-        0: { cellWidth: 30 }, 
-        2: { cellWidth: 30 }
-    }
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+          [{ content: 'Razão Social/Nome', styles: { fontStyle: 'bold' } }, company.razaoSocial],
+          [{ content: 'CNPJ', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
+          [{ content: 'Endereço', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`],
+          [{ content: 'Município/UF', styles: { fontStyle: 'bold' } }, `${company.cidade || ''} - ${company.uf || ''}`],
+      ],
+      columnStyles: { 0: { cellWidth: 40 } }
+  });
+  y = (doc as any).lastAutoTable.finalY + 5;
+  
+  // --- EMPLOYEE INFO ---
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('II - Identificação do Empregado', 14, y);
+  y += 5;
+   autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      body: [
+          [{ content: 'Nome', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
+          [{ content: 'Cargo', styles: { fontStyle: 'bold' } }, employee.cargo],
+          [{ content: 'Data de Admissão', styles: { fontStyle: 'bold' } }, formatDate(employee.dataAdmissao)],
+      ],
+      columnStyles: { 0: { cellWidth: 40 } }
   });
   y = (doc as any).lastAutoTable.finalY + 8;
   
-  // --- DETALHAMENTO ---
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Detalhamento do Cálculo', 14, y);
-  y += 5;
-
+  // --- PAYROLL EVENTS ---
   const tableRows = thirteenth.result.events.map(event => [
         event.descricao,
         event.referencia,
@@ -81,7 +92,7 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
 
     autoTable(doc, {
         startY: y,
-        head: [['Descrição', 'Referência', 'Proventos (R$)', 'Descontos (R$)']],
+        head: [['Verba', 'Referência', 'Proventos (R$)', 'Descontos (R$)']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
@@ -98,7 +109,8 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
     // --- TOTALS ---
      autoTable(doc, {
         startY: y,
-        theme: 'plain',
+        theme: 'grid',
+        showHead: false,
         styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
         body: [
              [
@@ -107,11 +119,11 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
             ],
              [
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
-                { content: formatCurrency(thirteenth.result.totalDescontos), styles: { halign: 'right' } },
+                { content: formatCurrency(thirteenth.result.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
             ],
              [
-                { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right' } },
-                { content: formatCurrency(thirteenth.result.liquido), styles: { halign: 'right' } },
+                { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
+                { content: formatCurrency(thirteenth.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
             ],
         ],
          columnStyles: {
@@ -119,10 +131,22 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
             1: { cellWidth: 50 },
         }
     });
-    y = (doc as any).lastAutoTable.finalY + 15;
+    y = (doc as any).lastAutoTable.finalY + 10;
+  
+  // --- LEGAL BASIS ---
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('III - Embasamento Legal', 14, y);
+  y += 5;
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const legalText = `O presente recibo é emitido em conformidade com a Lei nº 4.090/62 e o Decreto nº 57.155/65, que regulamentam o pagamento da Gratificação de Natal (13º Salário).`;
+  doc.text(legalText, 14, y, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 });
+  y += 15;
 
-  // --- ASSINATURAS ---
-  const city = "São Paulo"; // Placeholder
+
+  // --- SIGNATURES ---
+  const city = company.cidade || " ";
   const today = new Date();
   doc.setFontSize(10);
   doc.text(`${city}, ${format(today, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
