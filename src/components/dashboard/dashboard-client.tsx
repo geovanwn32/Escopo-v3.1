@@ -21,7 +21,7 @@ import {
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth"
-import { collection, query, onSnapshot, orderBy, limit, Timestamp } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
@@ -68,6 +68,7 @@ export function DashboardClient() {
   const [activeCompanyCnpj, setActiveCompanyCnpj] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [employeesCount, setEmployeesCount] = useState(0);
   const [stats, setStats] = useState<StatCard[]>([
     { title: "Total de Entradas", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-green-600", bgColor: "bg-green-100" },
     { title: "Total de Saídas", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-red-600", bgColor: "bg-red-100" },
@@ -91,16 +92,20 @@ export function DashboardClient() {
   }, []);
 
   useEffect(() => {
-    if (!user || !activeCompanyId || !activeCompanyCnpj) {
+    if (!user || !activeCompanyId) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/launches`);
-    const q = query(launchesRef, orderBy('date', 'desc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/launches`);
+    const launchesQuery = query(launchesRef, orderBy('date', 'desc'));
+
+    const employeesRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/employees`);
+    const employeesQuery = query(employeesRef, where('ativo', '==', true));
+
+    const unsubscribeLaunches = onSnapshot(launchesQuery, (snapshot) => {
       const launchesData: Launch[] = snapshot.docs.map(doc => {
         const data = doc.data();
         return { 
@@ -111,7 +116,6 @@ export function DashboardClient() {
       });
       setLaunches(launchesData);
 
-      // Calculate stats based on user's specific definition
       let totalEntradas = 0;
       let totalSaidas = 0;
       
@@ -122,12 +126,10 @@ export function DashboardClient() {
         const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
         const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
 
-        // Totais de Entrada - Computar notas lanças de Entrada caso a empresa destinatária for a empresa ativa (logada).
         if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
           totalEntradas += value;
         }
 
-        // Totais de Saídas - Computar notas lanças de Saídas caso a empresa emitente for a empresa ativa (logada) e notas lanças de Serviços caso a empresa emitente (Prestador) for a empresa ativa (logada).
         if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
           totalSaidas += value;
         } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
@@ -135,14 +137,13 @@ export function DashboardClient() {
         }
       });
 
-
       setStats(prev => [
           { ...prev[0], amount: formatCurrency(totalEntradas) },
           { ...prev[1], amount: formatCurrency(totalSaidas) },
-          ...prev.slice(2)
+          { ...prev[2], amount: employeesCount.toString() },
+          ...prev.slice(3)
       ]);
 
-      // Prepare chart data for the last 6 months
       const monthlyTotals: { [key: string]: { entradas: number, saidas: number } } = {};
       const today = new Date();
       
@@ -163,12 +164,10 @@ export function DashboardClient() {
             const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
             const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
 
-            // Chart Entradas
             if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
               monthlyTotals[key].entradas += value;
             }
             
-            // Chart Saídas
             if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
               monthlyTotals[key].saidas += value;
             } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
@@ -189,13 +188,29 @@ export function DashboardClient() {
 
       setLoading(false);
     }, (error) => {
-      console.error("Erro ao buscar dados do dashboard:", error);
-      toast({ variant: 'destructive', title: "Erro ao carregar dados do dashboard" });
+      console.error("Erro ao buscar lançamentos:", error);
+      toast({ variant: 'destructive', title: "Erro ao carregar lançamentos" });
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [user, activeCompanyId, activeCompanyCnpj, toast]);
+    const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
+        setEmployeesCount(snapshot.size);
+        setStats(prev => [
+          ...prev.slice(0, 2),
+          { ...prev[2], amount: snapshot.size.toString() },
+          ...prev.slice(3)
+      ]);
+    }, (error) => {
+        console.error("Erro ao buscar funcionários:", error);
+        toast({ variant: 'destructive', title: "Erro ao carregar contagem de funcionários" });
+    });
+
+
+    return () => {
+        unsubscribeLaunches();
+        unsubscribeEmployees();
+    };
+  }, [user, activeCompanyId, activeCompanyCnpj, toast, employeesCount]);
 
   return (
     <div className="flex flex-col gap-6">
