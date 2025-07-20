@@ -65,7 +65,7 @@ export function LoginForm() {
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
       <div className="hidden bg-muted lg:flex items-center justify-center p-8">
          <Image 
-            src="https://placehold.co/800x600.png" 
+            src="https://images.unsplash.com/photo-1634495454244-1a9b612a39d6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y29udGFiaWxpZmRhZGV8ZW58MHx8fHwxNzUyOTc3NDM0fDA&ixlib=rb-4.1.0&q=80&w=1080" 
             alt="Placeholder Image" 
             width={800} 
             height={600}
