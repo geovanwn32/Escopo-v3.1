@@ -119,7 +119,7 @@ export function RegisterForm() {
             alt="Pessoa trabalhando em um ambiente organizado"
             fill
             className="object-cover"
-            data-ai-hint="organized desk"
+            data-ai-hint="financial key"
         />
         <div className="relative z-10">
             <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">
