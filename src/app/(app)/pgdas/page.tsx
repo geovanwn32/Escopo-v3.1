@@ -22,7 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-const simplesBrackets = {
+const simplesBrackets: Record<SimplesAnnexType, { limit: number; rate: number; deduction: number }[]> = {
     "anexo-i": [ // Comércio
         { limit: 180000, rate: 0.04, deduction: 0 },
         { limit: 360000, rate: 0.073, deduction: 5940 },
@@ -248,7 +248,7 @@ export default function PGDASPage() {
 
         setIsSaving(true);
         try {
-            const pgdasData: Omit<Pgdas, 'id' | 'createdAt'> = {
+            const pgdasData: Omit<Pgdas, 'id'> = {
                 period,
                 anexo: annex,
                 result: calculationResult,
@@ -266,9 +266,9 @@ export default function PGDASPage() {
         }
     };
     
-    const handleGenerateReport = (result: PGDASResult, reportPeriod: string) => {
+    const handleGenerateReport = (result: PGDASResult, reportPeriod: string, reportAnnex: SimplesAnnexType) => {
         if (!activeCompany) return;
-        generatePgdasReportPdf(activeCompany, reportPeriod, result);
+        generatePgdasReportPdf(activeCompany, reportPeriod, result, reportAnnex);
     }
     
     const handleViewSaved = (savedCalc: Pgdas) => {
@@ -384,7 +384,7 @@ export default function PGDASPage() {
                                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                     Salvar Cálculo
                                 </Button>
-                                <Button onClick={() => handleGenerateReport(calculationResult, period)}>
+                                <Button onClick={() => handleGenerateReport(calculationResult, period, annex)}>
                                     <FileText className="mr-2 h-4 w-4" />
                                     Gerar Relatório Detalhado
                                 </Button>
@@ -443,7 +443,7 @@ export default function PGDASPage() {
                                                         <Eye className="mr-2 h-4 w-4" />
                                                         Visualizar
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleGenerateReport(calc.result, calc.period)}>
+                                                    <DropdownMenuItem onClick={() => handleGenerateReport(calc.result, calc.period, calc.anexo)}>
                                                         <FileText className="mr-2 h-4 w-4" />
                                                         Baixar Relatório
                                                     </DropdownMenuItem>

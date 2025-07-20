@@ -2,6 +2,8 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Company } from '@/types/company';
+import { getTaxDistribution } from './tax-distribution-service';
+import type { SimplesAnnexType } from '@/types/pgdas';
 
 export interface PGDASResult {
   rpa: number;
@@ -13,10 +15,10 @@ export interface PGDASResult {
 }
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-const formatPercent = (value: number) => `${value.toFixed(4)}%`;
+const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+const formatPercent = (value: number) => `${formatNumber(value)}%`;
 
-export function generatePgdasReportPdf(company: Company, period: string, result: PGDASResult) {
+export function generatePgdasReportPdf(company: Company, period: string, result: PGDASResult, annex: SimplesAnnexType) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   let y = 15;
@@ -41,6 +43,7 @@ export function generatePgdasReportPdf(company: Company, period: string, result:
       body: [
           ['Receita Bruta do Período de Apuração (RPA)', formatCurrency(result.rpa)],
           ['Receita Bruta dos Últimos 12 Meses (RBT12)', formatCurrency(result.rbt12)],
+          ['Anexo Utilizado para Cálculo', annex.replace('anexo-', 'Anexo ').toUpperCase()],
       ],
       columnStyles: { 0: { fontStyle: 'bold' } }
   });
@@ -56,7 +59,7 @@ export function generatePgdasReportPdf(company: Company, period: string, result:
     { label: '(-) Parcela a Deduzir', value: formatCurrency(result.parcelaDeduzir) },
     { label: '(=) Valor Base para Alíquota', value: formatCurrency((result.rbt12 * (result.aliquotaNominal / 100)) - result.parcelaDeduzir) },
     { label: '(/) RBT12', value: formatCurrency(result.rbt12) },
-    { label: '(=) Alíquota Efetiva', value: `${formatNumber(result.aliquotaEfetiva)}%`, isBold: true },
+    { label: '(=) Alíquota Efetiva', value: `${formatPercent(result.aliquotaEfetiva)}`, isBold: true },
   ];
 
   autoTable(doc, {
@@ -81,11 +84,46 @@ export function generatePgdasReportPdf(company: Company, period: string, result:
     styles: { fontSize: 9, cellPadding: 2, fontStyle: 'bold' },
     body: [
         ['Receita do Mês (RPA)', formatCurrency(result.rpa)],
-        ['(x) Alíquota Efetiva', `${formatNumber(result.aliquotaEfetiva)}%`],
+        ['(x) Alíquota Efetiva', `${formatPercent(result.aliquotaEfetiva)}`],
         [{ content: '(=) Valor do DAS a Pagar', styles: { fillColor: [240, 245, 255] } }, { content: formatCurrency(result.taxAmount), styles: { fillColor: [240, 245, 255] } }],
     ],
     columnStyles: { 1: { halign: 'right' } }
   });
+  y = (doc as any).lastAutoTable.finalY + 8;
+
+  // --- DETAILED TAX BREAKDOWN ---
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('IV - Detalhamento do DAS por Tributo', 14, y);
+  y += 5;
+
+  const taxDistribution = getTaxDistribution(annex, result.rbt12);
+  const totalDistributionPercent = Object.values(taxDistribution).reduce((acc, val) => acc + val, 0);
+
+  const breakdownRows = Object.entries(taxDistribution).map(([tax, percent]) => {
+      const effectiveTaxPercent = (result.aliquotaEfetiva / totalDistributionPercent) * percent;
+      const taxValue = result.rpa * (effectiveTaxPercent / 100);
+      return [
+          tax,
+          formatPercent(effectiveTaxPercent),
+          formatCurrency(taxValue)
+      ];
+  });
+
+  autoTable(doc, {
+    startY: y,
+    theme: 'grid',
+    head: [['Tributo', 'Alíquota Efetiva', 'Valor (R$)']],
+    body: breakdownRows,
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold' },
+    columnStyles: {
+        0: { fontStyle: 'bold' },
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+    }
+  });
+
 
   doc.output('dataurlnewwindow');
 }
