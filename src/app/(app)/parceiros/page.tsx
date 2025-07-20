@@ -134,10 +134,10 @@ export default function ParceirosPage() {
             <Button onClick={() => handleOpenModal('cliente')} disabled={!activeCompany}>
               <User className="mr-2 h-4 w-4" /> Novo Cliente
             </Button>
-            <Button onClick={() => handleOpenModal('fornecedor')} disabled={!activeCompany} variant="secondary">
+            <Button onClick={() => handleOpenModal('fornecedor')} disabled={!activeCompany} className="bg-green-600 hover:bg-green-700 text-white">
               <Building className="mr-2 h-4 w-4" /> Novo Fornecedor
             </Button>
-            <Button onClick={() => handleOpenModal('transportadora')} disabled={!activeCompany} variant="outline">
+            <Button onClick={() => handleOpenModal('transportadora')} disabled={!activeCompany} className="bg-yellow-500 hover:bg-yellow-600 text-black">
               <Truck className="mr-2 h-4 w-4" /> Nova Transportadora
             </Button>
         </div>
@@ -184,7 +184,7 @@ export default function ParceirosPage() {
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Abrir menu</span>
+                              <span className="sr-only">Open menu</span>
                               <MoreHorizontal className="h-4 w-4" />
                           </Button>
                           </DropdownMenuTrigger>
