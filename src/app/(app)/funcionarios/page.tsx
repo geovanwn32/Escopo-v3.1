@@ -61,7 +61,7 @@ export default function FuncionariosPage() {
             id: doc.id,
             ...doc.data(),
             dataNascimento: doc.data().dataNascimento.toDate(),
-            dataAdmissao: doc.data().dataAdmissão.toDate(),
+            dataAdmissao: doc.data().dataAdmissao.toDate(),
         } as Employee));
         setEmployees(employeesData);
         setLoading(false);
