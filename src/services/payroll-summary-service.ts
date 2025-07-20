@@ -47,8 +47,14 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
-    const primaryColor = [51, 145, 255]; // #3391FF
-    const destructiveColor = [220, 38, 38]; // Equivalent to text-red-600
+    
+    // Color Palette
+    const primaryColor = [51, 145, 255]; // HSL(210, 70%, 50%) - Blue
+    const destructiveColor = [220, 38, 38]; // #DC2626 - Red-600
+    const slate500 = [100, 116, 139]; // Gray for neutral headers
+    const slate200 = [226, 232, 240]; // Light gray for sub-headers
+    const slate50 = [248, 250, 252]; // Very light gray for footers
+
 
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
@@ -110,7 +116,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         let employeeTotalProventos = 0;
         let employeeTotalDescontos = 0;
         
-        if (y > 240) { // Check if new section fits, if not, new page
+        if (y > 240) { 
           doc.addPage();
           y = 15;
         }
@@ -124,15 +130,14 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             const totals = item.totals || item.result;
             const events = item.events || item.result?.events || [];
             
-            if (y > 250) { // Check before drawing each table
+            if (y > 250) { 
               doc.addPage();
               y = 15;
             }
             
-            // Table for each event type
             autoTable(doc, {
                 startY: y,
-                head: [[{ content: getEventName(item), colSpan: 4, styles: { fillColor: [220, 220, 220], textColor: 30 } }]],
+                head: [[{ content: getEventName(item), colSpan: 4, styles: { fillColor: slate200, textColor: 30 } }]],
                 body: events.map((ev: any) => [ev.descricao, ev.referencia, formatCurrency(ev.provento), formatCurrency(ev.desconto)]),
                 foot: [[
                   { content: 'Subtotal', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
@@ -142,7 +147,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
                 theme: 'grid',
                 styles: { fontSize: 8 },
                 headStyles: { fontStyle: 'bold' },
-                footStyles: { fillColor: [245, 245, 245] },
+                footStyles: { fillColor: slate50 },
                 columnStyles: {
                   0: { cellWidth: 'auto' },
                   1: { cellWidth: 25, halign: 'right' },
@@ -152,11 +157,10 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             });
             y = (doc as any).lastAutoTable.finalY + 5;
             
-            employeeTotalProventos += totals.totalProventos || totals.liquido + totals.totalDescontos || 0;
+            employeeTotalProventos += totals.totalProventos || (totals.liquido + totals.totalDescontos) || 0;
             employeeTotalDescontos += totals.totalDescontos || 0;
         }
         
-        // Employee Total Summary Table
         const employeeTotalLiquido = employeeTotalProventos - employeeTotalDescontos;
         grandTotalProventos += employeeTotalProventos;
         grandTotalDescontos += employeeTotalDescontos;
@@ -166,7 +170,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             startY: y,
             theme: 'grid',
             head: [[`Resumo do Funcionário - ${employeeName}`]],
-            headStyles: { fillColor: [100, 116, 139], textColor: 255 }, // slate-500
+            headStyles: { fillColor: slate500, textColor: 255 },
             body: [
                 ['Total de Proventos', formatCurrency(employeeTotalProventos)],
                 [{content: 'Total de Descontos', styles: {}}, {content: formatCurrency(employeeTotalDescontos), styles: {textColor: destructiveColor}}],
@@ -178,8 +182,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         y = (doc as any).lastAutoTable.finalY + 10;
     }
 
-    // --- GRAND TOTALS PAGE ---
-    if (Object.keys(itemsByEmployee).length > 1) { // Only add summary page if more than one employee
+    if (Object.keys(itemsByEmployee).length > 1) { 
         doc.addPage();
         y = 15;
         doc.setFontSize(16);
@@ -189,22 +192,20 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         
         autoTable(doc, {
           startY: y,
-          head: [['Descrição', 'Valor']],
+          head: [['Descrição Geral', 'Valor Total']],
           body: [
             ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
             [{content: 'Total Geral de Descontos', styles: {}}, {content: formatCurrency(grandTotalDescontos), styles: {textColor: destructiveColor}}],
             [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor } }],
           ],
           theme: 'grid',
-          headStyles: { fillColor: [50, 50, 50], textColor: 255 },
+          headStyles: { fillColor: primaryColor, textColor: 255 },
           styles: { fontSize: 10 },
           columnStyles: { 0: { halign: 'left' }, 1: { halign: 'right' } }
         });
         y = (doc as any).lastAutoTable.finalY + 15;
     }
 
-
-    // Legal Basis
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text('Embasamento Legal', 14, y);
@@ -214,6 +215,5 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const legalText = `Este relatório é um resumo gerencial dos lançamentos de folha de pagamento para o período de competência e não substitui os documentos legais individuais (holerites, recibos de férias, TRCT), que devem ser emitidos e assinados em conformidade com a Consolidação das Leis do Trabalho (CLT) e demais legislações aplicáveis. Os valores aqui apresentados servem como base para a apuração de guias de recolhimento de impostos e contribuições como FGTS, INSS e IRRF.`;
     doc.text(legalText, 14, y, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 });
     
-    // Open the PDF
     doc.output('dataurlnewwindow');
 }
