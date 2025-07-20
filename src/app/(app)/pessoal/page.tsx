@@ -187,7 +187,7 @@ export default function PessoalPage() {
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
               </Link>
             </Button>
-            <Button className="w-full justify-start">
+            <Button className="w-full justify-start" variant="outline">
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
             </Button>
             <Button asChild className="w-full justify-start" variant="secondary">
@@ -200,7 +200,7 @@ export default function PessoalPage() {
                     <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
                 </Link>
             </Button>
-            <Button asChild className="w-full justify-start">
+            <Button asChild className="w-full justify-start" variant="destructive">
               <Link href="/pessoal/rescisao">
                 <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
               </Link>
