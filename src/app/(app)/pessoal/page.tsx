@@ -271,17 +271,17 @@ export default function PessoalPage() {
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
               </Link>
             </Button>
-            <Button asChild className="w-full justify-start" variant="outline">
+            <Button asChild className="w-full justify-start bg-green-100 text-green-800 hover:bg-green-200">
                <Link href="/pessoal/rci">
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
                </Link>
             </Button>
-            <Button asChild className="w-full justify-start" variant="secondary">
+            <Button asChild className="w-full justify-start bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
                 <Link href="/pessoal/decimo-terceiro">
                     <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
                 </Link>
             </Button>
-            <Button asChild className="w-full justify-start" variant="secondary">
+            <Button asChild className="w-full justify-start bg-orange-100 text-orange-800 hover:bg-orange-200">
                 <Link href="/pessoal/ferias">
                     <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
                 </Link>
