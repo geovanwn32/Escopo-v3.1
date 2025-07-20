@@ -1,20 +1,23 @@
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+"use client";
+
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Link2, CalendarSearch } from "lucide-react";
 import Link from "next/link";
 
 const usefulLinks = [
-    { name: 'Receita Federal', url: 'https://www.gov.br/receitafederal' },
-    { name: 'Sefaz GO (Economia - GO)', url: 'https://www.economia.go.gov.br/' },
-    { name: 'SINTEGRA', url: 'http://www.sintegra.gov.br/' },
-    { name: 'ISS Aparecida de Goiânia', url: 'https://www.issnetonline.com.br/aparecida/online/login/login.aspx' },
-    { name: 'Prefeitura de Goiânia', url: 'https://www.goiania.go.gov.br/' },
-    { name: 'Prefeitura de Aparecida de Goiânia', url: 'https://www.aparecida.go.gov.br/' },
-    { name: 'Portal da Nota Fiscal Eletrônica (NF-e)', url: 'https://www.nfe.fazenda.gov.br/portal/principal.aspx' },
-    { name: 'Portal do Conhecimento de Transporte (CT-e)', url: 'https://www.cte.fazenda.gov.br/portal/' },
-    { name: 'Nota Fiscal de Serviço (MEI)', url: 'https://www.nfse.gov.br/EmissorNacional/Login' },
-    { name: 'JUCEG - Junta Comercial do Estado de Goiás', url: 'https://www.juceg.go.gov.br/' },
+    { name: 'Receita Federal', url: 'https://www.gov.br/receitafederal', icon: Link2 },
+    { name: 'Sefaz GO (Economia - GO)', url: 'https://www.economia.go.gov.br/', icon: Link2 },
+    { name: 'SINTEGRA', url: 'http://www.sintegra.gov.br/', icon: Link2 },
+    { name: 'ISS Aparecida de Goiânia', url: 'https://www.issnetonline.com.br/aparecida/online/login/login.aspx', icon: Link2 },
+    { name: 'Prefeitura de Goiânia', url: 'https://www.goiania.go.gov.br/', icon: Link2 },
+    { name: 'Prefeitura de Aparecida de Goiânia', url: 'https://www.aparecida.go.gov.br/', icon: Link2 },
+    { name: 'Portal da Nota Fiscal Eletrônica (NF-e)', url: 'https://www.nfe.fazenda.gov.br/portal/principal.aspx', icon: Link2 },
+    { name: 'Portal do Conhecimento de Transporte (CT-e)', url: 'https://www.cte.fazenda.gov.br/portal/', icon: Link2 },
+    { name: 'Nota Fiscal de Serviço (MEI)', url: 'https://www.nfse.gov.br/EmissorNacional/Login', icon: Link2 },
+    { name: 'JUCEG - Junta Comercial do Estado de Goiás', url: 'https://www.juceg.go.gov.br/', icon: Link2 },
+    { name: 'Agenda Tributária - Receita Federal', url: 'https://www.gov.br/receitafederal/pt-br/assuntos/agenda-tributaria', icon: CalendarSearch },
 ]
 
 export default function LinksUteisPage() {
@@ -29,12 +32,22 @@ export default function LinksUteisPage() {
         <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {usefulLinks.map((link) => (
-                    <Button key={link.name} variant="outline" asChild className="justify-start">
-                        <Link href={link.url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-2 h-4 w-4" />
-                            {link.name}
-                        </Link>
-                    </Button>
+                    <Card key={link.name} className="flex flex-col">
+                      <CardHeader className="flex-row items-center gap-4 space-y-0">
+                         <div className="p-2 bg-muted rounded-md">
+                            <link.icon className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <CardTitle className="text-base font-medium leading-tight">{link.name}</CardTitle>
+                      </CardHeader>
+                      <CardFooter className="mt-auto">
+                        <Button asChild className="w-full" variant="outline">
+                            <Link href={link.url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Acessar
+                            </Link>
+                        </Button>
+                      </CardFooter>
+                    </Card>
                 ))}
             </div>
         </CardContent>
