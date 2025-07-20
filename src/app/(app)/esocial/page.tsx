@@ -24,6 +24,7 @@ function TabEventosTabela() {
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [isCheckingStatus, setIsCheckingStatus] = useState<string | null>(null);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const { user } = useAuth();
     const { toast } = useToast();
@@ -88,33 +89,53 @@ function TabEventosTabela() {
         const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId);
 
         try {
+            // Just set to processing and let the user check the status later
             await updateDoc(eventRef, { status: 'processing' });
-            
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const isSuccess = Math.random() > 0.2; 
-            if (isSuccess) {
-                await updateDoc(eventRef, { status: 'success' });
-                toast({ title: 'Evento processado com sucesso!', description: 'O evento foi aceito pelo eSocial.' });
-            } else {
-                 await updateDoc(eventRef, { status: 'error', errorDetails: 'Falha na comunicação com o portal do eSocial. Verifique o XML e tente novamente.' });
-                 toast({ variant: 'destructive', title: 'Falha no processamento do evento.' });
-            }
-
+            toast({ title: 'Evento enviado para processamento!', description: 'Aguarde alguns instantes e consulte o status.' });
         } catch(error) {
             console.error("Error processing event: ", error);
-            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao processar o evento.' });
-            toast({ variant: 'destructive', title: "Erro no processo de envio" });
+            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao enviar o evento.' });
+            toast({ variant: 'destructive', title: "Erro no envio" });
         } finally {
              setIsProcessing(null);
         }
     };
 
-    const handleCheckStatus = (event: EsocialEvent) => {
-        toast({
-            title: `Status do Evento: ${event.type}`,
-            description: `O status atual é: ${event.status}.`,
-        });
+    const handleCheckStatus = async (event: EsocialEvent) => {
+        if (!user || !activeCompany || !event.id) return;
+        
+        // If status is not processing, just show the current status
+        if (event.status !== 'processing') {
+             toast({
+                title: `Status do Evento: ${event.type}`,
+                description: `O status atual é: ${event.status}. ${event.status === 'error' ? 'Verifique os detalhes do erro.' : ''}`,
+            });
+            return;
+        }
+
+        setIsCheckingStatus(event.id);
+        const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, event.id);
+
+        try {
+            // Simulate API call delay
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Simulate success/error response
+            const isSuccess = Math.random() > 0.2; 
+            if (isSuccess) {
+                await updateDoc(eventRef, { status: 'success' });
+                toast({ title: 'Consulta de Status: Sucesso!', description: 'O evento foi aceito pelo eSocial.' });
+            } else {
+                 await updateDoc(eventRef, { status: 'error', errorDetails: 'Falha na comunicação com o portal do eSocial. Verifique o XML e tente novamente.' });
+                 toast({ variant: 'destructive', title: 'Consulta de Status: Erro!', description: 'O evento foi rejeitado pelo eSocial.' });
+            }
+        } catch(error) {
+            console.error("Error checking status: ", error);
+            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao consultar o status.' });
+            toast({ variant: 'destructive', title: "Erro na consulta de status" });
+        } finally {
+            setIsCheckingStatus(null);
+        }
     }
 
     const handleDelete = async (eventId: string) => {
@@ -199,8 +220,8 @@ function TabEventosTabela() {
                                 <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-2">
                                         {event.status !== 'pending' && (
-                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleCheckStatus(event)} title="Consultar Status">
-                                                <RefreshCw className="h-4 w-4" />
+                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleCheckStatus(event)} disabled={isCheckingStatus === event.id} title="Consultar Status">
+                                                {isCheckingStatus === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                                             </Button>
                                         )}
                                         <DropdownMenu>
@@ -211,9 +232,9 @@ function TabEventosTabela() {
                                             </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status === 'success' || event.status === 'processing'}>
+                                                <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status !== 'pending'}>
                                                     <Send className="mr-2 h-4 w-4" />
-                                                    <span>{event.status === 'error' ? 'Reprocessar' : 'Processar Evento'}</span>
+                                                    <span>Processar Evento</span>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
                                                     <FileDown className="mr-2 h-4 w-4" />
