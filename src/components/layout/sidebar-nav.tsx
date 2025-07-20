@@ -59,6 +59,14 @@ const menuItems = [
     ],
   },
   {
+    section: "Conectividade",
+    items: [
+        { href: "/fiscal", icon: Share2, label: "Módulo Fiscal" },
+        { href: "/contabil", icon: Share2, label: "Módulo Contábil" },
+        { href: "/pessoal", icon: Share2, label: "Módulo Pessoal" },
+    ],
+  },
+  {
     section: "Sistema",
     items: [
       { href: "/relatorios", icon: BarChart3, label: "Relatórios" },
@@ -89,7 +97,7 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
             <SidebarGroupLabel>{section.section}</SidebarGroupLabel>
             <SidebarMenu>
               {section.items.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={item.href + item.label}>
                   <Link href={item.href} passHref>
                     <SidebarMenuButton
                       isActive={pathname.startsWith(item.href) && (item.href !== '/contabil' || pathname === '/contabil')}
