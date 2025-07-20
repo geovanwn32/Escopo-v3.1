@@ -1,18 +1,20 @@
+
 "use client";
 
-import { useEffect, useState } from 'react';
-import { collection, getDocs, addDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { useEffect, useState, useMemo } from 'react';
+import { collection, getDocs, addDoc, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Building, Trash2, Edit } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, Search, CheckCircle } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
@@ -26,6 +28,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [editingCompany, setEditingCompany] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof companySchema>>({
@@ -36,7 +39,8 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
     if (!userId) return;
     setLoading(true);
     const companiesRef = collection(db, `users/${userId}/companies`);
-    const snapshot = await getDocs(companiesRef);
+    const q = query(companiesRef, orderBy('nomeFantasia', 'asc'));
+    const snapshot = await getDocs(q);
     setCompanies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     setLoading(false);
   };
@@ -46,8 +50,17 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
       fetchCompanies();
       setIsCreating(false);
       setEditingCompany(null);
+      setSearchTerm('');
     }
   }, [isOpen, userId]);
+
+  const filteredCompanies = useMemo(() => {
+    if (!searchTerm) return companies;
+    return companies.filter(company =>
+      company.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.cnpj.includes(searchTerm.replace(/\D/g, ''))
+    );
+  }, [companies, searchTerm]);
 
   const handleCreateOrUpdateCompany = async (values: z.infer<typeof companySchema>) => {
     try {
@@ -91,7 +104,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{isCreating || editingCompany ? 'Cadastro de Empresa' : 'Selecione uma Empresa'}</DialogTitle>
           <DialogDescription>
@@ -116,33 +129,61 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
             </form>
           </Form>
         ) : (
-          <div className="py-4">
+          <div className="py-4 space-y-4">
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Filtrar por nome ou CNPJ..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                />
+            </div>
             {loading ? (
-              <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin" /></div>
+              <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
             ) : (
-              <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
-                {companies.map(company => (
-                  <div key={company.id} className="flex items-center gap-2 rounded-lg border p-3 hover:bg-accent transition-colors">
-                    <div className="flex-1 cursor-pointer" onClick={() => onCompanySelect(company)}>
-                        <p className="font-semibold">{company.nomeFantasia}</p>
-                        <p className="text-sm text-muted-foreground">{company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(company)}><Edit className="h-4 w-4" /></Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita e irá remover todos os dados associados a esta empresa.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDeleteCompany(company.id)}>Excluir</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                ))}
-                 {companies.length === 0 && <p className="text-center text-muted-foreground py-8">Nenhuma empresa encontrada.</p>}
+              <div className="border rounded-md max-h-[50vh] overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome Fantasia</TableHead>
+                            <TableHead>CNPJ</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredCompanies.length > 0 ? (
+                            filteredCompanies.map(company => (
+                                <TableRow key={company.id} className="group">
+                                    <TableCell className="font-medium">{company.nomeFantasia}</TableCell>
+                                    <TableCell className="font-mono text-xs">{company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}</TableCell>
+                                    <TableCell className="text-right space-x-1">
+                                        <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEdit(company)}><Edit className="h-4 w-4" /></Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-4 w-4" /></Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader><AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita e irá remover todos os dados associados a esta empresa.</AlertDialogDescription></AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDeleteCompany(company.id)}>Excluir</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <Button size="sm" onClick={() => onCompanySelect(company)}><CheckCircle className="mr-2 h-4 w-4"/>Selecionar</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                           <TableRow>
+                                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                                    Nenhuma empresa encontrada.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
               </div>
             )}
             <DialogFooter className="mt-4">
