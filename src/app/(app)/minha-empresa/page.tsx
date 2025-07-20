@@ -111,6 +111,7 @@ export default function MinhaEmpresaPage() {
         setLoadingSintegra(true);
         try {
             const cleanedCnpj = cnpj.replace(/\D/g, '');
+            // The API requires UF in the path, it's better to fetch it directly from the form state.
             const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
             
             if (!response.ok) {
@@ -318,6 +319,7 @@ export default function MinhaEmpresaPage() {
                                                 <SelectItem value="simples">Simples Nacional</SelectItem>
                                                 <SelectItem value="presumido">Lucro Presumido</SelectItem>
                                                 <SelectItem value="real">Lucro Real</SelectItem>
+                                                <SelectItem value="mei">Microempreendedor Individual (MEI)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
