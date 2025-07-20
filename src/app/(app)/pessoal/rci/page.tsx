@@ -44,7 +44,7 @@ import { db } from '@/lib/firebase';
 import type { RCI } from '@/types/rci';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
-// import { generatePayslipPdf } from '@/services/payslip-service';
+import { generateProLaboreReceiptPdf } from '@/services/pro-labore-receipt-service';
 
 export interface RciEvent {
     id: string; 
@@ -361,28 +361,24 @@ function RciPage({ rciId, router }: { rciId: string | null, router: any }) {
     };
 
     const handleGeneratePdf = () => {
-        toast({ title: 'Funcionalidade em desenvolvimento.' });
-        // if (!activeCompany || !selectedSocio) {
-        //     toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
-        //     return;
-        // }
+        if (!activeCompany || !selectedSocio || !calculationResult) {
+            toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
+            return;
+        }
 
-        // const calcResult = calculatePayroll(selectedSocio, events);
-        // if (!calcResult) return;
-
-        // const rciData: RCI = {
-        //     id: currentRciId || undefined,
-        //     socioId: selectedSocio.id!,
-        //     socioName: selectedSocio.nomeCompleto,
-        //     period,
-        //     status,
-        //     events, 
-        //     totals: { totalProventos: calcResult.totalProventos, totalDescontos: calcResult.totalDescontos, liquido: calcResult.liquido },
-        //     baseINSS: calcResult.baseINSS,
-        //     baseIRRF: calcResult.baseIRRF,
-        //     updatedAt: new Date(),
-        // };
-        // generatePayslipPdf(activeCompany, selectedSocio, rciData);
+        const rciData: RCI = {
+            id: currentRciId || undefined,
+            socioId: selectedSocio.id!,
+            socioName: selectedSocio.nomeCompleto,
+            period,
+            status,
+            events, 
+            totals: calculationResult,
+            baseINSS: calculationResult.baseINSS,
+            baseIRRF: calculationResult.baseIRRF,
+            updatedAt: new Date(),
+        };
+        generateProLaboreReceiptPdf(activeCompany, selectedSocio, rciData);
     };
 
     const isEventRemovable = (eventId: string) => {
