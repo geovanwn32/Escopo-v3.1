@@ -17,7 +17,6 @@ export async function generateAndSaveEsocialEvent(
     const eventsRef = collection(db, `users/${userId}/companies/${company.id}/esocialEvents`);
     const today = new Date();
     const eventId = `ID1${company.cnpj}${today.getTime()}`;
-
     let payload = `<?xml version="1.0" encoding="UTF-8"?><eSocial><evtTabela id="${eventId}"><ideEvento>...</ideEvento></evtTabela></eSocial>`; // Default placeholder
 
     if (eventType === 'S-1005') {
@@ -73,6 +72,27 @@ export async function generateAndSaveEsocialEvent(
       </inclusao>
     </infoEstab>
   </evtTabEstab>
+</eSocial>`;
+    } else if (eventType === 'S-1200') {
+      payload = `<?xml version="1.0" encoding="UTF-8"?>
+<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtRemun/v_S_01_02_00">
+  <evtRemun id="${eventId}">
+      <!-- Conteúdo do Evento S-1200 (Remuneração) será gerado a partir da folha de pagamento -->
+  </evtRemun>
+</eSocial>`;
+    } else if (eventType === 'S-1210') {
+        payload = `<?xml version="1.0" encoding="UTF-8"?>
+<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtPgtos/v_S_01_02_00">
+    <evtPgtos id="${eventId}">
+      <!-- Conteúdo do Evento S-1210 (Pagamentos) será gerado a partir da folha de pagamento -->
+    </evtPgtos>
+</eSocial>`;
+    } else if (eventType === 'S-1299') {
+        payload = `<?xml version="1.0" encoding="UTF-8"?>
+<eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtFechaEvPer/v_S_01_02_00">
+    <evtFechaEvPer id="${eventId}">
+      <!-- Conteúdo do Evento S-1299 (Fechamento) será gerado após conferência dos demais periódicos -->
+    </evtFechaEvPer>
 </eSocial>`;
     }
 

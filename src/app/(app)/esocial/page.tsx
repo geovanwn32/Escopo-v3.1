@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -350,6 +350,150 @@ function TabEventosNaoPeriodicos({
     );
 }
 
+function TabEventosPeriodicos({
+    events,
+    loading,
+    activeCompany,
+    onGenerate,
+    isGenerating,
+    actionHandlers
+}: {
+    events: EsocialEvent[],
+    loading: boolean,
+    activeCompany: Company | null,
+    onGenerate: (eventType: EsocialEventType) => void,
+    isGenerating: boolean,
+    actionHandlers: any
+}) {
+    const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Eventos Periódicos</CardTitle>
+                    <CardDescription>Gere os eventos da folha de pagamento, como remuneração e fechamento.</CardDescription>
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                         <Button disabled={isGenerating || !activeCompany}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
+                            {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
+                            <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuLabel>Eventos Periódicos</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onGenerate('S-1200')}>S-1200 - Remuneração</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onGenerate('S-1210')}>S-1210 - Pagamentos</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onGenerate('S-1299')}>S-1299 - Fechamento</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled>S-1202 - Remuneração RPPS</DropdownMenuItem>
+                        <DropdownMenuItem disabled>S-1280 - Info. Complementares</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Evento</TableHead>
+                            <TableHead>Competência</TableHead>
+                            <TableHead>Data de Geração</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {loading ? (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                        ) : events.length === 0 ? (
+                             <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Nenhum evento periódico gerado ainda.</TableCell></TableRow>
+                        ) : events.map(event => (
+                            <TableRow key={event.id}>
+                                <TableCell className="font-mono font-semibold">{event.type}</TableCell>
+                                <TableCell className="font-mono text-sm">--/----</TableCell>
+                                <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
+                                <TableCell>{getStatusBadge(event.status)}</TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        {event.status !== 'pending' && (
+                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleCheckStatus(event)} disabled={isCheckingStatus === event.id} title="Consultar Status">
+                                                {isCheckingStatus === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                            </Button>
+                                        )}
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={isProcessing === event.id}>
+                                                <span className="sr-only">Abrir menu</span>
+                                                {isProcessing === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                            </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status !== 'pending'}>
+                                                    <Send className="mr-2 h-4 w-4" />
+                                                    <span>Processar Evento</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
+                                                    <FileDown className="mr-2 h-4 w-4" />
+                                                    <span>Baixar XML</span>
+                                                </DropdownMenuItem>
+                                                {event.status === 'error' && (
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                <Eye className="mr-2 h-4 w-4" />
+                                                                <span>Ver Erro</span>
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogAction>Fechar</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                )}
+                                                <DropdownMenuSeparator />
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                              <Trash2 className="mr-2 h-4 w-4" />
+                                                              Excluir
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Esta ação não pode ser desfeita. O evento será permanentemente removido.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDelete(event.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
+
 function PlaceholderTab({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) {
     return (
         <Card>
@@ -371,6 +515,7 @@ export default function EsocialPage() {
     const [allEvents, setAllEvents] = useState<EsocialEvent[]>([]);
     const [tableEvents, setTableEvents] = useState<EsocialEvent[]>([]);
     const [admissionEvents, setAdmissionEvents] = useState<EsocialEvent[]>([]);
+    const [periodicEvents, setPeriodicEvents] = useState<EsocialEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
@@ -440,12 +585,14 @@ export default function EsocialPage() {
     useEffect(() => {
         const tableEventTypes: EsocialEventType[] = ['S-1005', 'S-1010', 'S-1020'];
         const admissionEventTypes: EsocialEventType[] = ['S-2200'];
+        const periodicEventTypes: EsocialEventType[] = ['S-1200', 'S-1210', 'S-1299'];
 
         setTableEvents(allEvents.filter(event => tableEventTypes.includes(event.type)));
         setAdmissionEvents(allEvents.filter(event => admissionEventTypes.includes(event.type)));
+        setPeriodicEvents(allEvents.filter(event => periodicEventTypes.includes(event.type)));
     }, [allEvents]);
 
-    const handleGenerateTableEvent = async (eventType: EsocialEventType) => {
+    const handleGenerateEvent = async (eventType: EsocialEventType) => {
         if (!user || !activeCompany) return;
         setIsGenerating(true);
         try {
@@ -588,7 +735,7 @@ export default function EsocialPage() {
                         events={tableEvents}
                         loading={loading}
                         activeCompany={activeCompany}
-                        onGenerate={handleGenerateTableEvent}
+                        onGenerate={handleGenerateEvent}
                         isGenerating={isGenerating}
                         actionHandlers={actionHandlers}
                     />
@@ -603,10 +750,13 @@ export default function EsocialPage() {
                      />
                 </TabsContent>
                 <TabsContent value="periodicos">
-                    <PlaceholderTab 
-                        title="Em Desenvolvimento" 
-                        description="A funcionalidade para envio de eventos periódicos (ex: S-1200 Remuneração) estará disponível em breve."
-                        icon={CalendarClock}
+                    <TabEventosPeriodicos
+                        events={periodicEvents}
+                        loading={loading}
+                        activeCompany={activeCompany}
+                        onGenerate={handleGenerateEvent}
+                        isGenerating={isGenerating}
+                        actionHandlers={actionHandlers}
                     />
                 </TabsContent>
             </Tabs>
