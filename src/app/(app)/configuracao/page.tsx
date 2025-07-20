@@ -99,7 +99,7 @@ export default function ConfiguracaoPage() {
         setLoadingSintegra(true);
         try {
             const cleanedCnpj = cnpj.replace(/\D/g, '');
-            const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${uf}/${cleanedCnpj}`);
+            const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
             
             if (!response.ok) {
                 // This is often not an error, many companies don't have IE.
@@ -479,3 +479,5 @@ export default function ConfiguracaoPage() {
     </div>
   );
 }
+
+    
