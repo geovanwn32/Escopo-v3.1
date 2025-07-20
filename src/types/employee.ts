@@ -12,7 +12,8 @@ export interface Employee {
   nomePai?: string;
   email?: string;
   telefone: string;
-  dependentes: number;
+  dependentesIRRF: number;
+  dependentesSalarioFamilia: number;
 
   // Address
   cep: string;

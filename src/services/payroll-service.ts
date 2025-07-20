@@ -119,7 +119,7 @@ export function calculatePayroll(employee: Employee, events: PayrollEvent[]): Pa
     const baseIRRF = baseIRRFProventos - inss.valor;
     
     // 4. Calculate IRRF based on its specific base and dependents
-    const irrf = calculateIRRF(baseIRRF, employee.dependentes || 0);
+    const irrf = calculateIRRF(baseIRRF, employee.dependentesIRRF || 0);
 
     // 5. Calculate FGTS (employer contribution, not a deduction from employee)
     const fgts = { valor: parseFloat((baseFGTS * 0.08).toFixed(2)) };

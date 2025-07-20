@@ -37,7 +37,8 @@ const employeeSchema = z.object({
   sexo: z.string().min(1, "Sexo é obrigatório"),
   nomeMae: z.string().min(1, "Nome da mãe é obrigatório"),
   nomePai: z.string().optional(),
-  dependentes: z.coerce.number().min(0, "Número de dependentes não pode ser negativo.").default(0),
+  dependentesIRRF: z.coerce.number().min(0, "Número de dependentes não pode ser negativo.").default(0),
+  dependentesSalarioFamilia: z.coerce.number().min(0, "Número de dependentes não pode ser negativo.").default(0),
   email: z.string().email("Email inválido").optional().or(z.literal('')),
   telefone: z.string().min(10, "Telefone inválido"),
 
@@ -91,7 +92,8 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
               nomePai: "",
               email: "",
               telefone: "",
-              dependentes: 0,
+              dependentesIRRF: 0,
+              dependentesSalarioFamilia: 0,
               cep: "",
               logradouro: "",
               numero: "",
@@ -211,9 +213,10 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                   <FormField control={form.control} name="nomeMae" render={({ field }) => ( <FormItem><FormLabel>Nome da Mãe</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="nomePai" render={({ field }) => ( <FormItem><FormLabel>Nome do Pai (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="dependentes" render={({ field }) => ( <FormItem><FormLabel>Nº de Dependentes (IRRF)</FormLabel><FormControl><Input type="number" min="0" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="dependentesIRRF" render={({ field }) => ( <FormItem><FormLabel>Nº de Dependentes (IRRF)</FormLabel><FormControl><Input type="number" min="0" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="dependentesSalarioFamilia" render={({ field }) => ( <FormItem><FormLabel>Nº de Dependentes (Sal. Família)</FormLabel><FormControl><Input type="number" min="0" {...field} /></FormControl><FormMessage /></FormItem> )} />
                   </div>
+                  <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
                 </TabsContent>
 
                 <TabsContent value="address" className="space-y-4">

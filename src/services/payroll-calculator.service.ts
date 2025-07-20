@@ -1,3 +1,4 @@
+
 import type { Employee } from "@/types/employee";
 import type { Rubrica } from "@/types/rubrica";
 import type { PayrollEvent } from "@/app/(app)/pessoal/folha-de-pagamento/page";
@@ -30,14 +31,14 @@ export function calculateAutomaticEvent(
 
 
     if (rubrica.codigo === '0005') { 
-        if (inssCalculationBase <= familyAllowanceBracket.limit && employee.dependentes > 0) {
+        if (inssCalculationBase <= familyAllowanceBracket.limit && employee.dependentesSalarioFamilia > 0) {
             return {
-                referencia: employee.dependentes,
-                provento: employee.dependentes * familyAllowanceBracket.valuePerDependent,
+                referencia: employee.dependentesSalarioFamilia,
+                provento: employee.dependentesSalarioFamilia * familyAllowanceBracket.valuePerDependent,
                 desconto: 0,
             };
         }
-        return { referencia: employee.dependentes || 0, provento: 0, desconto: 0 };
+        return { referencia: employee.dependentesSalarioFamilia || 0, provento: 0, desconto: 0 };
     }
 
     if (rubrica.codigo === '0004') {
