@@ -465,9 +465,9 @@ endDate.setHours(23,59,59,999);
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
           <Button onClick={() => handleManualLaunch('saida')}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => handleManualLaunch('entrada')} variant="secondary"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => handleManualLaunch('servico')} variant="outline"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
-          <Button variant="outline" onClick={handleImportClick}>
+          <Button onClick={() => handleManualLaunch('entrada')} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => handleManualLaunch('servico')} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
         </CardContent>
