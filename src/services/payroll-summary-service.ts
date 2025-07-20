@@ -16,13 +16,6 @@ interface Period {
     year: number;
 }
 
-interface AggregatedData {
-    employeeName: string;
-    totalProventos: number;
-    totalDescontos: number;
-    totalLiquido: number;
-}
-
 const formatCurrency = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return 'R$ 0,00';
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -32,22 +25,34 @@ const formatCnpj = (cnpj: string): string => {
     return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 };
 
+const getEventName = (item: any): string => {
+    if (item.period) return `Folha de Pagamento - ${item.period}`;
+    if (item.vacationDays) return `Férias - Início em ${format((item.startDate as any).toDate(), 'dd/MM/yyyy')}`;
+    if (item.parcel) {
+        const parcelLabel = { first: '1ª Parcela', second: '2ª Parcela', unique: 'Parcela Única' }[item.parcel] || item.parcel;
+        return `13º Salário (${parcelLabel}) - ${item.year}`;
+    }
+    if (item.reason) return `Rescisão - ${format((item.terminationDate as any).toDate(), 'dd/MM/yyyy')}`;
+    return 'Lançamento';
+};
+
 export async function generatePayrollSummaryPdf(userId: string, company: Company, period: Period) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
-    
+    const primaryColor = [51, 145, 255]; // #3391FF
+
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
     const endDate = new Date(period.year, period.month, 0, 23, 59, 59);
-    
+
     const fetchCollection = async (collectionName: string, dateField: string) => {
         const ref = collection(db, `users/${userId}/companies/${company.id}/${collectionName}`);
         let q;
-        if (collectionName === 'payrolls') { // Payrolls use 'period' which is a string "MM/YYYY"
+        if (collectionName === 'payrolls') {
              q = query(ref, where('period', '==', `${String(period.month).padStart(2, '0')}/${period.year}`));
         } else {
-             q = query(ref, where(dateField, '>=', startDate), where(dateField, '<=', endDate));
+             q = query(ref, where(dateField, '>=', Timestamp.fromDate(startDate)), where(dateField, '<=', Timestamp.fromDate(endDate)));
         }
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -63,72 +68,127 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         throw new Error("Nenhum lançamento encontrado para o período selecionado.");
     }
     
-    // --- AGGREGATE DATA ---
-    const employeeTotals: { [employeeId: string]: AggregatedData } = {};
-
-    const processItem = (item: any) => {
-        const employeeId = item.employeeId;
-        if (!employeeTotals[employeeId]) {
-            employeeTotals[employeeId] = {
-                employeeName: item.employeeName,
-                totalProventos: 0,
-                totalDescontos: 0,
-                totalLiquido: 0,
-            };
+    // Group items by employee
+    const itemsByEmployee: { [employeeId: string]: any[] } = {};
+    allItems.forEach(item => {
+        if (!itemsByEmployee[item.employeeId]) {
+            itemsByEmployee[item.employeeId] = [];
         }
-        const totals = item.totals || item.result;
-        employeeTotals[employeeId].totalProventos += totals.totalProventos || 0;
-        employeeTotals[employeeId].totalDescontos += totals.totalDescontos || 0;
-        employeeTotals[employeeId].totalLiquido += totals.liquido || 0;
-    };
-
-    allItems.forEach(processItem);
+        itemsByEmployee[item.employeeId].push(item);
+    });
 
     // --- PDF GENERATION ---
     // Header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Resumo da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
+    doc.text(`Relatório Detalhado da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
     doc.setFontSize(10);
     doc.text(`${company.razaoSocial} - CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
-
-    // --- MAIN TABLE ---
-    const tableBody = Object.values(employeeTotals).map(data => [
-        data.employeeName,
-        formatCurrency(data.totalProventos),
-        formatCurrency(data.totalDescontos),
-        formatCurrency(data.totalLiquido)
-    ]);
     
-    const grandTotalProventos = Object.values(employeeTotals).reduce((sum, data) => sum + data.totalProventos, 0);
-    const grandTotalDescontos = Object.values(employeeTotals).reduce((sum, data) => sum + data.totalDescontos, 0);
-    const grandTotalLiquido = Object.values(employeeTotals).reduce((sum, data) => sum + data.totalLiquido, 0);
-    
-    tableBody.push([
-        { content: 'TOTAIS GERAIS', styles: { fontStyle: 'bold', fillColor: [240, 245, 255] } },
-        { content: formatCurrency(grandTotalProventos), styles: { fontStyle: 'bold', fillColor: [240, 245, 255] } },
-        { content: formatCurrency(grandTotalDescontos), styles: { fontStyle: 'bold', fillColor: [240, 245, 255] } },
-        { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', fillColor: [240, 245, 255] } },
-    ]);
+    let grandTotalProventos = 0;
+    let grandTotalDescontos = 0;
+    let grandTotalLiquido = 0;
 
-    autoTable(doc, {
-        startY: y,
-        head: [['Funcionário', 'Total Proventos', 'Total Descontos', 'Total Líquido']],
-        body: tableBody,
-        theme: 'grid',
-        headStyles: { fillColor: [50, 50, 50], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 9 },
-        columnStyles: {
-            0: { cellWidth: 'auto' },
-            1: { halign: 'right' },
-            2: { halign: 'right' },
-            3: { halign: 'right' },
+    for (const employeeId in itemsByEmployee) {
+        const employeeItems = itemsByEmployee[employeeId];
+        const employeeName = employeeItems[0].employeeName;
+        
+        let employeeTotalProventos = 0;
+        let employeeTotalDescontos = 0;
+        
+        if (y > 240) { // Check if new section fits, if not, new page
+          doc.addPage();
+          y = 15;
         }
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Funcionário: ${employeeName}`, 14, y);
+        y += 6;
+
+        for (const item of employeeItems) {
+            const totals = item.totals || item.result;
+            const events = item.events || item.result?.events || [];
+            
+            if (y > 250) { // Check before drawing each table
+              doc.addPage();
+              y = 15;
+            }
+            
+            // Table for each event type
+            autoTable(doc, {
+                startY: y,
+                head: [[{ content: getEventName(item), colSpan: 4, styles: { fillColor: [220, 220, 220], textColor: 30 } }]],
+                body: events.map((ev: any) => [ev.descricao, ev.referencia, formatCurrency(ev.provento), formatCurrency(ev.desconto)]),
+                foot: [[
+                  { content: 'Subtotal', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+                  { content: formatCurrency(totals.totalProventos), styles: { halign: 'right', fontStyle: 'bold' } },
+                  { content: formatCurrency(totals.totalDescontos), styles: { halign: 'right', fontStyle: 'bold' } },
+                ]],
+                theme: 'grid',
+                styles: { fontSize: 8 },
+                headStyles: { fontStyle: 'bold' },
+                footStyles: { fillColor: [245, 245, 245] },
+                columnStyles: {
+                  0: { cellWidth: 'auto' },
+                  1: { cellWidth: 25, halign: 'right' },
+                  2: { cellWidth: 30, halign: 'right' },
+                  3: { cellWidth: 30, halign: 'right' },
+                }
+            });
+            y = (doc as any).lastAutoTable.finalY + 5;
+            
+            employeeTotalProventos += totals.totalProventos || 0;
+            employeeTotalDescontos += totals.totalDescontos || 0;
+        }
+        
+        // Employee Total Summary Table
+        const employeeTotalLiquido = employeeTotalProventos - employeeTotalDescontos;
+        grandTotalProventos += employeeTotalProventos;
+        grandTotalDescontos += employeeTotalDescontos;
+        grandTotalLiquido += employeeTotalLiquido;
+
+        autoTable(doc, {
+            startY: y,
+            theme: 'grid',
+            head: [[`Resumo do Funcionário - ${employeeName}`]],
+            headStyles: { fillColor: primaryColor, textColor: 255 },
+            body: [
+                ['Total de Proventos', formatCurrency(employeeTotalProventos)],
+                ['Total de Descontos', formatCurrency(employeeTotalDescontos)],
+                [{ content: 'Total Líquido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(employeeTotalLiquido), styles: { fontStyle: 'bold' } }],
+            ],
+            styles: { fontSize: 9, fontStyle: 'bold' },
+            columnStyles: { 0: { halign: 'right' }, 1: { halign: 'right' } }
+        });
+        y = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // --- GRAND TOTALS PAGE ---
+    doc.addPage();
+    y = 15;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Resumo Geral da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
+    y += 15;
+    
+    autoTable(doc, {
+      startY: y,
+      head: [['Descrição', 'Valor']],
+      body: [
+        ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
+        ['Total Geral de Descontos', formatCurrency(grandTotalDescontos)],
+        [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold' } }],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [50, 50, 50], textColor: 255 },
+      styles: { fontSize: 10 },
+      columnStyles: { 0: { halign: 'left' }, 1: { halign: 'right' } }
     });
     y = (doc as any).lastAutoTable.finalY + 15;
-    
+
     // Legal Basis
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
