@@ -1,7 +1,8 @@
+
 "use client";
 
 import { signOut } from "firebase/auth";
-import { LogOut, Repeat, UserCircle } from "lucide-react";
+import { LogOut, Repeat, UserCircle, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
@@ -50,8 +51,9 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/configuracao')}>
-              Configurações
+            <DropdownMenuItem onClick={() => router.push('/minha-empresa')}>
+              <Settings className="mr-2 h-4 w-4" />
+              Minha Empresa
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>

@@ -58,7 +58,8 @@ const menuItems = [
     section: "Sistema",
     items: [
       { href: "/relatorios", icon: BarChart3, label: "Relatórios" },
-      { href: "/configuracao", icon: Settings, label: "Configurações" },
+      { href: "/minha-empresa", icon: Settings, label: "Minha Empresa" },
+      { href: "/configuracoes", icon: Settings, label: "Configurações" },
     ],
   },
 ]
