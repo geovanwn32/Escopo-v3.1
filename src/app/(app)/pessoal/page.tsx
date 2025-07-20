@@ -11,6 +11,7 @@ import type { Company } from '@/app/(app)/fiscal/page';
 import type { Payroll } from "@/types/payroll";
 import type { Termination } from "@/types/termination";
 import type { Thirteenth } from "@/types/thirteenth";
+import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX } from "lucide-react";
@@ -25,6 +26,7 @@ export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [thirteenths, setThirteenths] = useState<Thirteenth[]>([]);
+  const [vacations, setVacations] = useState<Vacation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
@@ -52,11 +54,12 @@ export default function PessoalPage() {
         setPayrolls([]);
         setTerminations([]);
         setThirteenths([]);
+        setVacations([]);
         return;
     };
 
     setLoading(true);
-    let activeListeners = 3;
+    let activeListeners = 4; // Updated for vacations
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) {
@@ -64,60 +67,40 @@ export default function PessoalPage() {
         }
     };
     
-    // Payrolls listener
     const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
     const payrollsQuery = query(payrollsRef, orderBy('createdAt', 'desc'));
     const unsubscribePayrolls = onSnapshot(payrollsQuery, (snapshot) => {
-        const payrollsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate(),
-        } as Payroll));
-        setPayrolls(payrollsData);
+        setPayrolls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() } as Payroll)));
         onDone();
-    }, (error) => {
-        console.error("Erro ao buscar folhas de pagamento: ", error);
-        toast({ variant: "destructive", title: "Erro ao buscar folhas de pagamento" });
-        onDone();
-    });
+    }, (error) => { console.error("Erro (Payrolls): ", error); toast({ variant: "destructive", title: "Erro ao buscar folhas" }); onDone(); });
 
-    // Terminations listener
     const terminationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
     const terminationsQuery = query(terminationsRef, orderBy('createdAt', 'desc'));
     const unsubscribeTerminations = onSnapshot(terminationsQuery, (snapshot) => {
-        const terminationsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            terminationDate: doc.data().terminationDate?.toDate(),
-        } as Termination));
-        setTerminations(terminationsData);
+        setTerminations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: doc.data().terminationDate?.toDate() } as Termination)));
         onDone();
-    }, (error) => {
-        console.error("Erro ao buscar rescisões: ", error);
-        toast({ variant: "destructive", title: "Erro ao buscar rescisões" });
-        onDone();
-    });
+    }, (error) => { console.error("Erro (Terminations): ", error); toast({ variant: "destructive", title: "Erro ao buscar rescisões" }); onDone(); });
 
-    // 13th Salary listener
     const thirteenthsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`);
     const thirteenthsQuery = query(thirteenthsRef, orderBy('createdAt', 'desc'));
     const unsubscribeThirteenths = onSnapshot(thirteenthsQuery, (snapshot) => {
-        const thirteenthsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        } as Thirteenth));
-        setThirteenths(thirteenthsData);
+        setThirteenths(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
         onDone();
-    }, (error) => {
-        console.error("Erro ao buscar 13º Salário: ", error);
-        toast({ variant: "destructive", title: "Erro ao buscar 13º Salário" });
+    }, (error) => { console.error("Erro (13th): ", error); toast({ variant: "destructive", title: "Erro ao buscar 13º" }); onDone(); });
+
+    const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
+    const vacationsQuery = query(vacationsRef, orderBy('createdAt', 'desc'));
+    const unsubscribeVacations = onSnapshot(vacationsQuery, (snapshot) => {
+        setVacations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: doc.data().startDate?.toDate() } as Vacation)));
         onDone();
-    });
+    }, (error) => { console.error("Erro (Vacations): ", error); toast({ variant: "destructive", title: "Erro ao buscar férias" }); onDone(); });
+
 
     return () => {
         unsubscribePayrolls();
         unsubscribeTerminations();
         unsubscribeThirteenths();
+        unsubscribeVacations();
     };
   }, [user, activeCompany, toast]);
 
@@ -150,7 +133,16 @@ export default function PessoalPage() {
         toast({ variant: 'destructive', title: 'Erro ao excluir cálculo.' });
       }
   };
-
+  
+  const handleDeleteVacation = async (vacationId: string) => {
+      if (!user || !activeCompany) return;
+      try {
+        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`, vacationId));
+        toast({ title: 'Cálculo de férias excluído com sucesso!' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao excluir cálculo de férias.' });
+      }
+  };
 
   const getStatusVariant = (status: Payroll['status']): "secondary" | "default" | "outline" => {
     switch (status) {
@@ -405,6 +397,93 @@ export default function PessoalPage() {
            )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Férias Salvas</CardTitle>
+          <CardDescription>Visualize os cálculos de férias salvos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : vacations.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="p-4 bg-muted rounded-full mb-4">
+                  <SendToBack className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold">Nenhum cálculo de férias salvo</h3>
+              <p className="text-muted-foreground mt-2">
+                {activeCompany ? 'Calcule novas férias para começar.' : 'Selecione uma empresa para visualizar os cálculos salvos.'}
+              </p>
+            </div>
+           ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Funcionário</TableHead>
+                  <TableHead>Data de Início</TableHead>
+                  <TableHead>Dias</TableHead>
+                  <TableHead className="text-right">Líquido</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vacations.map((vacation) => (
+                  <TableRow key={vacation.id}>
+                    <TableCell className="font-medium">{vacation.employeeName}</TableCell>
+                    <TableCell>{new Intl.DateTimeFormat('pt-BR').format(vacation.startDate as Date)}</TableCell>
+                    <TableCell>{vacation.vacationDays}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(vacation.result.liquido)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/pessoal/ferias?id=${vacation.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Acessar
+                                </Link>
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Excluir
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. O cálculo de férias será permanentemente removido.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteVacation(vacation.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           )}
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader>
