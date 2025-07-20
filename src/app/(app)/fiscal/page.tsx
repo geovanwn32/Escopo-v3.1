@@ -196,45 +196,33 @@ export default function FiscalPage() {
 
             let type: XmlFile['type'] = 'desconhecido';
             
-            // Flexible function to find CNPJ with multiple tag names and namespaces
-            const findCnpj = (potentialParents: (Element | null | undefined)[], cnpjTagNames: string[]): string | null => {
-              for (const parentNode of potentialParents) {
-                  if (parentNode) {
-                      for (const tagName of cnpjTagNames) {
-                          const nodes = Array.from(parentNode.getElementsByTagName(tagName));
-                          if (nodes.length > 0 && nodes[0].textContent) {
-                              return nodes[0].textContent.replace(/\D/g, '');
-                          }
-                          const namespacedNodes = Array.from(parentNode.getElementsByTagNameNS('*', tagName));
-                           if (namespacedNodes.length > 0 && namespacedNodes[0].textContent) {
-                               return namespacedNodes[0].textContent.replace(/\D/g, '');
-                           }
-                      }
-                  }
-              }
-              return null;
-            };
+            const getCnpjCpfFromNode = (node: Element | null): string | null => {
+                if (!node) return null;
+                const cnpj = node.querySelector('CNPJ, cnpj')?.textContent;
+                if (cnpj) return cnpj.replace(/\D/g, '');
+                const cpf = node.querySelector('CPF, cpf')?.textContent;
+                if (cpf) return cpf.replace(/\D/g, '');
+                return null;
+            }
 
-            const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-            const nfse = xmlDoc.getElementsByTagName('NFSe')[0] || xmlDoc.getElementsByTagName('CompNfse')[0];
+            const isNFe = xmlDoc.querySelector('infNFe');
+            const isNFSe = xmlDoc.querySelector('CompNfse, NFSe');
 
-            if (nfeProc) {
-                const emitNode = nfeProc.getElementsByTagName('emit')[0];
-                const destNode = nfeProc.getElementsByTagName('dest')[0];
-                const emitCnpj = findCnpj([emitNode], ['CNPJ', 'cnpj']);
-                const destCnpj = findCnpj([destNode], ['CNPJ', 'cnpj']);
-                
+            if (isNFe) {
+                const emitCnpj = getCnpjCpfFromNode(isNFe.querySelector('emit'));
+                const destCnpj = getCnpjCpfFromNode(isNFe.querySelector('dest'));
+
                 if (emitCnpj === normalizedActiveCnpj) {
-                    type = 'saida'; // Venda de produto (saída de mercadoria, mas entrada de receita)
+                    type = 'saida'; // Venda de produto (saída de mercadoria)
                 } else if (destCnpj === normalizedActiveCnpj) {
                     type = 'entrada'; // Compra de produto
                 }
-            } else if (nfse) {
-                const prestadorNode = nfse.querySelector('PrestadorServico, prest');
-                const tomadorNode = nfse.querySelector('TomadorServico, toma');
-                
-                const prestadorCnpj = findCnpj([prestadorNode], ['Cnpj', 'CNPJ', 'cnpj']);
-                const tomadorCnpj = findCnpj([tomadorNode], ['Cnpj', 'CNPJ', 'cnpj']);
+            } else if (isNFSe) {
+                const prestadorNode = isNFSe.querySelector('PrestadorServico, prest');
+                const tomadorNode = isNFSe.querySelector('TomadorServico, toma');
+
+                const prestadorCnpj = getCnpjCpfFromNode(prestadorNode);
+                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode);
 
                 if (prestadorCnpj === normalizedActiveCnpj) {
                     type = 'servico'; // Prestação de serviço (é uma entrada de receita)
