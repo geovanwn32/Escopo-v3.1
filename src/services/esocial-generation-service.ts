@@ -12,7 +12,8 @@ import type { Company, EstablishmentData } from '@/types/company';
 export async function generateAndSaveEsocialEvent(
     userId: string,
     company: Company,
-    eventType: EsocialEventType
+    eventType: EsocialEventType,
+    period?: string,
 ) {
     const eventsRef = collection(db, `users/${userId}/companies/${company.id}/esocialEvents`);
     const today = new Date();
@@ -77,7 +78,24 @@ export async function generateAndSaveEsocialEvent(
       payload = `<?xml version="1.0" encoding="UTF-8"?>
 <eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtRemun/v_S_01_02_00">
   <evtRemun id="${eventId}">
-      <!-- Conteúdo do Evento S-1200 (Remuneração) será gerado a partir da folha de pagamento -->
+      <ideEvento>
+        <indRetif>1</indRetif>
+        <nrRecibo/>
+        <tpAmb>2</tpAmb>
+        <procEmi>1</procEmi>
+        <verProc>Software Med</verProc>
+      </ideEvento>
+      <ideEmpregador>
+        <tpInsc>1</tpInsc>
+        <nrInsc>${company.cnpj}</nrInsc>
+      </ideEmpregador>
+      <ideTrabalhador>
+        <cpfTrab>00000000000</cpfTrab>
+        <nisTrab>00000000000</nisTrab>
+      </ideTrabalhador>
+      <dmDev>
+        <!-- Placeholder for payroll data -->
+      </dmDev>
   </evtRemun>
 </eSocial>`;
     } else if (eventType === 'S-1210') {
@@ -102,6 +120,7 @@ export async function generateAndSaveEsocialEvent(
         status: 'pending',
         errorDetails: null,
         payload,
+        period: period,
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
     };

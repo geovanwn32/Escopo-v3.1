@@ -22,6 +22,8 @@ import { EmployeeSelectionModal } from "@/components/pessoal/employee-selection-
 import type { Employee } from "@/types/employee";
 import type { Admission } from "@/types/admission";
 import { AdmissionForm } from "@/components/esocial/admission-form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const realisticErrors = [
     "Erro de Validação [CBO]: O código '999999' informado no campo de Código Brasileiro de Ocupação é inválido. Verifique a tabela de CBO.",
@@ -53,7 +55,7 @@ function TabEventosTabela({
     events: EsocialEvent[],
     loading: boolean,
     activeCompany: Company | null,
-    onGenerate: (eventType: EsocialEventType) => void,
+    onGenerate: (eventType: EsocialEventType, period?: string) => void,
     isGenerating: boolean,
     actionHandlers: any
 }) {
@@ -361,38 +363,78 @@ function TabEventosPeriodicos({
     events: EsocialEvent[],
     loading: boolean,
     activeCompany: Company | null,
-    onGenerate: (eventType: EsocialEventType) => void,
+    onGenerate: (eventType: EsocialEventType, period?: string) => void,
     isGenerating: boolean,
     actionHandlers: any
 }) {
+    const { toast } = useToast();
+    const [period, setPeriod] = useState(() => {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        return `${month}/${year}`;
+    });
     const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
+    
+    const handleGenerate = (eventType: EsocialEventType) => {
+        const periodRegex = /^(0[1-9]|1[0-2])\/\d{4}$/;
+        if (!periodRegex.test(period)) {
+            toast({
+                variant: 'destructive',
+                title: "Período Inválido",
+                description: "Por favor, insira a competência no formato MM/AAAA.",
+            });
+            return;
+        }
+        onGenerate(eventType, period);
+    };
+
+    const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let value = e.target.value.replace(/\D/g, ''); 
+        if (value.length > 2) {
+            value = `${value.slice(0, 2)}/${value.slice(2, 6)}`;
+        }
+        setPeriod(value);
+    };
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <CardTitle>Eventos Periódicos</CardTitle>
                     <CardDescription>Gere os eventos da folha de pagamento, como remuneração e fechamento.</CardDescription>
                 </div>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                         <Button disabled={isGenerating || !activeCompany}>
-                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
-                            {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
-                            <ChevronDown className="ml-2 h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                        <DropdownMenuLabel>Eventos Periódicos</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onGenerate('S-1200')}>S-1200 - Remuneração</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onGenerate('S-1210')}>S-1210 - Pagamentos</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onGenerate('S-1299')}>S-1299 - Fechamento</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled>S-1202 - Remuneração RPPS</DropdownMenuItem>
-                        <DropdownMenuItem disabled>S-1280 - Info. Complementares</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex w-full sm:w-auto items-center gap-2">
+                    <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="period" className="sr-only">Competência</Label>
+                        <Input 
+                          id="period" 
+                          placeholder="Competência (MM/AAAA)" 
+                          value={period} 
+                          onChange={handlePeriodChange}
+                          maxLength={7}
+                        />
+                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button disabled={isGenerating || !activeCompany} className="w-full sm:w-auto">
+                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
+                                {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuLabel>Eventos Periódicos</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1200')}>S-1200 - Remuneração</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1210')}>S-1210 - Pagamentos</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1299')}>S-1299 - Fechamento</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem disabled>S-1202 - Remuneração RPPS</DropdownMenuItem>
+                            <DropdownMenuItem disabled>S-1280 - Info. Complementares</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -413,7 +455,7 @@ function TabEventosPeriodicos({
                         ) : events.map(event => (
                             <TableRow key={event.id}>
                                 <TableCell className="font-mono font-semibold">{event.type}</TableCell>
-                                <TableCell className="font-mono text-sm">--/----</TableCell>
+                                <TableCell className="font-mono text-sm">{event.period || '--/----'}</TableCell>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                 <TableCell>{getStatusBadge(event.status)}</TableCell>
                                 <TableCell className="text-right">
@@ -592,11 +634,11 @@ export default function EsocialPage() {
         setPeriodicEvents(allEvents.filter(event => periodicEventTypes.includes(event.type)));
     }, [allEvents]);
 
-    const handleGenerateEvent = async (eventType: EsocialEventType) => {
+    const handleGenerateEvent = async (eventType: EsocialEventType, period?: string) => {
         if (!user || !activeCompany) return;
         setIsGenerating(true);
         try {
-            await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType);
+            await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType, period);
             toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser processado." });
         } catch (error) {
             console.error(error);

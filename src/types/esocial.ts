@@ -12,10 +12,10 @@ export interface EsocialEvent {
     status: EsocialEventStatus;
     payload: string; // This would hold the XML content
     errorDetails: string | null;
+    period?: string; // For periodic events, e.g., "07/2024"
     createdAt: FieldValue | Date;
     updatedAt: FieldValue;
     relatedDocId?: string;
     relatedCollection?: string;
     relatedDoc?: any; // To hold the fetched related document data
 }
-
