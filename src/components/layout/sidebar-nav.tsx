@@ -46,7 +46,6 @@ const menuItems = [
   {
     section: "Cadastros",
     items: [
-      { href: "/empresas", icon: Building2, label: "Empresas" },
       { href: "/parceiros", icon: Handshake, label: "Parceiros" },
       { href: "/funcionarios", icon: UserCog, label: "Funcionários" },
       { href: "/produtos", icon: Package, label: "Produtos" },
