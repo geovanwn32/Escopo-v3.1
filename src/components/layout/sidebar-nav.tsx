@@ -49,7 +49,7 @@ const menuItems = [
     items: [
       { href: "/parceiros", icon: Handshake, label: "Parceiros" },
       { href: "/funcionarios", icon: UserCog, label: "Funcionários" },
-      { href: "/socios", icon: Briefcase, label: "Sócios (Titular)" },
+      { href: "/socios", icon: Briefcase, label: "Sócios" },
       { href: "/produtos", icon: Package, label: "Produtos" },
       { href: "/servicos", icon: Wrench, label: "Serviços" },
       { href: "/aliquotas", icon: Percent, label: "Alíquotas" },
