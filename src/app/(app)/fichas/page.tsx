@@ -13,7 +13,7 @@ import { generateContractPdf } from '@/services/contract-service';
 import { useToast } from '@/hooks/use-toast';
 import { generateVacationNoticePdf } from '@/services/vacation-notice-service';
 import { generateTrctPdf } from '@/services/trct-service';
-import { collection, doc, getDoc, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Vacation } from '@/types/vacation';
 import type { Termination } from '@/types/termination';
@@ -60,14 +60,24 @@ export default function FichasPage() {
                     generateContractPdf(activeCompany, employee);
                     break;
                 case 'vacation': {
-                     const vacationRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`, employee.id!);
-                     const vacationSnap = await getDoc(vacationRef);
-                      if (!vacationSnap.exists()) {
-                          toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "É necessário calcular as férias para este funcionário antes de gerar o aviso." });
-                          return;
-                      }
-                    const vacationData = vacationSnap.data() as Vacation;
-                    vacationData.startDate = (vacationData.startDate as Timestamp).toDate();
+                    const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
+                    const q = query(
+                        vacationsRef,
+                        where("employeeId", "==", employee.id!),
+                        orderBy("createdAt", "desc"),
+                        limit(1)
+                    );
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "É necessário calcular as férias para este funcionário antes de gerar o aviso." });
+                        return;
+                    }
+
+                    const latestVacationDoc = querySnapshot.docs[0];
+                    const vacationData = latestVacationDoc.data() as Vacation;
+                    vacationData.id = latestVacationDoc.id;
+                    
                     generateVacationNoticePdf(activeCompany, employee, vacationData);
                     break;
                 }
