@@ -27,13 +27,14 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
     let y = startY;
 
     // --- HEADER ---
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(14, y, pageWidth - 28, 10, 'F');
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
     doc.text('Recibo de Pagamento de Salário', pageWidth / 2, y + 6.5, { align: 'center' });
-    y += 12;
+    y += 6;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y + 6.5, { align: 'center' });
+    y += 8;
 
     // --- COMPANY & EMPLOYEE INFO ---
     autoTable(doc, {
@@ -41,33 +42,25 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
         theme: 'grid',
         styles: { fontSize: 8, cellPadding: 1.5, overflow: 'linebreak' },
         head: [
-            [{ content: 'Empregador', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }, { content: 'Funcionário(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
+            [{ content: 'Empregado(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
         ],
         body: [
             [
-                { content: 'Razão Social:', styles: { fontStyle: 'bold' } },
-                { content: company.razaoSocial },
                 { content: 'Nome:', styles: { fontStyle: 'bold' } },
                 { content: employee.nomeCompleto },
             ],
             [
-                { content: 'CNPJ:', styles: { fontStyle: 'bold' } },
-                { content: formatCnpj(company.cnpj) },
                 { content: 'Cargo:', styles: { fontStyle: 'bold' } },
                 { content: employee.cargo },
             ],
             [
                 { content: 'Competência:', styles: { fontStyle: 'bold' } },
                 { content: payroll.period },
-                { content: 'CPF:', styles: { fontStyle: 'bold' } },
-                { content: formatCpf(employee.cpf) },
             ],
         ],
         columnStyles: { 
             0: { cellWidth: 25 },
-            1: { cellWidth: 71.8 },
-            2: { cellWidth: 25 },
-            3: { cellWidth: 'auto' },
+            1: { cellWidth: 'auto' },
         }
     });
     y = (doc as any).lastAutoTable.finalY + 5;

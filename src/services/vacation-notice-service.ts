@@ -31,6 +31,10 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('AVISO E RECIBO DE FÉRIAS', pageWidth / 2, y, { align: 'center' });
+  y += 6;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
   // --- IDENTIFICATION ---
@@ -39,31 +43,24 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
     theme: 'grid',
     styles: { fontSize: 9, cellPadding: 2 },
     head: [
-        [{ content: 'Empregador', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }, { content: 'Empregado(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
+        [{ content: 'Empregado(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
     ],
     body: [
         [
-            { content: 'Razão Social:', styles: { fontStyle: 'bold' } },
-            company.razaoSocial,
             { content: 'Nome:', styles: { fontStyle: 'bold' } },
             employee.nomeCompleto,
         ],
         [
-            { content: 'CNPJ:', styles: { fontStyle: 'bold' } },
-            formatCnpj(company.cnpj),
             { content: 'Cargo:', styles: { fontStyle: 'bold' } },
             employee.cargo,
         ],
         [
-            { content: 'Endereço:', styles: { fontStyle: 'bold' } },
-            `${company.logradouro}, ${company.numero}`,
             { content: 'Data de Admissão:', styles: { fontStyle: 'bold' } },
             formatDate(employee.dataAdmissao),
         ],
     ],
     columnStyles: { 
         0: { cellWidth: 35 }, 
-        2: { cellWidth: 35 }
     }
   });
   y = (doc as any).lastAutoTable.finalY + 8;

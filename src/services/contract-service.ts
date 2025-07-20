@@ -48,6 +48,10 @@ export function generateContractPdf(company: Company, employee: Employee) {
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTRATO INDIVIDUAL DE TRABALHO', pageWidth / 2, y, { align: 'center' });
+  y += 6;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
   doc.setFontSize(10);

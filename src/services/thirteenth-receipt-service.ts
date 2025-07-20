@@ -43,31 +43,15 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano de Referência: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
+  y += 6;
+  doc.setFontSize(10);
+  doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 10;
-  
-  // --- EMPLOYER INFO ---
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('I - Identificação do Empregador', 14, y);
-  y += 5;
-  autoTable(doc, {
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      body: [
-          [{ content: 'Razão Social/Nome', styles: { fontStyle: 'bold' } }, company.razaoSocial],
-          [{ content: 'CNPJ', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
-          [{ content: 'Endereço', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`],
-          [{ content: 'Município/UF', styles: { fontStyle: 'bold' } }, `${company.cidade || ''} - ${company.uf || ''}`],
-      ],
-      columnStyles: { 0: { cellWidth: 40 } }
-  });
-  y = (doc as any).lastAutoTable.finalY + 5;
   
   // --- EMPLOYEE INFO ---
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('II - Identificação do Empregado', 14, y);
+  doc.text('I - Identificação do Empregado', 14, y);
   y += 5;
    autoTable(doc, {
       startY: y,
@@ -136,7 +120,7 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   // --- LEGAL BASIS ---
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('III - Embasamento Legal', 14, y);
+  doc.text('II - Embasamento Legal', 14, y);
   y += 5;
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
