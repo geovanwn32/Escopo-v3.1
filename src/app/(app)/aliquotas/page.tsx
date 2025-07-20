@@ -123,14 +123,14 @@ export default function AliquotasPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Cadastro de Alíquotas</h1>
          <div className="flex gap-2">
-            <Button onClick={() => handleOpenModal('municipal')} disabled={!activeCompany}>
-              <Landmark className="mr-2 h-4 w-4" /> Novo Imposto Municipal
+            <Button onClick={() => handleOpenModal('federal')} disabled={!activeCompany}>
+              <Globe className="mr-2 h-4 w-4" /> Novo Imposto Federal
             </Button>
-            <Button onClick={() => handleOpenModal('estadual')} disabled={!activeCompany} variant="secondary">
+            <Button onClick={() => handleOpenModal('estadual')} disabled={!activeCompany} className="bg-green-600 hover:bg-green-700 text-white">
               <Map className="mr-2 h-4 w-4" /> Novo Imposto Estadual
             </Button>
-            <Button onClick={() => handleOpenModal('federal')} disabled={!activeCompany} variant="outline">
-              <Globe className="mr-2 h-4 w-4" /> Novo Imposto Federal
+            <Button onClick={() => handleOpenModal('municipal')} disabled={!activeCompany} className="bg-yellow-500 hover:bg-yellow-600 text-black">
+              <Landmark className="mr-2 h-4 w-4" /> Novo Imposto Municipal
             </Button>
         </div>
       </div>
