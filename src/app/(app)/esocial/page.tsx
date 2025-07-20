@@ -179,6 +179,7 @@ function TabEventosTabela() {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Evento</TableHead>
+                            <TableHead>ID do Evento</TableHead>
                             <TableHead>Data de Geração</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -186,12 +187,13 @@ function TabEventosTabela() {
                     </TableHeader>
                     <TableBody>
                         {loading ? (
-                            <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
                         ) : events.length === 0 ? (
-                             <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhum evento gerado ainda.</TableCell></TableRow>
+                             <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Nenhum evento gerado ainda.</TableCell></TableRow>
                         ) : events.map(event => (
                             <TableRow key={event.id}>
                                 <TableCell className="font-mono font-semibold">{event.type}</TableCell>
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={event.eventId}>{event.eventId}</TableCell>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                 <TableCell>{getStatusBadge(event.status)}</TableCell>
                                 <TableCell className="text-right">

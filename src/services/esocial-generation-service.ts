@@ -14,18 +14,18 @@ export async function generateAndSaveEsocialEvent(
     eventType: EsocialEventType
 ) {
     const eventsRef = collection(db, `users/${userId}/companies/${company.id}/esocialEvents`);
+    const today = new Date();
+    const eventId = `ID1${company.cnpj}${today.getTime()}`;
 
-    let payload = `<?xml version="1.0" encoding="UTF-8"?><eSocial><evtTabela><ideEvento>...</ideEvento></evtTabela></eSocial>`; // Default placeholder
+    let payload = `<?xml version="1.0" encoding="UTF-8"?><eSocial><evtTabela id="${eventId}"><ideEvento>...</ideEvento></evtTabela></eSocial>`; // Default placeholder
 
     if (eventType === 'S-1005') {
         const establishmentRef = doc(db, `users/${userId}/companies/${company.id}/esocial`, 'establishment');
         const establishmentSnap = await getDoc(establishmentRef);
         const establishmentData = establishmentSnap.exists() ? establishmentSnap.data() as EstablishmentData : null;
 
-        const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
-        const eventId = `ID1${company.cnpj}${today.getTime()}`;
 
         const caepfInfo = establishmentData?.nrCaepf 
           ? `<infoCaepf><nrCaepf>${establishmentData.nrCaepf}</nrCaepf></infoCaepf>`
@@ -72,6 +72,7 @@ export async function generateAndSaveEsocialEvent(
     }
 
     const newEvent: Omit<EsocialEvent, 'id' | 'createdAt'> = {
+        eventId,
         type: eventType,
         status: 'pending',
         errorDetails: null,

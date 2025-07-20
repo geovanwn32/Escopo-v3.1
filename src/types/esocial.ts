@@ -7,6 +7,7 @@ export type EsocialEventType = 'S-1005' | 'S-1010' | 'S-1020' | 'S-2200' | 'S-12
 
 export interface EsocialEvent {
     id?: string;
+    eventId?: string;
     type: EsocialEventType;
     status: EsocialEventStatus;
     payload: string; // This would hold the XML content
