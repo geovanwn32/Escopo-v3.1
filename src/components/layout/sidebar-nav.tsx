@@ -42,7 +42,6 @@ const menuItems = [
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/fiscal", icon: FileStack, label: "Módulo Fiscal" },
-      { href: "/pgdas", icon: Calculator, label: "PGDAS" },
       { href: "/pessoal", icon: Users, label: "Módulo Pessoal" },
     ],
   },
@@ -63,7 +62,7 @@ const menuItems = [
     section: "Conectividade",
     items: [
         { href: "/esocial", icon: Share2, label: "eSocial" },
-        { href: "/pessoal", icon: Share2, label: "Módulo Pessoal" },
+        { href: "/pgdas", icon: Calculator, label: "PGDAS" },
     ],
   },
   {
