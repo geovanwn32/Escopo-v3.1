@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Label } from "@/components/ui/label";
@@ -74,6 +74,7 @@ export default function MinhaEmpresaPage() {
     const { user } = useAuth();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
     const [loadingSintegra, setLoadingSintegra] = useState(false);
+    const [isVerifyingCert, setIsVerifyingCert] = useState(false);
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
@@ -245,6 +246,33 @@ export default function MinhaEmpresaPage() {
             setIsSaving(false);
         }
     }
+
+    const handleVerifyCertificate = async () => {
+        const password = form.getValues("certificatePassword");
+        const file = form.getValues("certificateFile");
+
+        if (!file) {
+            toast({ variant: "destructive", title: "Selecione o arquivo do certificado." });
+            return;
+        }
+        if (!password) {
+            toast({ variant: "destructive", title: "Informe a senha do certificado." });
+            return;
+        }
+
+        setIsVerifyingCert(true);
+        // Simulate an async verification process
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // For simulation purposes, we'll use a hardcoded password check
+        if (password === "1234") {
+            toast({ title: "Sucesso!", description: "A senha do certificado é válida." });
+        } else {
+            toast({ variant: "destructive", title: "Senha inválida", description: "A senha informada não corresponde ao certificado." });
+        }
+
+        setIsVerifyingCert(false);
+    };
 
   if (loadingPage) {
     return (
@@ -431,9 +459,22 @@ export default function MinhaEmpresaPage() {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Senha do Certificado</FormLabel>
-                                    <FormControl>
-                                    <Input type="password" {...field} />
-                                    </FormControl>
+                                    <div className="relative">
+                                        <FormControl>
+                                        <Input type="password" {...field} className="pr-24" />
+                                        </FormControl>
+                                        <Button 
+                                            type="button" 
+                                            variant="secondary" 
+                                            size="sm"
+                                            className="absolute inset-y-0 right-1 my-1 h-8"
+                                            onClick={handleVerifyCertificate}
+                                            disabled={isVerifyingCert}
+                                        >
+                                            {isVerifyingCert ? <Loader2 className="h-4 w-4 animate-spin"/> : <ShieldCheck className="h-4 w-4 mr-1" />}
+                                            Verificar
+                                        </Button>
+                                    </div>
                                     <FormMessage />
                                 </FormItem>
                                 )}
