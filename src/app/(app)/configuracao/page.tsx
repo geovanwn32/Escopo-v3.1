@@ -1,18 +1,20 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Save, Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -38,7 +40,11 @@ type CompanyFormData = z.infer<typeof companySchema>;
 
 export default function ConfiguracaoPage() {
     const { toast } = useToast();
+    const { user } = useAuth();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
+    const [loadingPage, setLoadingPage] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
@@ -60,6 +66,29 @@ export default function ConfiguracaoPage() {
             email: "",
         },
     });
+
+    useEffect(() => {
+        const companyId = sessionStorage.getItem('activeCompanyId');
+        if (companyId && user) {
+            setActiveCompanyId(companyId);
+            const fetchCompanyData = async () => {
+                const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
+                const docSnap = await getDoc(companyRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const formattedData = {
+                        ...data,
+                        cnpj: data.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") || "",
+                    };
+                    form.reset(formattedData);
+                }
+                setLoadingPage(false);
+            };
+            fetchCompanyData();
+        } else {
+             setLoadingPage(false);
+        }
+    }, [user, form]);
 
     const handleCnpjLookup = async () => {
         const cnpjValue = form.getValues("cnpj");
@@ -85,7 +114,6 @@ export default function ConfiguracaoPage() {
             
             form.setValue("razaoSocial", data.razao_social || "");
             form.setValue("nomeFantasia", data.nome_fantasia || "");
-            form.setValue("inscricaoEstadual", data.inscricao_estadual || "");
             form.setValue("cep", data.cep || "");
             form.setValue("logradouro", data.logradouro || "");
             form.setValue("numero", data.numero || "");
@@ -112,14 +140,50 @@ export default function ConfiguracaoPage() {
         }
     };
     
-    function onSubmit(data: CompanyFormData) {
-        // Here you would typically save the data to your backend
-        console.log(data);
-        toast({
-            title: "Dados Salvos (Simulação)",
-            description: "As informações da empresa foram salvas com sucesso.",
-        });
+    async function onSubmit(data: CompanyFormData) {
+        if (!user || !activeCompanyId) {
+             toast({
+                variant: "destructive",
+                title: "Erro",
+                description: "Usuário ou empresa não identificados. Não é possível salvar.",
+            });
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
+            const dataToSave = {
+                ...data,
+                cnpj: data.cnpj.replace(/\D/g, ''), // Save only numbers
+            };
+            await setDoc(companyRef, dataToSave, { merge: true });
+
+            const updatedCompanyDataForSession = { id: activeCompanyId, ...dataToSave };
+            sessionStorage.setItem(`company_${activeCompanyId}`, JSON.stringify(updatedCompanyDataForSession));
+
+            toast({
+                title: "Dados Salvos!",
+                description: "As informações da empresa foram atualizadas com sucesso.",
+            });
+        } catch (error) {
+            console.error("Error saving company data: ", error);
+            toast({
+                variant: "destructive",
+                title: "Erro ao Salvar",
+                description: "Ocorreu um problema ao salvar as informações da empresa.",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     }
+
+  if (loadingPage) {
+    return (
+        <div className="flex h-full w-full items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -192,7 +256,7 @@ export default function ConfiguracaoPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Regime Tributário</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Selecione o regime" />
@@ -351,7 +415,10 @@ export default function ConfiguracaoPage() {
                     </Card>
 
                      <div className="flex justify-end">
-                        <Button type="submit"><Save className="mr-2 h-4 w-4" /> Salvar Todas as Alterações</Button>
+                        <Button type="submit" disabled={isSaving || loadingPage || loadingCnpj}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
+                            Salvar Todas as Alterações
+                        </Button>
                     </div>
                 </div>
             </form>
@@ -359,3 +426,5 @@ export default function ConfiguracaoPage() {
     </div>
   );
 }
+
+    
