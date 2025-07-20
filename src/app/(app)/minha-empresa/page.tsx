@@ -249,7 +249,8 @@ export default function MinhaEmpresaPage() {
 
     const handleVerifyCertificate = async () => {
         const password = form.getValues("certificatePassword");
-        const file = form.getValues("certificateFile");
+        const fileField = form.control._fields.certificateFile;
+        const file = fileField?._f.value as File | undefined;
 
         if (!file) {
             toast({ variant: "destructive", title: "Selecione o arquivo do certificado." });
