@@ -65,8 +65,8 @@ export function LoginForm() {
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
       <div className="hidden bg-muted lg:flex items-center justify-center p-8">
          <Image 
-            src="https://images.unsplash.com/photo-1634495454244-1a9b612a39d6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y29udGFiaWxpZmRhZGV8ZW58MHx8fHwxNzUyOTc3NDM0fDA&ixlib=rb-4.1.0&q=80&w=1080" 
-            alt="Placeholder Image" 
+            src="https://images.unsplash.com/photo-1636819483716-854492c76683?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxjYWR1Y2V1JTIwJTIwY29udGFiaWxpZGFkZXxlbnwwfHx8fDE3NTI5Nzc2MTF8MA&ixlib=rb-4.1.0&q=80&w=1080"
+            alt="Pessoa trabalhando com calculadora e documentos contábeis" 
             width={800} 
             height={600}
             data-ai-hint="accounting software"
