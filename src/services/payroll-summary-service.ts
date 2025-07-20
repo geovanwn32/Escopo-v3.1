@@ -8,6 +8,7 @@ import type { Payroll } from '@/types/payroll';
 import type { Termination } from '@/types/termination';
 import type { Thirteenth } from '@/types/thirteenth';
 import type { Vacation } from '@/types/vacation';
+import type { RCI } from '@/types/rci';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -39,7 +40,8 @@ const formatDate = (date: any): string => {
 
 
 const getEventName = (item: any): string => {
-    if (item.period) return `Folha Pag. (${item.period})`;
+    if (item.period && item.employeeName) return `Folha Pag. (${item.period})`;
+    if (item.period && item.socioName) return `Pró-labore (RCI) (${item.period})`;
     if (item.vacationDays) return `Férias (Início: ${formatDate(item.startDate)})`;
     if (item.parcel) {
         const parcelLabel = { first: '1ª Parcela', second: '2ª Parcela', unique: 'Parcela Única' }[item.parcel] || item.parcel;
@@ -77,22 +79,24 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     };
 
     const payrolls = await fetchCollection('payrolls', '', true) as Payroll[];
+    const rcis = await fetchCollection('rcis', '', true) as RCI[];
     const vacations = await fetchCollection('vacations', 'startDate') as Vacation[];
     const thirteenths = await fetchCollection('thirteenths', 'createdAt') as Thirteenth[];
     const terminations = await fetchCollection('terminations', 'terminationDate') as Termination[];
 
-    const allItems = [...payrolls, ...vacations, ...thirteenths, ...terminations];
+    const allItems = [...payrolls, ...rcis, ...vacations, ...thirteenths, ...terminations];
     if (allItems.length === 0) {
         throw new Error("Nenhum lançamento encontrado para o período selecionado.");
     }
     
-    // Group items by employee
-    const itemsByEmployee: { [employeeId: string]: any[] } = {};
+    // Group items by employee or socio
+    const itemsByPerson: { [personId: string]: any[] } = {};
     allItems.forEach(item => {
-        if (!itemsByEmployee[item.employeeId]) {
-            itemsByEmployee[item.employeeId] = [];
+        const personId = item.employeeId || item.socioId;
+        if (!itemsByPerson[personId]) {
+            itemsByPerson[personId] = [];
         }
-        itemsByEmployee[item.employeeId].push(item);
+        itemsByPerson[personId].push(item);
     });
 
     // --- PDF GENERATION ---
@@ -113,14 +117,15 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     let grandTotalDescontos = 0;
     const allTableRows: any[] = [];
 
-    for (const employeeId in itemsByEmployee) {
-        const employeeItems = itemsByEmployee[employeeId];
-        const employeeName = employeeItems[0].employeeName;
+    for (const personId in itemsByPerson) {
+        const personItems = itemsByPerson[personId];
+        const personName = personItems[0].employeeName || personItems[0].socioName;
+        const personType = personItems[0].employeeName ? 'Funcionário' : 'Sócio';
 
-        // Add a group header row for the employee
-        allTableRows.push([{ content: `Funcionário: ${employeeName}`, colSpan: 5, styles: { fillColor: slate500, textColor: 255, fontStyle: 'bold' } }]);
+        // Add a group header row for the person
+        allTableRows.push([{ content: `${personType}: ${personName}`, colSpan: 5, styles: { fillColor: slate500, textColor: 255, fontStyle: 'bold' } }]);
 
-        for (const item of employeeItems) {
+        for (const item of personItems) {
             const events = item.events || item.result?.events || [];
             if (events.length > 0) {
                  allTableRows.push([{ content: getEventName(item), colSpan: 5, styles: { fillColor: slate100, textColor: 50, fontStyle: 'bold', fontSize: 9 } }]);
@@ -136,8 +141,10 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             });
 
             const totals = item.totals || item.result;
-            grandTotalProventos += totals?.totalProventos || totals?.liquido || 0;
-            grandTotalDescontos += totals?.totalDescontos || 0;
+            if(totals) {
+                grandTotalProventos += totals.totalProventos || 0;
+                grandTotalDescontos += totals.totalDescontos || 0;
+            }
         }
     }
     
