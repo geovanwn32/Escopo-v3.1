@@ -70,7 +70,8 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         const ref = collection(db, `users/${userId}/companies/${company.id}/${collectionName}`);
         let q;
         if (isPeriodBased) {
-             q = query(ref, where('period', '==', `${String(period.month).padStart(2, '0')}/${period.year}`));
+             const periodStr = `${String(period.month).padStart(2, '0')}/${period.year}`;
+             q = query(ref, where('period', '==', periodStr));
         } else {
              q = query(ref, where(dateField, '>=', Timestamp.fromDate(startDate)), where(dateField, '<=', Timestamp.fromDate(endDate)));
         }
@@ -93,6 +94,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const itemsByPerson: { [personId: string]: any[] } = {};
     allItems.forEach(item => {
         const personId = item.employeeId || item.socioId;
+        if (!personId) return; // Skip if no ID
         if (!itemsByPerson[personId]) {
             itemsByPerson[personId] = [];
         }
@@ -131,18 +133,23 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
                  allTableRows.push([{ content: getEventName(item), colSpan: 5, styles: { fillColor: slate100, textColor: 50, fontStyle: 'bold', fontSize: 9 } }]);
             }
             events.forEach((ev: any) => {
+                 const rubricaDesc = ev.rubrica?.descricao || ev.descricao || 'Evento desconhecido';
+                 const referencia = ev.referencia ?? '';
+                 const provento = ev.provento ?? 0;
+                 const desconto = ev.desconto ?? 0;
+
                  allTableRows.push([
                     '', // Empty first column for indentation
-                    ev.descricao,
-                    ev.referencia,
-                    formatCurrency(ev.provento),
-                    formatCurrency(ev.desconto)
+                    rubricaDesc,
+                    referencia,
+                    formatCurrency(provento),
+                    formatCurrency(desconto)
                 ]);
             });
 
             const totals = item.totals || item.result;
             if(totals) {
-                grandTotalProventos += totals.totalProventos || 0;
+                grandTotalProventos += totals.totalProventos || totals.liquido || 0;
                 grandTotalDescontos += totals.totalDescontos || 0;
             }
         }
