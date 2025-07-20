@@ -15,6 +15,7 @@ import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, order
 import { db } from "@/lib/firebase";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Pgdas } from "@/types/pgdas";
+import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -104,32 +105,53 @@ export default function PGDASPage() {
             const month = parseInt(monthStr, 10);
             const year = parseInt(yearStr, 10);
             
-            const startDate = new Date(year, month - 1, 1);
-            const endDate = new Date(year, month, 0, 23, 59, 59);
-
+            const currentPeriodDate = new Date(year, month - 1, 1);
+            
+            // --- Calculate RPA (Receita do Período de Apuração) ---
+            const rpaStartDate = startOfMonth(currentPeriodDate);
+            const rpaEndDate = endOfMonth(currentPeriodDate);
             const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-            const q = query(launchesRef, where('date', '>=', Timestamp.fromDate(startDate)), where('date', '<=', Timestamp.fromDate(endDate)));
-            const snapshot = await getDocs(q);
-
-            const rpa = snapshot.docs.reduce((acc, doc) => {
+            
+            const rpaQuery = query(launchesRef, 
+                where('date', '>=', Timestamp.fromDate(rpaStartDate)), 
+                where('date', '<=', Timestamp.fromDate(rpaEndDate))
+            );
+            const rpaSnapshot = await getDocs(rpaQuery);
+            const rpa = rpaSnapshot.docs.reduce((acc, doc) => {
                 const launch = doc.data();
                 if(launch.type === 'saida' || launch.type === 'servico') {
                     return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
                 }
                 return acc;
             }, 0);
-            
-            const rbt12 = rpa * 11 + Math.random() * 50000;
 
-            if (rbt12 === 0) {
+            // --- Calculate RBT12 (Receita Bruta dos últimos 12 meses) ---
+            const rbt12EndDate = endOfMonth(subMonths(currentPeriodDate, 1));
+            const rbt12StartDate = startOfMonth(subMonths(rbt12EndDate, 11));
+
+            const rbt12Query = query(launchesRef,
+                where('date', '>=', Timestamp.fromDate(rbt12StartDate)),
+                where('date', '<=', Timestamp.fromDate(rbt12EndDate))
+            );
+            const rbt12Snapshot = await getDocs(rbt12Query);
+            const rbt12 = rbt12Snapshot.docs.reduce((acc, doc) => {
+                 const launch = doc.data();
+                if(launch.type === 'saida' || launch.type === 'servico') {
+                    return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
+                }
+                return acc;
+            }, 0);
+            
+            if (rpa === 0) {
                  toast({ title: "Nenhum faturamento encontrado", description: "Não há notas de saída ou serviço no período selecionado." });
                  setCalculationResult(null);
                  return;
             }
 
+            // Simples Nacional calculation logic (using Anexo III, 3rd bracket as example)
             const aliquotaNominal = 0.135; // 13.50%
             const parcelaDeduzir = 17640.00;
-            const aliquotaEfetiva = ((rbt12 * aliquotaNominal) - parcelaDeduzir) / rbt12;
+            const aliquotaEfetiva = rbt12 > 0 ? ((rbt12 * aliquotaNominal) - parcelaDeduzir) / rbt12 : aliquotaNominal;
             const taxAmount = rpa * aliquotaEfetiva;
             
             const result: PGDASResult = {
