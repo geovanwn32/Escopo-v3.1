@@ -124,7 +124,7 @@ export default function ArquivosPage() {
           return {
             id: doc.id,
             ...data,
-            createdAt: data.createdAt?.toDate(),
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : null,
           } as StoredFile;
         });
         setStoredFiles(filesData);
