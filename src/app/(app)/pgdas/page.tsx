@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generatePgdasReportPdf, type PGDASResult } from "@/services/pgdas-report-service";
-import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Pgdas } from "@/types/pgdas";
@@ -177,6 +177,7 @@ export default function PGDASPage() {
             if (rpa === 0) {
                  toast({ title: "Nenhum faturamento encontrado", description: "Não há notas de saída ou serviço no período selecionado." });
                  setCalculationResult(null);
+                 setIsCalculating(false);
                  return;
             }
 
@@ -237,6 +238,7 @@ export default function PGDASPage() {
 
             toast({ title: "Cálculo salvo com sucesso!" });
         } catch (error) {
+            console.error("Erro ao salvar cálculo:", error);
             toast({ variant: "destructive", title: "Erro ao salvar cálculo." });
         } finally {
             setIsSaving(false);

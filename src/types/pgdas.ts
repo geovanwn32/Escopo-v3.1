@@ -2,10 +2,12 @@
 import type { PGDASResult } from "@/services/pgdas-report-service";
 import type { FieldValue } from "firebase/firestore";
 
+export type SimplesAnnexType = 'anexo-i' | 'anexo-iii';
+
 export interface Pgdas {
     id?: string;
     period: string;
-    anexo: 'anexo-i' | 'anexo-iii'; // Expand as more annexes are supported
+    anexo: SimplesAnnexType;
     result: PGDASResult;
-    createdAt: FieldValue;
+    createdAt?: FieldValue | Date;
 }
