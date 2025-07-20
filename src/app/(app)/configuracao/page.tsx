@@ -38,6 +38,28 @@ const companySchema = z.object({
 
 type CompanyFormData = z.infer<typeof companySchema>;
 
+// Helper to ensure all optional string fields are at least an empty string
+const ensureSafeData = (data: any): CompanyFormData => {
+    return {
+        razaoSocial: data.razaoSocial || "",
+        nomeFantasia: data.nomeFantasia || "",
+        cnpj: data.cnpj || "",
+        regimeTributario: data.regimeTributario || "",
+        inscricaoEstadual: data.inscricaoEstadual || "",
+        inscricaoMunicipal: data.inscricaoMunicipal || "",
+        cep: data.cep || "",
+        logradouro: data.logradouro || "",
+        numero: data.numero || "",
+        complemento: data.complemento || "",
+        bairro: data.bairro || "",
+        cidade: data.cidade || "",
+        uf: data.uf || "",
+        telefone: data.telefone || "",
+        email: data.email || "",
+    };
+};
+
+
 export default function ConfiguracaoPage() {
     const { toast } = useToast();
     const { user } = useAuth();
@@ -48,23 +70,7 @@ export default function ConfiguracaoPage() {
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
-        defaultValues: {
-            razaoSocial: "",
-            nomeFantasia: "",
-            cnpj: "",
-            regimeTributario: "",
-            inscricaoEstadual: "",
-            inscricaoMunicipal: "",
-            cep: "",
-            logradouro: "",
-            numero: "",
-            complemento: "",
-            bairro: "",
-            cidade: "",
-            uf: "",
-            telefone: "",
-            email: "",
-        },
+        defaultValues: ensureSafeData({}), // Initialize with safe empty values
     });
 
     useEffect(() => {
@@ -76,11 +82,9 @@ export default function ConfiguracaoPage() {
                 const docSnap = await getDoc(companyRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    const formattedData = {
-                        ...data,
-                        cnpj: data.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") || "",
-                    };
-                    form.reset(formattedData);
+                    const formattedCnpj = data.cnpj ? data.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : "";
+                    const safeData = ensureSafeData({ ...data, cnpj: formattedCnpj });
+                    form.reset(safeData);
                 }
                 setLoadingPage(false);
             };
@@ -426,5 +430,3 @@ export default function ConfiguracaoPage() {
     </div>
   );
 }
-
-    
