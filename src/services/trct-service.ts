@@ -28,6 +28,8 @@ const formatDate = (date: Date | undefined): string => {
 export function generateTrctPdf(company: Company, employee: Employee, termination: Termination) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
+  const primaryColor = [51, 145, 255];
+  const destructiveColor = [220, 38, 38];
 
   let y = 10;
   
@@ -38,7 +40,7 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
   y += 8;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`;
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
   doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 5;
   doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
@@ -142,11 +144,11 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
             ],
              [
                 { content: 'Total Deduções', styles: { halign: 'right' } },
-                { content: formatCurrency(termination.result.totalDescontos), styles: { halign: 'right' } },
+                { content: formatCurrency(termination.result.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
             ],
             [
                 { content: 'Valor Líquido', styles: { halign: 'right' } },
-                { content: formatCurrency(termination.result.liquido), styles: { halign: 'right' } },
+                { content: formatCurrency(termination.result.liquido), styles: { halign: 'right', textColor: primaryColor } },
             ]
         ],
         columnStyles: {

@@ -33,6 +33,8 @@ const getParcelLabel = (parcel: string): string => {
 export function generateThirteenthReceiptPdf(company: Company, employee: Employee, thirteenth: Thirteenth) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
+  const primaryColor = [51, 145, 255]; // #3391FF
+  const destructiveColor = [220, 38, 38];
   let y = 15;
 
   // --- HEADER ---
@@ -45,7 +47,7 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano de Referência: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
   y += 8;
   doc.setFontSize(10);
-  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`;
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
   doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 5;
   doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
@@ -106,11 +108,11 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
             ],
              [
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
-                { content: formatCurrency(thirteenth.result.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
+                { content: formatCurrency(thirteenth.result.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
             ],
              [
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
-                { content: formatCurrency(thirteenth.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
+                { content: formatCurrency(thirteenth.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255], textColor: primaryColor } },
             ],
         ],
          columnStyles: {

@@ -25,6 +25,8 @@ const formatDate = (date: Date | undefined): string => {
 export function generateVacationNoticePdf(company: Company, employee: Employee, vacation: Vacation) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
+  const primaryColor = [51, 145, 255];
+  const destructiveColor = [220, 38, 38];
   let y = 15;
 
   // --- HEADER ---
@@ -128,11 +130,11 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
             ],
              [
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
-                { content: formatCurrency(vacation.result.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
+                { content: formatCurrency(vacation.result.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
             ],
              [
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
-                { content: formatCurrency(vacation.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
+                { content: formatCurrency(vacation.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255], textColor: primaryColor } },
             ],
         ],
          columnStyles: {

@@ -22,6 +22,7 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const primaryColor = [51, 145, 255]; // #3391FF
+  const destructiveColor = [220, 38, 38];
 
   const drawPayslip = (startY: number) => {
     let y = startY;
@@ -110,12 +111,12 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
                 { content: 'Total de Vencimentos:', styles: { halign: 'right' } },
                 { content: formatCurrency(payroll.totals.totalProventos), styles: { halign: 'right' } },
                 { content: 'Total de Descontos:', styles: { halign: 'right' } },
-                { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
+                { content: formatCurrency(payroll.totals.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
             ],
              [
                 { content: '', colSpan: 2 },
                 { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
-                { content: formatCurrency(payroll.totals.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
+                { content: formatCurrency(payroll.totals.liquido), styles: { halign: 'right', fillColor: [240, 245, 255], textColor: primaryColor } },
             ],
         ],
         columnStyles: {

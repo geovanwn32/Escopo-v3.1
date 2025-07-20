@@ -48,6 +48,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
     const primaryColor = [51, 145, 255]; // #3391FF
+    const destructiveColor = [220, 38, 38]; // Equivalent to text-red-600
 
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
@@ -136,7 +137,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
                 foot: [[
                   { content: 'Subtotal', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
                   { content: formatCurrency(totals.totalProventos), styles: { halign: 'right', fontStyle: 'bold' } },
-                  { content: formatCurrency(totals.totalDescontos), styles: { halign: 'right', fontStyle: 'bold' } },
+                  { content: formatCurrency(totals.totalDescontos), styles: { halign: 'right', fontStyle: 'bold', textColor: destructiveColor } },
                 ]],
                 theme: 'grid',
                 styles: { fontSize: 8 },
@@ -151,7 +152,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             });
             y = (doc as any).lastAutoTable.finalY + 5;
             
-            employeeTotalProventos += totals.totalProventos || 0;
+            employeeTotalProventos += totals.totalProventos || totals.liquido + totals.totalDescontos || 0;
             employeeTotalDescontos += totals.totalDescontos || 0;
         }
         
@@ -165,11 +166,11 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             startY: y,
             theme: 'grid',
             head: [[`Resumo do Funcionário - ${employeeName}`]],
-            headStyles: { fillColor: primaryColor, textColor: 255 },
+            headStyles: { fillColor: [100, 116, 139], textColor: 255 }, // slate-500
             body: [
                 ['Total de Proventos', formatCurrency(employeeTotalProventos)],
-                ['Total de Descontos', formatCurrency(employeeTotalDescontos)],
-                [{ content: 'Total Líquido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(employeeTotalLiquido), styles: { fontStyle: 'bold' } }],
+                [{content: 'Total de Descontos', styles: {}}, {content: formatCurrency(employeeTotalDescontos), styles: {textColor: destructiveColor}}],
+                [{ content: 'Total Líquido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(employeeTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor } }],
             ],
             styles: { fontSize: 9, fontStyle: 'bold' },
             columnStyles: { 0: { halign: 'right' }, 1: { halign: 'right' } }
@@ -191,8 +192,8 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
           head: [['Descrição', 'Valor']],
           body: [
             ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
-            ['Total Geral de Descontos', formatCurrency(grandTotalDescontos)],
-            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold' } }],
+            [{content: 'Total Geral de Descontos', styles: {}}, {content: formatCurrency(grandTotalDescontos), styles: {textColor: destructiveColor}}],
+            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor } }],
           ],
           theme: 'grid',
           headStyles: { fillColor: [50, 50, 50], textColor: 255 },
