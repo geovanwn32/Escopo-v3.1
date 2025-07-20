@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, CalendarCheck, FileX, BookUser } from "lucide-react";
+import { FileText, CalendarCheck, FileX } from "lucide-react";
 import type { Employee } from '@/types/employee';
 import type { Company } from '@/types/company';
 import { useAuth } from '@/lib/auth';
@@ -151,20 +151,6 @@ export default function FichasPage() {
                 )}
             </CardContent>
         </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Histórico de Documentos Gerados</CardTitle>
-          <CardDescription>Gerencie os documentos gerados aqui.</CardDescription>
-        </CardHeader>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="p-4 bg-muted rounded-full mb-4">
-                <BookUser className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold">Nenhum documento no histórico</h3>
-            <p className="text-muted-foreground mt-2">Esta área será implementada no futuro para listar os documentos já gerados.</p>
-        </div>
-      </Card>
 
       {user && activeCompany && (
         <EmployeeSelectionModal
