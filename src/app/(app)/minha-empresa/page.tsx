@@ -18,13 +18,13 @@ import { useAuth } from "@/lib/auth";
 import { Label } from "@/components/ui/label";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
 import type { Company, EstablishmentData } from '@/types/company';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
   nomeFantasia: z.string().optional(),
-  cnpj: z.string().refine((value) => /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(value), {
-    message: "CNPJ inválido.",
-  }),
+  tipoInscricao: z.enum(['cnpj', 'cpf']),
+  inscricao: z.string().min(1, "CNPJ/CPF é obrigatório"),
   cnaePrincipalCodigo: z.string().optional(),
   cnaePrincipalDescricao: z.string().optional(),
   regimeTributario: z.string().optional(),
@@ -41,16 +41,34 @@ const companySchema = z.object({
   email: z.string().email({ message: "Email inválido." }).optional().or(z.literal('')),
   certificateFile: z.any().optional(),
   certificatePassword: z.string().optional(),
+}).superRefine((data, ctx) => {
+    const { tipoInscricao, inscricao } = data;
+    const cleanedInscricao = inscricao.replace(/\D/g, '');
+
+    if (tipoInscricao === 'cnpj' && cleanedInscricao.length !== 14) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "CNPJ inválido.",
+            path: ["inscricao"]
+        });
+    }
+    if (tipoInscricao === 'cpf' && cleanedInscricao.length !== 11) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "CPF inválido.",
+            path: ["inscricao"]
+        });
+    }
 });
 
 type CompanyFormData = z.infer<typeof companySchema>;
 
-// Helper to ensure all optional string fields are at least an empty string
-const ensureSafeData = (data: any): CompanyFormData => {
+const ensureSafeData = (data: any): Partial<CompanyFormData> => {
     return {
         razaoSocial: data.razaoSocial || "",
         nomeFantasia: data.nomeFantasia || "",
-        cnpj: data.cnpj || "",
+        tipoInscricao: data.tipoInscricao || 'cnpj',
+        inscricao: data.cnpj || data.inscricao || "",
         cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
         cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
         regimeTributario: data.regimeTributario || "",
@@ -86,8 +104,10 @@ export default function MinhaEmpresaPage() {
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
-        defaultValues: ensureSafeData({}), // Initialize with safe empty values
+        defaultValues: ensureSafeData({}),
     });
+    
+    const tipoInscricao = form.watch('tipoInscricao');
 
     useEffect(() => {
         const companyId = sessionStorage.getItem('activeCompanyId');
@@ -101,8 +121,15 @@ export default function MinhaEmpresaPage() {
 
                 if (companySnap.exists()) {
                     const data = companySnap.data();
-                    const formattedCnpj = data.cnpj ? data.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : "";
-                    const safeData = ensureSafeData({ ...data, cnpj: formattedCnpj });
+                    const inscricaoValue = data.cnpj || data.inscricao;
+                    let formattedInscricao = inscricaoValue || "";
+                    if (data.tipoInscricao === 'cnpj' || (!data.tipoInscricao && inscricaoValue?.length > 11)) {
+                         formattedInscricao = inscricaoValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+                    } else if (data.tipoInscricao === 'cpf') {
+                         formattedInscricao = inscricaoValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                    }
+                    
+                    const safeData = ensureSafeData({ ...data, inscricao: formattedInscricao });
                     form.reset(safeData);
                 }
                 if (establishmentSnap.exists()) {
@@ -117,10 +144,16 @@ export default function MinhaEmpresaPage() {
     }, [user, form]);
     
     const handleSintegraLookup = async () => {
-        const cnpj = form.getValues("cnpj");
+        const inscricao = form.getValues("inscricao");
         const uf = form.getValues("uf");
+        const tipo = form.getValues("tipoInscricao");
 
-        if (!cnpj || !uf) {
+        if (tipo !== 'cnpj') {
+            toast({ variant: "destructive", title: "Função não aplicável", description: "Busca de Inscrição Estadual disponível apenas para CNPJ." });
+            return;
+        }
+
+        if (!inscricao || !uf) {
             toast({
                 variant: "destructive",
                 title: "Dados Incompletos",
@@ -131,8 +164,7 @@ export default function MinhaEmpresaPage() {
 
         setLoadingSintegra(true);
         try {
-            const cleanedCnpj = cnpj.replace(/\D/g, '');
-            // The API requires UF in the path, it's better to fetch it from the form state.
+            const cleanedCnpj = inscricao.replace(/\D/g, '');
             const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
             
             if (!response.ok) {
@@ -165,8 +197,8 @@ export default function MinhaEmpresaPage() {
 
 
     const handleCnpjLookup = async () => {
-        const cnpjValue = form.getValues("cnpj");
-        if (!cnpjValue || cnpjValue.replace(/\D/g, '').length !== 14) {
+        const inscricaoValue = form.getValues("inscricao");
+        if (tipoInscricao !== 'cnpj' || !inscricaoValue || inscricaoValue.replace(/\D/g, '').length !== 14) {
             toast({
                 variant: "destructive",
                 title: "CNPJ Inválido",
@@ -177,7 +209,7 @@ export default function MinhaEmpresaPage() {
 
         setLoadingCnpj(true);
         try {
-            const cleanedCnpj = cnpjValue.replace(/\D/g, '');
+            const cleanedCnpj = inscricaoValue.replace(/\D/g, '');
             const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
             
             if (!response.ok) {
@@ -227,14 +259,14 @@ export default function MinhaEmpresaPage() {
         }
         setIsSaving(true);
         try {
-            // We don't save the file itself to Firestore, just the other data.
-            // In a real app, we'd upload the file to a storage bucket and save the reference here.
             const { certificateFile, ...restOfData } = data;
 
-            const dataToSave = {
+            const dataToSave: any = {
                 ...restOfData,
-                cnpj: data.cnpj.replace(/\D/g, ''), // Save only numbers
+                cnpj: data.tipoInscricao === 'cnpj' ? data.inscricao.replace(/\D/g, '') : null,
+                cpf: data.tipoInscricao === 'cpf' ? data.inscricao.replace(/\D/g, '') : null,
             };
+            delete dataToSave.inscricao;
             
             const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
             await setDoc(companyRef, dataToSave, { merge: true });
@@ -275,10 +307,7 @@ export default function MinhaEmpresaPage() {
         setIsVerifyingCert(true);
         // Simulate an async verification process
         await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // For simulation purposes, we assume any password is correct if a file is present.
         toast({ title: "Sucesso!", description: "A senha do certificado é válida (simulação)." });
-
         setIsVerifyingCert(false);
     };
 
@@ -312,7 +341,7 @@ export default function MinhaEmpresaPage() {
                                 name="razaoSocial"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Razão Social</FormLabel>
+                                        <FormLabel>Razão Social / Nome Completo</FormLabel>
                                         <FormControl><Input {...field} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -323,38 +352,73 @@ export default function MinhaEmpresaPage() {
                                 name="nomeFantasia"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nome Fantasia</FormLabel>
+                                        <FormLabel>Nome Fantasia (opcional)</FormLabel>
                                         <FormControl><Input {...field} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
+                             <FormField
+                                control={form.control}
+                                name="tipoInscricao"
+                                render={({ field }) => (
+                                    <FormItem className="space-y-3">
+                                    <FormLabel>Tipo de Inscrição</FormLabel>
+                                    <FormControl>
+                                        <RadioGroup
+                                        onValueChange={(value) => {
+                                            field.onChange(value);
+                                            form.setValue('inscricao', ''); // Clear field on change
+                                        }}
+                                        defaultValue={field.value}
+                                        className="flex space-x-4"
+                                        >
+                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                            <FormControl><RadioGroupItem value="cnpj" /></FormControl>
+                                            <FormLabel className="font-normal">CNPJ</FormLabel>
+                                        </FormItem>
+                                        <FormItem className="flex items-center space-x-2 space-y-0">
+                                            <FormControl><RadioGroupItem value="cpf" /></FormControl>
+                                            <FormLabel className="font-normal">CPF</FormLabel>
+                                        </FormItem>
+                                        </RadioGroup>
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
-                                name="cnpj"
+                                name="inscricao"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>CNPJ</FormLabel>
+                                        <FormLabel>{tipoInscricao === 'cnpj' ? 'CNPJ' : 'CPF'}</FormLabel>
                                         <div className="relative">
                                             <FormControl>
                                                 <Input 
                                                     {...field}
-                                                    placeholder="00.000.000/0001-00"
+                                                    placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
                                                     onChange={(e) => {
                                                         const { value } = e.target;
-                                                        e.target.value = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+                                                        if (tipoInscricao === 'cnpj') {
+                                                            e.target.value = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+                                                        } else {
+                                                            e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                                                        }
                                                         field.onChange(e);
                                                     }}
-                                                    onBlur={handleCnpjLookup}
+                                                    onBlur={tipoInscricao === 'cnpj' ? handleCnpjLookup : undefined}
                                                 />
                                             </FormControl>
-                                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                {loadingCnpj ? (
-                                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                                ) : (
-                                                    <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
-                                                )}
-                                            </div>
+                                            {tipoInscricao === 'cnpj' && (
+                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                                    {loadingCnpj ? (
+                                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                                    ) : (
+                                                        <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                         <FormMessage />
                                     </FormItem>
@@ -389,7 +453,7 @@ export default function MinhaEmpresaPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Código da Atividade Principal</FormLabel>
-                                        <FormControl><Input {...field} readOnly /></FormControl>
+                                        <FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -400,7 +464,7 @@ export default function MinhaEmpresaPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Descrição da Atividade Principal</FormLabel>
-                                        <FormControl><Input {...field} readOnly /></FormControl>
+                                        <FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
