@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, startOfMonth, endOfMonth } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Payroll } from '@/types/payroll';
@@ -66,7 +66,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const startDate = new Date(period.year, period.month - 1, 1);
     const endDate = new Date(period.year, period.month, 0, 23, 59, 59);
 
-    const fetchCollection = async (collectionName: string, dateField: string, isPeriodBased: boolean = false) => {
+    const fetchCollection = async (collectionName: string, isPeriodBased: boolean = false, dateField: string = 'createdAt') => {
         const ref = collection(db, `users/${userId}/companies/${company.id}/${collectionName}`);
         let q;
         if (isPeriodBased) {
@@ -79,11 +79,11 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     };
 
-    const payrolls = await fetchCollection('payrolls', '', true) as Payroll[];
-    const rcis = await fetchCollection('rcis', '', true) as RCI[];
-    const vacations = await fetchCollection('vacations', 'startDate') as Vacation[];
-    const thirteenths = await fetchCollection('thirteenths', 'createdAt') as Thirteenth[];
-    const terminations = await fetchCollection('terminations', 'terminationDate') as Termination[];
+    const payrolls = await fetchCollection('payrolls', true) as Payroll[];
+    const rcis = await fetchCollection('rcis', true) as RCI[];
+    const vacations = await fetchCollection('vacations', false, 'startDate') as Vacation[];
+    const thirteenths = (await fetchCollection('thirteenths', false, 'createdAt') as Thirteenth[]).filter(t => t.year === period.year);
+    const terminations = await fetchCollection('terminations', false, 'terminationDate') as Termination[];
 
     const allItems = [...payrolls, ...rcis, ...vacations, ...thirteenths, ...terminations];
     if (allItems.length === 0) {
@@ -128,13 +128,15 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         allTableRows.push([{ content: `${personType}: ${personName}`, colSpan: 5, styles: { fillColor: slate500, textColor: 255, fontStyle: 'bold' } }]);
 
         for (const item of personItems) {
+            // Unify logic to find events array
             const events = item.events || item.result?.events || [];
+            
             if (events.length > 0) {
                  allTableRows.push([{ content: getEventName(item), colSpan: 5, styles: { fillColor: slate100, textColor: 50, fontStyle: 'bold', fontSize: 9 } }]);
             }
             events.forEach((ev: any) => {
                  const rubricaDesc = ev.rubrica?.descricao || ev.descricao || 'Evento desconhecido';
-                 const referencia = ev.referencia ?? '';
+                 const referencia = typeof ev.referencia === 'number' ? ev.referencia.toFixed(2) : ev.referencia ?? '';
                  const provento = ev.provento ?? 0;
                  const desconto = ev.desconto ?? 0;
 
@@ -147,10 +149,12 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
                 ]);
             });
 
+            // Unify logic to find totals object
             const totals = item.totals || item.result;
-            if(totals) {
-                grandTotalProventos += totals.totalProventos || totals.liquido || 0;
-                grandTotalDescontos += totals.totalDescontos || 0;
+            if (totals) {
+                // Ensure we use totalProventos and totalDescontos if available, otherwise fallback for vacation/termination which might have a different structure
+                 grandTotalProventos += totals.totalProventos ?? 0;
+                 grandTotalDescontos += totals.totalDescontos ?? 0;
             }
         }
     }
