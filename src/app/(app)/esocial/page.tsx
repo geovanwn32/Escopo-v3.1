@@ -285,6 +285,21 @@ function PlaceholderTab({ title, description, icon: Icon }: { title: string, des
 
 
 export default function EsocialPage() {
+    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const { user } = useAuth();
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+                if (companyDataString) {
+                    setActiveCompany(JSON.parse(companyDataString));
+                }
+            }
+        }
+    }, [user]);
+
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
@@ -302,15 +317,15 @@ export default function EsocialPage() {
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
                         <p className="font-semibold">Nome do Titular</p>
-                        <p className="text-muted-foreground">EMPRESA MODELO LTDA</p>
+                        <p className="text-muted-foreground">{activeCompany?.razaoSocial || "N/A"}</p>
                     </div>
                     <div>
                         <p className="font-semibold">Emitido por</p>
-                        <p className="text-muted-foreground">AC Certisign Múltipla</p>
+                        <p className="text-muted-foreground">AC Certisign Múltipla (Exemplo)</p>
                     </div>
                     <div>
                         <p className="font-semibold">Validade</p>
-                        <p className="text-muted-foreground">25/12/2024</p>
+                        <p className="text-muted-foreground">25/12/2024 (Exemplo)</p>
                     </div>
                 </CardContent>
             </Card>
