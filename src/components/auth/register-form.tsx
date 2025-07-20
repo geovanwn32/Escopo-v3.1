@@ -113,12 +113,21 @@ export function RegisterForm() {
           </CardContent>
         </Card>
       </div>
-      <div className="hidden bg-muted lg:flex flex-col justify-between p-8">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-            Escopo
-        </Link>
-         <div className="mt-auto">
-            <blockquote className="space-y-2">
+       <div className="hidden bg-muted lg:flex flex-col justify-between p-8 relative">
+        <Image
+            src="https://placehold.co/800x1200.png"
+            alt="Pessoa trabalhando em um ambiente organizado"
+            fill
+            className="object-cover"
+            data-ai-hint="organized desk"
+        />
+        <div className="relative z-10">
+            <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">
+                Escopo
+            </Link>
+        </div>
+         <div className="relative z-10 mt-auto bg-black/50 p-4 rounded-lg backdrop-blur-sm">
+            <blockquote className="space-y-2 text-white">
                 <p className="text-lg">&ldquo;A contabilidade é a linguagem dos negócios. Dominá-la é o primeiro passo para o sucesso sustentável.&rdquo;</p>
                 <footer className="text-sm">Equipe Escopo</footer>
             </blockquote>
