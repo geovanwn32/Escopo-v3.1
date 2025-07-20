@@ -4,15 +4,17 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, Percent, FileText, Loader2, BarChart, Wallet } from "lucide-react";
+import { Calculator, Percent, FileText, Loader2, BarChart, Wallet, Save, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generatePgdasReportPdf, type PGDASResult } from "@/services/pgdas-report-service";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { Pgdas } from "@/types/pgdas";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -30,7 +32,10 @@ export default function PGDASPage() {
         return `${month}/${year}`;
     });
     const [isCalculating, setIsCalculating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [calculationResult, setCalculationResult] = useState<PGDASResult | null>(null);
+    const [savedCalculations, setSavedCalculations] = useState<Pgdas[]>([]);
+    const [loadingSaved, setLoadingSaved] = useState(true);
 
      useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -43,6 +48,33 @@ export default function PGDASPage() {
             }
         }
     }, [user]);
+
+    useEffect(() => {
+        if (!user || !activeCompany) {
+            setLoadingSaved(false);
+            setSavedCalculations([]);
+            return;
+        }
+
+        setLoadingSaved(true);
+        const pgdasRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/pgdas`);
+        const q = query(pgdasRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const calcsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Pgdas));
+            setSavedCalculations(calcsData);
+            setLoadingSaved(false);
+        }, (error) => {
+            console.error("Erro ao buscar cálculos salvos: ", error);
+            toast({ variant: 'destructive', title: "Erro ao buscar histórico de PGDAS." });
+            setLoadingSaved(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, activeCompany, toast]);
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = e.target.value.replace(/\D/g, ''); 
@@ -72,7 +104,6 @@ export default function PGDASPage() {
             const month = parseInt(monthStr, 10);
             const year = parseInt(yearStr, 10);
             
-            // Fetch launches for the current period (RPA)
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0, 23, 59, 59);
 
@@ -88,7 +119,6 @@ export default function PGDASPage() {
                 return acc;
             }, 0);
             
-            // Simulate RBT12 for example purposes
             const rbt12 = rpa * 11 + Math.random() * 50000;
 
             if (rbt12 === 0) {
@@ -97,7 +127,6 @@ export default function PGDASPage() {
                  return;
             }
 
-            // Simplified calculation logic based on the example
             const aliquotaNominal = 0.135; // 13.50%
             const parcelaDeduzir = 17640.00;
             const aliquotaEfetiva = ((rbt12 * aliquotaNominal) - parcelaDeduzir) / rbt12;
@@ -108,8 +137,8 @@ export default function PGDASPage() {
                 rbt12,
                 aliquotaNominal: aliquotaNominal * 100,
                 parcelaDeduzir,
-                aliquotaEfetiva: aliquotaEfetiva * 100,
-                taxAmount,
+                aliquotaEfetiva: Math.max(0, aliquotaEfetiva * 100),
+                taxAmount: Math.max(0, taxAmount),
             };
 
             setCalculationResult(result);
@@ -122,13 +151,40 @@ export default function PGDASPage() {
             setIsCalculating(false);
         }
     };
-    
-    const handleGenerateReport = () => {
-        if (!activeCompany || !calculationResult) {
-            toast({ variant: 'destructive', title: "Calcule o imposto primeiro."});
+
+     const handleSave = async () => {
+        if (!user || !activeCompany || !calculationResult) {
+            toast({ variant: "destructive", title: "Nenhum cálculo a ser salvo." });
             return;
         }
-        generatePgdasReportPdf(activeCompany, period, calculationResult);
+
+        setIsSaving(true);
+        try {
+            const pgdasData: Omit<Pgdas, 'id'> = {
+                period,
+                result: calculationResult,
+                createdAt: serverTimestamp(),
+            };
+            const pgdasRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/pgdas`);
+            await addDoc(pgdasRef, pgdasData);
+
+            toast({ title: "Cálculo salvo com sucesso!" });
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro ao salvar cálculo." });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    const handleGenerateReport = (result: PGDASResult, reportPeriod: string) => {
+        if (!activeCompany) return;
+        generatePgdasReportPdf(activeCompany, reportPeriod, result);
+    }
+    
+    const handleViewSaved = (savedCalc: Pgdas) => {
+        setPeriod(savedCalc.period);
+        setCalculationResult(savedCalc.result);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     return (
@@ -205,8 +261,12 @@ export default function PGDASPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex justify-end pt-4 border-t">
-                                <Button onClick={handleGenerateReport}>
+                            <div className="flex justify-end pt-4 border-t gap-2">
+                                <Button variant="outline" onClick={handleSave} disabled={isSaving}>
+                                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Salvar Cálculo
+                                </Button>
+                                <Button onClick={() => handleGenerateReport(calculationResult, period)}>
                                     <FileText className="mr-2 h-4 w-4" />
                                     Gerar Relatório Detalhado
                                 </Button>
@@ -214,6 +274,56 @@ export default function PGDASPage() {
                         </div>
                      )}
                  </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Histórico de Apurações</CardTitle>
+                    <CardDescription>Visualize os cálculos salvos anteriormente.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {loadingSaved ? (
+                         <div className="flex justify-center items-center py-20">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                         </div>
+                     ) : savedCalculations.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center">
+                            <div className="p-4 bg-muted rounded-full mb-4">
+                                <FileText className="h-10 w-10 text-muted-foreground" />
+                            </div>
+                            <h3 className="text-xl font-semibold">Nenhum cálculo salvo</h3>
+                            <p className="text-muted-foreground mt-2">Os cálculos salvos aparecerão aqui.</p>
+                        </div>
+                     ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Competência</TableHead>
+                                    <TableHead>Faturamento</TableHead>
+                                    <TableHead>Alíquota Efetiva</TableHead>
+                                    <TableHead className="text-right">Valor do Imposto</TableHead>
+                                    <TableHead className="text-right">Ações</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {savedCalculations.map((calc) => (
+                                    <TableRow key={calc.id}>
+                                        <TableCell className="font-mono">{calc.period}</TableCell>
+                                        <TableCell>{formatCurrency(calc.result.rpa)}</TableCell>
+                                        <TableCell>{calc.result.aliquotaEfetiva.toFixed(2)}%</TableCell>
+                                        <TableCell className="text-right font-medium">{formatCurrency(calc.result.taxAmount)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="outline" size="sm" onClick={() => handleViewSaved(calc)}>
+                                                <Eye className="mr-2 h-4 w-4" />
+                                                Visualizar
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                     )}
+                </CardContent>
             </Card>
         </div>
     );
