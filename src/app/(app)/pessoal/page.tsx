@@ -184,8 +184,11 @@ export default function PessoalPage() {
           <CardContent className="flex flex-col gap-3">
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/folha-de-pagamento">
-                <ClipboardList className="mr-2 h-4 w-4" /> Nova Folha de Pagamento
+                <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
               </Link>
+            </Button>
+            <Button className="w-full justify-start" disabled>
+                <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
             </Button>
             <Button asChild className="w-full justify-start" variant="secondary">
                 <Link href="/pessoal/decimo-terceiro">
