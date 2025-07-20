@@ -61,7 +61,7 @@ const menuItems = [
   {
     section: "Conectividade",
     items: [
-        { href: "/fiscal", icon: Share2, label: "Módulo Fiscal" },
+        { href: "/esocial", icon: Share2, label: "eSocial" },
         { href: "/contabil", icon: Share2, label: "Módulo Contábil" },
         { href: "/pessoal", icon: Share2, label: "Módulo Pessoal" },
     ],
