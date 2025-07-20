@@ -441,6 +441,9 @@ export default function MinhaEmpresaPage() {
                                                 <SelectItem value="presumido">Lucro Presumido</SelectItem>
                                                 <SelectItem value="real">Lucro Real</SelectItem>
                                                 <SelectItem value="mei">Microempreendedor Individual (MEI)</SelectItem>
+                                                <SelectItem value="nao-lucrativo-igreja">Sem Fins Lucrativos (Igreja)</SelectItem>
+                                                <SelectItem value="nao-lucrativo-cooperativa">Sem Fins Lucrativos (Cooperativa)</SelectItem>
+                                                <SelectItem value="nao-lucrativo-associacao">Sem Fins Lucrativos (Associação)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
