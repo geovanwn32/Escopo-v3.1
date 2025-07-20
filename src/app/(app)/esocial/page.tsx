@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,149 +42,22 @@ function getStatusBadge(status: EsocialEventStatus) {
 }
 
 
-function TabEventosTabela() {
-    const [events, setEvents] = useState<EsocialEvent[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [isProcessing, setIsProcessing] = useState<string | null>(null);
-    const [isCheckingStatus, setIsCheckingStatus] = useState<string | null>(null);
-    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-    const { user } = useAuth();
-    const { toast } = useToast();
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const companyId = sessionStorage.getItem('activeCompanyId');
-            if (user && companyId) {
-                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
-                if (companyDataString) {
-                    setActiveCompany(JSON.parse(companyDataString));
-                }
-            }
-        }
-    }, [user]);
-
-    useEffect(() => {
-        if (!user || !activeCompany) {
-            setLoading(false);
-            setEvents([]);
-            return;
-        }
-
-        setLoading(true);
-        const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
-        const q = query(eventsRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const allEvents = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: (doc.data().createdAt as Timestamp)?.toDate(),
-            } as EsocialEvent));
-
-            const tableEventTypes: EsocialEventType[] = ['S-1005', 'S-1010', 'S-1020'];
-            const filteredEvents = allEvents.filter(event => tableEventTypes.includes(event.type));
-            
-            setEvents(filteredEvents);
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching eSocial table events: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar eventos de tabela" });
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [user, activeCompany, toast]);
-
-    const handleGenerate = async (eventType: EsocialEventType) => {
-        if (!user || !activeCompany) return;
-        setIsGenerating(true);
-        try {
-            await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType);
-            toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser processado." });
-        } catch (error) {
-            console.error(error);
-            toast({ variant: 'destructive', title: "Erro ao gerar evento", description: (error as Error).message });
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-    
-    const handleProcess = async (eventId: string) => {
-        if (!user || !activeCompany) return;
-        setIsProcessing(eventId);
-        
-        const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId);
-
-        try {
-            await updateDoc(eventRef, { status: 'processing' });
-            toast({ title: 'Evento enviado para processamento!', description: 'Aguarde alguns instantes e consulte o status.' });
-        } catch(error) {
-            console.error("Error processing event: ", error);
-            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao enviar o evento.' });
-            toast({ variant: 'destructive', title: "Erro no envio" });
-        } finally {
-             setIsProcessing(null);
-        }
-    };
-
-    const handleCheckStatus = async (event: EsocialEvent) => {
-        if (!user || !activeCompany || !event.id) return;
-        
-        if (event.status !== 'processing') {
-             toast({
-                title: `Status do Evento: ${event.type}`,
-                description: `O status atual é: ${event.status}. ${event.status === 'error' ? 'Verifique os detalhes do erro.' : ''}`,
-            });
-            return;
-        }
-
-        setIsCheckingStatus(event.id);
-        const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, event.id);
-
-        try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const isSuccess = Math.random() > 0.3; 
-            if (isSuccess) {
-                await updateDoc(eventRef, { status: 'success' });
-                toast({ title: 'Consulta de Status: Sucesso!', description: 'O evento foi aceito pelo eSocial.' });
-            } else {
-                 const randomError = realisticErrors[Math.floor(Math.random() * realisticErrors.length)];
-                 await updateDoc(eventRef, { status: 'error', errorDetails: randomError });
-                 toast({ variant: 'destructive', title: 'Consulta de Status: Erro!', description: 'O evento foi rejeitado pelo eSocial. Verifique os detalhes.' });
-            }
-        } catch(error) {
-            console.error("Error checking status: ", error);
-            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao consultar o status.' });
-            toast({ variant: 'destructive', title: "Erro na consulta de status" });
-        } finally {
-            setIsCheckingStatus(null);
-        }
-    }
-
-    const handleDelete = async (eventId: string) => {
-         if (!user || !activeCompany) return;
-         try {
-             await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId));
-             toast({ title: "Evento excluído com sucesso." });
-         } catch(error) {
-             toast({ variant: 'destructive', title: "Erro ao excluir evento." });
-         }
-    };
-
-    const handleDownload = (payload: string, type: EsocialEventType) => {
-        const blob = new Blob([payload], { type: 'text/xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${type}-${new Date().getTime()}.xml`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast({ title: "Download iniciado", description: `O arquivo ${a.download} está sendo baixado.` });
-    };
+function TabEventosTabela({
+    events,
+    loading,
+    activeCompany,
+    onGenerate,
+    isGenerating,
+    actionHandlers
+}: {
+    events: EsocialEvent[],
+    loading: boolean,
+    activeCompany: Company | null,
+    onGenerate: (eventType: EsocialEventType) => void,
+    isGenerating: boolean,
+    actionHandlers: any
+}) {
+    const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
 
     return (
         <Card>
@@ -204,9 +77,9 @@ function TabEventosTabela() {
                     <DropdownMenuContent>
                         <DropdownMenuLabel>Eventos de Tabela</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </CardHeader>
@@ -310,51 +183,24 @@ function TabEventosTabela() {
     );
 }
 
-function TabEventosNaoPeriodicos() {
-    const [admissions, setAdmissions] = useState<Admission[]>([]);
-    const [loading, setLoading] = useState(true);
+function TabEventosNaoPeriodicos({
+    events,
+    loading,
+    activeCompany,
+    userId,
+    actionHandlers
+}: {
+    events: EsocialEvent[],
+    loading: boolean,
+    activeCompany: Company | null,
+    userId: string | undefined,
+    actionHandlers: any
+}) {
     const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
     const [isAdmissionFormOpen, setAdmissionFormOpen] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-    const { user } = useAuth();
-    const { toast } = useToast();
 
-     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const companyId = sessionStorage.getItem('activeCompanyId');
-            if (user && companyId) {
-                setActiveCompany(JSON.parse(sessionStorage.getItem(`company_${companyId}`)!));
-            }
-        }
-    }, [user]);
-
-     useEffect(() => {
-        if (!user || !activeCompany) {
-            setLoading(false);
-            setAdmissions([]);
-            return;
-        }
-
-        setLoading(true);
-        const admissionsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/admissions`);
-        const q = query(admissionsRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setAdmissions(snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: (doc.data().createdAt as Timestamp)?.toDate(),
-            } as Admission)));
-            setLoading(false);
-        }, (error) => {
-            console.error("Error fetching admissions: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar admissões" });
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [user, activeCompany, toast]);
+    const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
 
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
@@ -385,7 +231,6 @@ function TabEventosNaoPeriodicos() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Funcionário</TableHead>
-                                <TableHead>Data de Admissão</TableHead>
                                 <TableHead>Data de Geração</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Ações</TableHead>
@@ -393,16 +238,83 @@ function TabEventosNaoPeriodicos() {
                         </TableHeader>
                         <TableBody>
                              {loading ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
-                            ) : admissions.length === 0 ? (
-                                <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Nenhuma admissão gerada ainda.</TableCell></TableRow>
-                            ) : admissions.map(admission => (
-                                <TableRow key={admission.id}>
-                                    <TableCell>{admission.employeeName}</TableCell>
-                                    <TableCell>{new Intl.DateTimeFormat('pt-BR').format((admission.admissionDate as any).toDate())}</TableCell>
-                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(admission.createdAt as Date)}</TableCell>
-                                    <TableCell>{getStatusBadge('pending')}</TableCell>
-                                    <TableCell className="text-right"><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></TableCell>
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                            ) : events.length === 0 ? (
+                                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhuma admissão gerada ainda.</TableCell></TableRow>
+                            ) : events.map(event => (
+                                <TableRow key={event.id}>
+                                    <TableCell>{(event.relatedDoc as Admission)?.employeeName || 'Carregando...'}</TableCell>
+                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
+                                    <TableCell>{getStatusBadge(event.status)}</TableCell>
+                                    <TableCell className="text-right">
+                                       <div className="flex items-center justify-end gap-2">
+                                            {event.status !== 'pending' && (
+                                                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleCheckStatus(event)} disabled={isCheckingStatus === event.id} title="Consultar Status">
+                                                    {isCheckingStatus === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                                </Button>
+                                            )}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" className="h-8 w-8 p-0" disabled={isProcessing === event.id}>
+                                                    <span className="sr-only">Abrir menu</span>
+                                                    {isProcessing === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                                </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status !== 'pending'}>
+                                                        <Send className="mr-2 h-4 w-4" />
+                                                        <span>Processar Evento</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
+                                                        <FileDown className="mr-2 h-4 w-4" />
+                                                        <span>Baixar XML</span>
+                                                    </DropdownMenuItem>
+                                                    {event.status === 'error' && (
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                    <Eye className="mr-2 h-4 w-4" />
+                                                                    <span>Ver Erro</span>
+                                                                </DropdownMenuItem>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogAction>Fechar</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    )}
+                                                    <DropdownMenuSeparator />
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                                Excluir
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Esta ação não pode ser desfeita. O evento será permanentemente removido.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDelete(event.id!, event.relatedDocId, event.relatedCollection)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -416,22 +328,22 @@ function TabEventosNaoPeriodicos() {
                 icon={FileSignature}
             />
 
-            {activeCompany && user && (
+            {activeCompany && userId && (
                 <EmployeeSelectionModal 
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
-                    userId={user.uid}
+                    userId={userId}
                     companyId={activeCompany.id}
                 />
             )}
-             {activeCompany && user && selectedEmployee && (
+             {activeCompany && userId && selectedEmployee && (
                 <AdmissionForm
                     isOpen={isAdmissionFormOpen}
                     onClose={handleAdmissionFormClose}
                     company={activeCompany}
                     employee={selectedEmployee}
-                    userId={user.uid}
+                    userId={userId}
                 />
             )}
         </div>
@@ -456,8 +368,16 @@ function PlaceholderTab({ title, description, icon: Icon }: { title: string, des
 
 
 export default function EsocialPage() {
+    const [allEvents, setAllEvents] = useState<EsocialEvent[]>([]);
+    const [tableEvents, setTableEvents] = useState<EsocialEvent[]>([]);
+    const [admissionEvents, setAdmissionEvents] = useState<EsocialEvent[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [isCheckingStatus, setIsCheckingStatus] = useState<string | null>(null);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const { user } = useAuth();
+    const { toast } = useToast();
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -470,6 +390,162 @@ export default function EsocialPage() {
             }
         }
     }, [user]);
+
+     useEffect(() => {
+        if (!user || !activeCompany) {
+            setLoading(false);
+            setAllEvents([]);
+            return;
+        }
+
+        setLoading(true);
+        const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
+        const q = query(eventsRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const eventsDataPromises = snapshot.docs.map(async (eventDoc) => {
+                const eventData = eventDoc.data() as EsocialEvent;
+                let relatedDocData = null;
+                if (eventData.relatedDocId && eventData.relatedCollection) {
+                    const relatedDocRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/${eventData.relatedCollection}`, eventData.relatedDocId);
+                    const relatedDocSnap = await getDoc(relatedDocRef);
+                    if (relatedDocSnap.exists()) {
+                        relatedDocData = {
+                            id: relatedDocSnap.id,
+                            ...relatedDocSnap.data()
+                        };
+                    }
+                }
+
+                return {
+                    id: eventDoc.id,
+                    ...eventData,
+                    createdAt: (eventData.createdAt as Timestamp)?.toDate(),
+                    relatedDoc: relatedDocData
+                } as EsocialEvent;
+            });
+            
+            const resolvedEvents = await Promise.all(eventsDataPromises);
+            setAllEvents(resolvedEvents);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching eSocial events: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar eventos do eSocial" });
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, activeCompany, toast]);
+
+    useEffect(() => {
+        const tableEventTypes: EsocialEventType[] = ['S-1005', 'S-1010', 'S-1020'];
+        const admissionEventTypes: EsocialEventType[] = ['S-2200'];
+
+        setTableEvents(allEvents.filter(event => tableEventTypes.includes(event.type)));
+        setAdmissionEvents(allEvents.filter(event => admissionEventTypes.includes(event.type)));
+    }, [allEvents]);
+
+    const handleGenerateTableEvent = async (eventType: EsocialEventType) => {
+        if (!user || !activeCompany) return;
+        setIsGenerating(true);
+        try {
+            await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType);
+            toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser processado." });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: "Erro ao gerar evento", description: (error as Error).message });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    
+    const handleProcess = async (eventId: string) => {
+        if (!user || !activeCompany) return;
+        setIsProcessing(eventId);
+        
+        const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId);
+
+        try {
+            await updateDoc(eventRef, { status: 'processing' });
+            toast({ title: 'Evento enviado para processamento!', description: 'Aguarde alguns instantes e consulte o status.' });
+        } catch(error) {
+            console.error("Error processing event: ", error);
+            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao enviar o evento.' });
+            toast({ variant: 'destructive', title: "Erro no envio" });
+        } finally {
+             setIsProcessing(null);
+        }
+    };
+
+    const handleCheckStatus = async (event: EsocialEvent) => {
+        if (!user || !activeCompany || !event.id) return;
+        
+        if (event.status !== 'processing') {
+             toast({
+                title: `Status do Evento: ${event.type}`,
+                description: `O status atual é: ${event.status}. ${event.status === 'error' ? 'Verifique os detalhes do erro.' : ''}`,
+            });
+            return;
+        }
+
+        setIsCheckingStatus(event.id);
+        const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, event.id);
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const isSuccess = Math.random() > 0.3; 
+            if (isSuccess) {
+                await updateDoc(eventRef, { status: 'success' });
+                toast({ title: 'Consulta de Status: Sucesso!', description: 'O evento foi aceito pelo eSocial.' });
+            } else {
+                 const randomError = realisticErrors[Math.floor(Math.random() * realisticErrors.length)];
+                 await updateDoc(eventRef, { status: 'error', errorDetails: randomError });
+                 toast({ variant: 'destructive', title: 'Consulta de Status: Erro!', description: 'O evento foi rejeitado pelo eSocial. Verifique os detalhes.' });
+            }
+        } catch(error) {
+            console.error("Error checking status: ", error);
+            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao consultar o status.' });
+            toast({ variant: 'destructive', title: "Erro na consulta de status" });
+        } finally {
+            setIsCheckingStatus(null);
+        }
+    }
+
+    const handleDelete = async (eventId: string, relatedDocId?: string, relatedCollection?: string) => {
+         if (!user || !activeCompany) return;
+         try {
+             await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId));
+             if (relatedDocId && relatedCollection) {
+                await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${relatedCollection}`, relatedDocId));
+             }
+             toast({ title: "Evento e registro relacionado excluídos com sucesso." });
+         } catch(error) {
+             toast({ variant: 'destructive', title: "Erro ao excluir evento." });
+         }
+    };
+
+    const handleDownload = (payload: string, type: EsocialEventType) => {
+        const blob = new Blob([payload], { type: 'text/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${type}-${new Date().getTime()}.xml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Download iniciado", description: `O arquivo ${a.download} está sendo baixado.` });
+    };
+
+    const actionHandlers = {
+        isProcessing,
+        isCheckingStatus,
+        handleProcess,
+        handleCheckStatus,
+        handleDelete,
+        handleDownload
+    };
 
     return (
         <div className="space-y-6">
@@ -508,10 +584,23 @@ export default function EsocialPage() {
                     <TabsTrigger value="periodicos">Eventos Periódicos</TabsTrigger>
                 </TabsList>
                 <TabsContent value="tabelas">
-                    <TabEventosTabela />
+                    <TabEventosTabela
+                        events={tableEvents}
+                        loading={loading}
+                        activeCompany={activeCompany}
+                        onGenerate={handleGenerateTableEvent}
+                        isGenerating={isGenerating}
+                        actionHandlers={actionHandlers}
+                    />
                 </TabsContent>
                 <TabsContent value="nao-periodicos">
-                     <TabEventosNaoPeriodicos />
+                     <TabEventosNaoPeriodicos
+                        events={admissionEvents}
+                        loading={loading}
+                        activeCompany={activeCompany}
+                        userId={user?.uid}
+                        actionHandlers={actionHandlers}
+                     />
                 </TabsContent>
                 <TabsContent value="periodicos">
                     <PlaceholderTab 
@@ -524,4 +613,4 @@ export default function EsocialPage() {
         </div>
     );
 
-    
+}

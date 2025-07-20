@@ -16,4 +16,6 @@ export interface EsocialEvent {
     updatedAt: FieldValue;
     relatedDocId?: string;
     relatedCollection?: string;
+    relatedDoc?: any; // To hold the fetched related document data
 }
+
