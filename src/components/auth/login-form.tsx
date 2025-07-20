@@ -65,7 +65,7 @@ export function LoginForm() {
     <div className="w-full h-screen lg:grid lg:grid-cols-2">
       <div className="hidden bg-muted lg:flex flex-col justify-between p-8">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-            Contabilizei
+            Escopo
         </Link>
          <div className="mt-auto">
             <blockquote className="space-y-2">

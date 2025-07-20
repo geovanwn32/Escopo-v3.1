@@ -34,7 +34,7 @@ export default function Home() {
             <BookCheck className="h-10 w-10 text-primary" />
         </div>
         <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-            Bem-vindo ao Contabilizei
+            Bem-vindo ao Escopo
         </h1>
         <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-2xl">
             Sua plataforma completa para gestão contábil. Acesse seu painel ou crie uma conta para começar.

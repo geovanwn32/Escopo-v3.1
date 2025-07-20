@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Contabilizei - Seu sistema contábil',
+  title: 'Escopo - Seu sistema contábil',
   description: 'Sistema contábil completo para gestão de empresas.',
 };
 

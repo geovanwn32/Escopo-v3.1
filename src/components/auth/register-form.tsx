@@ -115,12 +115,12 @@ export function RegisterForm() {
       </div>
       <div className="hidden bg-muted lg:flex flex-col justify-between p-8">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
-            Contabilizei
+            Escopo
         </Link>
          <div className="mt-auto">
             <blockquote className="space-y-2">
                 <p className="text-lg">&ldquo;A contabilidade é a linguagem dos negócios. Dominá-la é o primeiro passo para o sucesso sustentável.&rdquo;</p>
-                <footer className="text-sm">Equipe Contabilizei</footer>
+                <footer className="text-sm">Equipe Escopo</footer>
             </blockquote>
         </div>
       </div>
