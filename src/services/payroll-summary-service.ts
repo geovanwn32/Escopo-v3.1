@@ -223,3 +223,5 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     
     doc.output('dataurlnewwindow');
 }
+
+    
