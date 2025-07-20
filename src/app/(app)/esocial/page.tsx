@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, ListChecks } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, ListChecks, CheckCircle, Search, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -23,7 +23,7 @@ function TabEventosTabela() {
     const [events, setEvents] = useState<EsocialEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [isSending, setIsSending] = useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const { user } = useAuth();
     const { toast } = useToast();
@@ -72,7 +72,7 @@ function TabEventosTabela() {
         setIsGenerating(true);
         try {
             await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType);
-            toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser enviado." });
+            toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser processado." });
         } catch (error) {
             console.error(error);
             toast({ variant: 'destructive', title: "Erro ao gerar evento", description: (error as Error).message });
@@ -81,34 +81,41 @@ function TabEventosTabela() {
         }
     };
     
-    const handleSend = async (eventId: string) => {
+    const handleProcess = async (eventId: string) => {
         if (!user || !activeCompany) return;
-        setIsSending(eventId);
+        setIsProcessing(eventId);
         
         const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId);
 
         try {
-            await updateDoc(eventRef, { status: 'sending' });
+            await updateDoc(eventRef, { status: 'processing' });
             
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             const isSuccess = Math.random() > 0.2; 
             if (isSuccess) {
                 await updateDoc(eventRef, { status: 'success' });
-                toast({ title: 'Evento enviado com sucesso!' });
+                toast({ title: 'Evento processado com sucesso!', description: 'O evento foi aceito pelo eSocial.' });
             } else {
-                 await updateDoc(eventRef, { status: 'error', errorDetails: 'Falha na comunicação com o portal do eSocial. Tente novamente.' });
-                 toast({ variant: 'destructive', title: 'Falha no envio do evento.' });
+                 await updateDoc(eventRef, { status: 'error', errorDetails: 'Falha na comunicação com o portal do eSocial. Verifique o XML e tente novamente.' });
+                 toast({ variant: 'destructive', title: 'Falha no processamento do evento.' });
             }
 
         } catch(error) {
-            console.error("Error sending event: ", error);
-            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao processar o envio.' });
+            console.error("Error processing event: ", error);
+            await updateDoc(eventRef, { status: 'error', errorDetails: 'Erro interno ao processar o evento.' });
             toast({ variant: 'destructive', title: "Erro no processo de envio" });
         } finally {
-             setIsSending(null);
+             setIsProcessing(null);
         }
     };
+
+    const handleCheckStatus = (event: EsocialEvent) => {
+        toast({
+            title: `Status do Evento: ${event.type}`,
+            description: `O status atual é: ${event.status}.`,
+        });
+    }
 
     const handleDelete = async (eventId: string) => {
          if (!user || !activeCompany) return;
@@ -136,7 +143,7 @@ function TabEventosTabela() {
     const getStatusBadge = (status: EsocialEventStatus) => {
         switch (status) {
             case 'pending': return <Badge variant="secondary">Pendente</Badge>;
-            case 'sending': return <Badge variant="outline" className="text-blue-600 border-blue-600">Enviando...</Badge>;
+            case 'processing': return <Badge variant="outline" className="text-blue-600 border-blue-600">Processando...</Badge>;
             case 'success': return <Badge className="bg-green-600 hover:bg-green-700">Sucesso</Badge>;
             case 'error': return <Badge variant="destructive">Erro</Badge>;
             default: return <Badge variant="outline">Desconhecido</Badge>;
@@ -190,16 +197,22 @@ function TabEventosTabela() {
                                 <TableCell className="text-right">
                                    <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSending === event.id}>
+                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isProcessing === event.id}>
                                             <span className="sr-only">Abrir menu</span>
-                                            {isSending === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                            {isProcessing === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
                                         </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleSend(event.id!)} disabled={event.status === 'success' || event.status === 'sending'}>
+                                            <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status === 'success' || event.status === 'processing'}>
                                                 <Send className="mr-2 h-4 w-4" />
-                                                <span>{event.status === 'error' ? 'Reenviar' : 'Enviar'}</span>
+                                                <span>{event.status === 'error' ? 'Reprocessar' : 'Processar Evento'}</span>
                                             </DropdownMenuItem>
+                                             {event.status !== 'pending' && (
+                                                <DropdownMenuItem onClick={() => handleCheckStatus(event)}>
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                    <span>Consultar Status</span>
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
                                                 <FileDown className="mr-2 h-4 w-4" />
                                                 <span>Baixar XML</span>
