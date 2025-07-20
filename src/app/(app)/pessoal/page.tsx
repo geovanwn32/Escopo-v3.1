@@ -187,7 +187,7 @@ export default function PessoalPage() {
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
               </Link>
             </Button>
-            <Button className="w-full justify-start" disabled>
+            <Button className="w-full justify-start">
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
             </Button>
             <Button asChild className="w-full justify-start" variant="secondary">
