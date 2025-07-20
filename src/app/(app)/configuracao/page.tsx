@@ -64,6 +64,7 @@ export default function ConfiguracaoPage() {
     const { toast } = useToast();
     const { user } = useAuth();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
+    const [loadingSintegra, setLoadingSintegra] = useState(false);
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
@@ -93,6 +94,42 @@ export default function ConfiguracaoPage() {
              setLoadingPage(false);
         }
     }, [user, form]);
+    
+    const handleSintegraLookup = async (cnpj: string, uf: string) => {
+        setLoadingSintegra(true);
+        try {
+            const cleanedCnpj = cnpj.replace(/\D/g, '');
+            const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${uf}/${cleanedCnpj}`);
+            
+            if (!response.ok) {
+                // This is often not an error, many companies don't have IE.
+                toast({
+                    title: "Inscrição Estadual não encontrada",
+                    description: "Nenhuma Inscrição Estadual encontrada para este CNPJ na UF especificada.",
+                });
+                return;
+            }
+
+            const data = await response.json();
+            if (data && data.inscricao_estadual) {
+                form.setValue("inscricaoEstadual", data.inscricao_estadual);
+                 toast({
+                    title: "Inscrição Estadual encontrada!",
+                    description: "O campo foi preenchido com as informações da BrasilAPI.",
+                });
+            }
+
+        } catch (error) {
+             toast({
+                variant: "destructive",
+                title: "Erro ao buscar Inscrição Estadual",
+                description: "Não foi possível realizar a consulta. Verifique o console.",
+            });
+        } finally {
+            setLoadingSintegra(false);
+        }
+    }
+
 
     const handleCnpjLookup = async () => {
         const cnpjValue = form.getValues("cnpj");
@@ -132,6 +169,11 @@ export default function ConfiguracaoPage() {
                 title: "Dados do CNPJ carregados!",
                 description: "Os campos foram preenchidos com as informações da BrasilAPI.",
             });
+            
+            // Trigger Sintegra lookup automatically
+            if (data.uf && cleanedCnpj) {
+                await handleSintegraLookup(cleanedCnpj, data.uf);
+            }
 
         } catch (error) {
             toast({
@@ -282,7 +324,14 @@ export default function ConfiguracaoPage() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Inscrição Estadual</FormLabel>
-                                        <FormControl><Input {...field} /></FormControl>
+                                        <div className="relative">
+                                            <FormControl><Input {...field} /></FormControl>
+                                             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                                {loadingSintegra && (
+                                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                                )}
+                                            </div>
+                                        </div>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -419,7 +468,7 @@ export default function ConfiguracaoPage() {
                     </Card>
 
                      <div className="flex justify-end">
-                        <Button type="submit" disabled={isSaving || loadingPage || loadingCnpj}>
+                        <Button type="submit" disabled={isSaving || loadingPage || loadingCnpj || loadingSintegra}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
                             Salvar Todas as Alterações
                         </Button>
