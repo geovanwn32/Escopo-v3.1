@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -18,6 +18,10 @@ import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmployeeSelectionModal } from "@/components/pessoal/employee-selection-modal";
+import type { Employee } from "@/types/employee";
+import type { Admission } from "@/types/admission";
+import { AdmissionForm } from "@/components/esocial/admission-form";
 
 const realisticErrors = [
     "Erro de Validação [CBO]: O código '999999' informado no campo de Código Brasileiro de Ocupação é inválido. Verifique a tabela de CBO.",
@@ -26,6 +30,17 @@ const realisticErrors = [
     "Erro de Schema XML: A estrutura do arquivo XML não corresponde à versão do leiaute S-1.2. Verifique o payload gerado.",
     "Erro [CPF]: O CPF do responsável legal informado no evento não foi encontrado na base de dados da Receita Federal."
 ];
+
+function getStatusBadge(status: EsocialEventStatus) {
+    switch (status) {
+        case 'pending': return <Badge variant="secondary">Pendente</Badge>;
+        case 'processing': return <Badge variant="outline" className="text-blue-600 border-blue-600">Processando...</Badge>;
+        case 'success': return <Badge className="bg-green-600 hover:bg-green-700">Sucesso</Badge>;
+        case 'error': return <Badge variant="destructive">Erro</Badge>;
+        default: return <Badge variant="outline">Desconhecido</Badge>;
+    }
+}
+
 
 function TabEventosTabela() {
     const [events, setEvents] = useState<EsocialEvent[]>([]);
@@ -58,7 +73,10 @@ function TabEventosTabela() {
 
         setLoading(true);
         const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
-        const q = query(eventsRef, orderBy('createdAt', 'desc'));
+        const q = query(eventsRef, 
+            where('type', 'in', ['S-1005', 'S-1010', 'S-1020']),
+            orderBy('createdAt', 'desc')
+        );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setEvents(snapshot.docs.map(doc => ({
@@ -68,8 +86,8 @@ function TabEventosTabela() {
             } as EsocialEvent)));
             setLoading(false);
         }, (error) => {
-            console.error("Error fetching eSocial events: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar eventos" });
+            console.error("Error fetching eSocial table events: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar eventos de tabela" });
             setLoading(false);
         });
 
@@ -97,7 +115,6 @@ function TabEventosTabela() {
         const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, eventId);
 
         try {
-            // Just set to processing and let the user check the status later
             await updateDoc(eventRef, { status: 'processing' });
             toast({ title: 'Evento enviado para processamento!', description: 'Aguarde alguns instantes e consulte o status.' });
         } catch(error) {
@@ -112,7 +129,6 @@ function TabEventosTabela() {
     const handleCheckStatus = async (event: EsocialEvent) => {
         if (!user || !activeCompany || !event.id) return;
         
-        // If status is not processing, just show the current status
         if (event.status !== 'processing') {
              toast({
                 title: `Status do Evento: ${event.type}`,
@@ -125,10 +141,8 @@ function TabEventosTabela() {
         const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, event.id);
 
         try {
-            // Simulate API call delay
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Simulate success/error response
             const isSuccess = Math.random() > 0.3; 
             if (isSuccess) {
                 await updateDoc(eventRef, { status: 'success' });
@@ -169,16 +183,6 @@ function TabEventosTabela() {
         URL.revokeObjectURL(url);
         toast({ title: "Download iniciado", description: `O arquivo ${a.download} está sendo baixado.` });
     };
-
-    const getStatusBadge = (status: EsocialEventStatus) => {
-        switch (status) {
-            case 'pending': return <Badge variant="secondary">Pendente</Badge>;
-            case 'processing': return <Badge variant="outline" className="text-blue-600 border-blue-600">Processando...</Badge>;
-            case 'success': return <Badge className="bg-green-600 hover:bg-green-700">Sucesso</Badge>;
-            case 'error': return <Badge variant="destructive">Erro</Badge>;
-            default: return <Badge variant="outline">Desconhecido</Badge>;
-        }
-    }
 
     return (
         <Card>
@@ -304,6 +308,134 @@ function TabEventosTabela() {
     );
 }
 
+function TabEventosNaoPeriodicos() {
+    const [admissions, setAdmissions] = useState<Admission[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
+    const [isAdmissionFormOpen, setAdmissionFormOpen] = useState(false);
+    const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const { user } = useAuth();
+    const { toast } = useToast();
+
+     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                setActiveCompany(JSON.parse(sessionStorage.getItem(`company_${companyId}`)!));
+            }
+        }
+    }, [user]);
+
+     useEffect(() => {
+        if (!user || !activeCompany) {
+            setLoading(false);
+            setAdmissions([]);
+            return;
+        }
+
+        setLoading(true);
+        const admissionsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/admissions`);
+        const q = query(admissionsRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setAdmissions(snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: (doc.data().createdAt as Timestamp)?.toDate(),
+            } as Admission)));
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching admissions: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar admissões" });
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, activeCompany, toast]);
+
+    const handleSelectEmployee = (employee: Employee) => {
+        setSelectedEmployee(employee);
+        setEmployeeModalOpen(false);
+        setAdmissionFormOpen(true);
+    };
+
+    const handleAdmissionFormClose = () => {
+        setAdmissionFormOpen(false);
+        setSelectedEmployee(null);
+    }
+    
+    return (
+        <div className="space-y-4">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Admissões (S-2200)</CardTitle>
+                        <CardDescription>Gere e envie o evento de cadastramento inicial do vínculo de novos funcionários.</CardDescription>
+                    </div>
+                     <Button onClick={() => setEmployeeModalOpen(true)} disabled={!activeCompany}>
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Gerar Admissão
+                    </Button>
+                </CardHeader>
+                 <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Funcionário</TableHead>
+                                <TableHead>Data de Admissão</TableHead>
+                                <TableHead>Data de Geração</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                             {loading ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                            ) : admissions.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Nenhuma admissão gerada ainda.</TableCell></TableRow>
+                            ) : admissions.map(admission => (
+                                <TableRow key={admission.id}>
+                                    <TableCell>{admission.employeeName}</TableCell>
+                                    <TableCell>{new Intl.DateTimeFormat('pt-BR').format((admission.admissionDate as any).toDate())}</TableCell>
+                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(admission.createdAt as Date)}</TableCell>
+                                    <TableCell>{getStatusBadge('pending')}</TableCell>
+                                    <TableCell className="text-right"><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <PlaceholderTab 
+                title="Demais Eventos Não-Periódicos"
+                description="As funcionalidades para os eventos S-2205 (Alteração Cadastral), S-2299 (Desligamento), entre outros, estarão disponíveis em breve."
+                icon={FileSignature}
+            />
+
+            {activeCompany && user && (
+                <EmployeeSelectionModal 
+                    isOpen={isEmployeeModalOpen}
+                    onClose={() => setEmployeeModalOpen(false)}
+                    onSelect={handleSelectEmployee}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                />
+            )}
+             {activeCompany && user && selectedEmployee && (
+                <AdmissionForm
+                    isOpen={isAdmissionFormOpen}
+                    onClose={handleAdmissionFormClose}
+                    company={activeCompany}
+                    employee={selectedEmployee}
+                    userId={user.uid}
+                />
+            )}
+        </div>
+    );
+}
+
 function PlaceholderTab({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) {
     return (
         <Card>
@@ -313,7 +445,7 @@ function PlaceholderTab({ title, description, icon: Icon }: { title: string, des
                         <Icon className="h-10 w-10 text-muted-foreground" />
                     </div>
                     <h3 className="text-xl font-semibold">{title}</h3>
-                    <p className="text-muted-foreground mt-2">{description}</p>
+                    <p className="text-muted-foreground mt-2 max-w-md mx-auto">{description}</p>
                 </div>
             </CardContent>
         </Card>
@@ -377,11 +509,7 @@ export default function EsocialPage() {
                     <TabEventosTabela />
                 </TabsContent>
                 <TabsContent value="nao-periodicos">
-                     <PlaceholderTab 
-                        title="Em Desenvolvimento" 
-                        description="A funcionalidade para envio de eventos não-periódicos (ex: S-2200 Admissão) estará disponível em breve."
-                        icon={Briefcase}
-                    />
+                     <TabEventosNaoPeriodicos />
                 </TabsContent>
                 <TabsContent value="periodicos">
                     <PlaceholderTab 

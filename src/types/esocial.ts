@@ -14,4 +14,6 @@ export interface EsocialEvent {
     errorDetails: string | null;
     createdAt: FieldValue | Date;
     updatedAt: FieldValue;
+    relatedDocId?: string;
+    relatedCollection?: string;
 }
