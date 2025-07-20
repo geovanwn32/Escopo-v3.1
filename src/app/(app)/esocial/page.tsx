@@ -150,11 +150,11 @@ export default function EsocialPage() {
             <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
             
             <Card>
-                <CardHeader>
-                    <CardTitle>Geração de Eventos de Tabela</CardTitle>
-                    <CardDescription>Gere os arquivos de cadastro (S-1005, S-1010, S-1020) com base nos dados da empresa ativa.</CardDescription>
-                </CardHeader>
-                <CardContent>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Histórico de Envios</CardTitle>
+                        <CardDescription>Acompanhe o status dos eventos gerados e envie-os para o portal do eSocial.</CardDescription>
+                    </div>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                              <Button disabled={isGenerating || !activeCompany}>
@@ -171,13 +171,6 @@ export default function EsocialPage() {
                             <DropdownMenuItem onClick={() => handleGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </CardContent>
-            </Card>
-
-            <Card>
-                 <CardHeader>
-                    <CardTitle>Histórico de Envios</CardTitle>
-                    <CardDescription>Acompanhe o status dos eventos gerados e envie-os para o portal do eSocial.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
