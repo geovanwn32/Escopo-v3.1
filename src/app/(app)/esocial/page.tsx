@@ -184,7 +184,7 @@ export default function EsocialPage() {
                             ) : events.map(event => (
                                 <TableRow key={event.id}>
                                     <TableCell className="font-mono font-semibold">{event.type}</TableCell>
-                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt)}</TableCell>
+                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                     <TableCell>{getStatusBadge(event.status)}</TableCell>
                                     <TableCell className="text-right">
                                        <DropdownMenu>
