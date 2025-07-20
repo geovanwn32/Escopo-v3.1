@@ -43,9 +43,12 @@ export function generateThirteenthReceiptPdf(company: Company, employee: Employe
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');
   doc.text(`${getParcelLabel(thirteenth.parcel)} - Ano de Referência: ${thirteenth.year}`, pageWidth / 2, y, { align: 'center' });
-  y += 6;
+  y += 8;
   doc.setFontSize(10);
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`;
   doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
+  y += 5;
+  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
   // --- EMPLOYEE INFO ---

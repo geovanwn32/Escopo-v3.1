@@ -31,10 +31,13 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('AVISO E RECIBO DE FÉRIAS', pageWidth / 2, y, { align: 'center' });
-  y += 6;
+  y += 8;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
   doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
+  y += 5;
+  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
   // --- IDENTIFICATION ---

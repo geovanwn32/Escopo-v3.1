@@ -29,11 +29,14 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
     // --- HEADER ---
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('Recibo de Pagamento de Salário', pageWidth / 2, y + 6.5, { align: 'center' });
-    y += 6;
+    doc.text('Recibo de Pagamento de Salário', pageWidth / 2, y + 3, { align: 'center' });
+    y += 5;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y + 6.5, { align: 'center' });
+    const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}`;
+    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y + 3, { align: 'center' });
+    y += 5;
+    doc.text(companyAddress, pageWidth / 2, y + 3, { align: 'center' });
     y += 8;
 
     // --- COMPANY & EMPLOYEE INFO ---

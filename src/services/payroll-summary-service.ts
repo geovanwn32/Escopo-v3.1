@@ -27,14 +27,21 @@ const formatCnpj = (cnpj: string): string => {
 
 const getEventName = (item: any): string => {
     if (item.period) return `Folha de Pagamento - ${item.period}`;
-    if (item.vacationDays) return `Férias - Início em ${format((item.startDate as any).toDate(), 'dd/MM/yyyy')}`;
+    if (item.vacationDays) {
+        const startDate = (item.startDate as any)?.toDate ? (item.startDate as any).toDate() : item.startDate;
+        return `Férias - Início em ${format(startDate, 'dd/MM/yyyy')}`;
+    }
     if (item.parcel) {
         const parcelLabel = { first: '1ª Parcela', second: '2ª Parcela', unique: 'Parcela Única' }[item.parcel] || item.parcel;
         return `13º Salário (${parcelLabel}) - ${item.year}`;
     }
-    if (item.reason) return `Rescisão - ${format((item.terminationDate as any).toDate(), 'dd/MM/yyyy')}`;
+    if (item.reason) {
+        const termDate = (item.terminationDate as any)?.toDate ? (item.terminationDate as any).toDate() : item.terminationDate;
+        return `Rescisão - ${format(termDate, 'dd/MM/yyyy')}`;
+    }
     return 'Lançamento';
 };
+
 
 export async function generatePayrollSummaryPdf(userId: string, company: Company, period: Period) {
     const doc = new jsPDF();
@@ -82,9 +89,13 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`Relatório Detalhado da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
-    y += 10;
+    y += 8;
     doc.setFontSize(10);
-    doc.text(`${company.razaoSocial} - CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
+    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
     y += 10;
     
     let grandTotalProventos = 0;
@@ -167,27 +178,30 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     }
 
     // --- GRAND TOTALS PAGE ---
-    doc.addPage();
-    y = 15;
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Resumo Geral da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
-    y += 15;
-    
-    autoTable(doc, {
-      startY: y,
-      head: [['Descrição', 'Valor']],
-      body: [
-        ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
-        ['Total Geral de Descontos', formatCurrency(grandTotalDescontos)],
-        [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold' } }],
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [50, 50, 50], textColor: 255 },
-      styles: { fontSize: 10 },
-      columnStyles: { 0: { halign: 'left' }, 1: { halign: 'right' } }
-    });
-    y = (doc as any).lastAutoTable.finalY + 15;
+    if (Object.keys(itemsByEmployee).length > 1) { // Only add summary page if more than one employee
+        doc.addPage();
+        y = 15;
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Resumo Geral da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
+        y += 15;
+        
+        autoTable(doc, {
+          startY: y,
+          head: [['Descrição', 'Valor']],
+          body: [
+            ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
+            ['Total Geral de Descontos', formatCurrency(grandTotalDescontos)],
+            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold' } }],
+          ],
+          theme: 'grid',
+          headStyles: { fillColor: [50, 50, 50], textColor: 255 },
+          styles: { fontSize: 10 },
+          columnStyles: { 0: { halign: 'left' }, 1: { halign: 'right' } }
+        });
+        y = (doc as any).lastAutoTable.finalY + 15;
+    }
+
 
     // Legal Basis
     doc.setFontSize(11);
