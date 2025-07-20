@@ -29,6 +29,7 @@ const aliquotaSchema = z.object({
   nomeDoImposto: z.string().min(1, "O nome do imposto é obrigatório."),
   descricao: z.string().min(1, "A descrição é obrigatória."),
   aliquota: z.string().transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0, "A alíquota deve ser um valor positivo.")),
+  itemLc: z.string().optional(),
 });
 
 export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota, esfera }: AliquotaFormModalProps) {
@@ -42,6 +43,7 @@ export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota
       nomeDoImposto: '',
       descricao: '',
       aliquota: 0,
+      itemLc: '',
     }
   });
 
@@ -65,6 +67,7 @@ export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota
                 nomeDoImposto: '',
                 descricao: '',
                 aliquota: 0,
+                itemLc: '',
             });
         }
     }
@@ -104,11 +107,18 @@ export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField control={form.control} name="nomeDoImposto" render={({ field }) => ( <FormItem><FormLabel>Nome do Imposto</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS' : esfera === 'estadual' ? 'Ex: ICMS' : 'Ex: PIS'} /></FormControl><FormMessage /></FormItem> )} />
             <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS sobre serviço de TI - Goiânia' : 'Ex: ICMS Alíquota Interna'} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="aliquota" render={({ field }) => ( <FormItem><FormLabel>Alíquota (%)</FormLabel><FormControl><Input {...field} type="text" onChange={e => {
-                        const { value } = e.target;
-                        e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
-                        field.onChange(e);
-                    }} /></FormControl><FormMessage /></FormItem> )} />
+            
+            <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="aliquota" render={({ field }) => ( <FormItem><FormLabel>Alíquota (%)</FormLabel><FormControl><Input {...field} type="text" onChange={e => {
+                            const { value } = e.target;
+                            e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                            field.onChange(e);
+                        }} /></FormControl><FormMessage /></FormItem> )} />
+
+                {esfera === 'municipal' && (
+                    <FormField control={form.control} name="itemLc" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} placeholder="Ex: 01.01" /></FormControl><FormMessage /></FormItem> )} />
+                )}
+            </div>
 
             <DialogFooter className="pt-6">
               <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
