@@ -38,6 +38,7 @@ const establishmentSchema = z.object({
   aliqRat: z.coerce.number().min(0, "Valor inválido").max(3, "Valor máximo é 3"),
   fap: z.coerce.number().min(0.5, "Valor mínimo é 0.5").max(2, "Valor máximo é 2"),
   nrInscApr: z.string().optional(),
+  nrCaepf: z.string().optional(),
   contrataPCD: z.boolean().default(false),
 });
 
@@ -51,6 +52,7 @@ export function EstablishmentForm({ isOpen, onClose, userId, companyId, initialD
             aliqRat: 0,
             fap: 1.0,
             nrInscApr: "",
+            nrCaepf: "",
             contrataPCD: false,
         },
     });
@@ -124,6 +126,19 @@ export function EstablishmentForm({ isOpen, onClose, userId, companyId, initialD
                                 )}
                             />
                         </div>
+                        <FormField
+                            control={form.control}
+                            name="nrCaepf"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Nº de Inscrição CAEPF</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="Nº do CAEPF (opcional)"/>
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <FormField
                             control={form.control}
                             name="nrInscApr"

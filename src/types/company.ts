@@ -5,6 +5,7 @@ export interface EstablishmentData {
     fap: number;
     contrataPCD: boolean;
     nrInscApr: string;
+    nrCaepf?: string;
 }
 
 export interface Company {

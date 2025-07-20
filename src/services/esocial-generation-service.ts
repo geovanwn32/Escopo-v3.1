@@ -27,6 +27,10 @@ export async function generateAndSaveEsocialEvent(
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const eventId = `ID1${company.cnpj}${today.getTime()}`;
 
+        const caepfInfo = establishmentData?.nrCaepf 
+          ? `<infoCaepf><nrCaepf>${establishmentData.nrCaepf}</nrCaepf></infoCaepf>`
+          : `<infoCaepf />`;
+
         payload = `<?xml version="1.0" encoding="UTF-8"?>
 <eSocial xmlns="http://www.esocial.gov.br/schema/evt/evtTabEstab/v_S_01_02_00">
   <evtTabEstab id="${eventId}">
@@ -50,7 +54,7 @@ export async function generateAndSaveEsocialEvent(
           <cnaePrincipal>${company.cnaePrincipalCodigo || '0000000'}</cnaePrincipal>
           <aliqRat>${establishmentData?.aliqRat || 0}</aliqRat>
           <fap>${establishmentData?.fap || 0}</fap>
-          <infoCaepf/>
+          ${caepfInfo}
           <infoObra/>
           <infoTrab>
             <infoApr>
