@@ -265,12 +265,8 @@ export default function MinhaEmpresaPage() {
         // Simulate an async verification process
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        // For simulation purposes, we'll use a hardcoded password check
-        if (password === "1234") {
-            toast({ title: "Sucesso!", description: "A senha do certificado é válida." });
-        } else {
-            toast({ variant: "destructive", title: "Senha inválida", description: "A senha informada não corresponde ao certificado." });
-        }
+        // For simulation purposes, we assume any password is correct if a file is present.
+        toast({ title: "Sucesso!", description: "A senha do certificado é válida (simulação)." });
 
         setIsVerifyingCert(false);
     };
