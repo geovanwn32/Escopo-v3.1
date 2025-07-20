@@ -14,7 +14,7 @@ import { generatePgdasReportPdf, type PGDASResult } from "@/services/pgdas-repor
 import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy, serverTimestamp, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Pgdas } from "@/types/pgdas";
+import type { Pgdas, SimplesAnnexType } from "@/types/pgdas";
 import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -22,8 +22,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-// Simples Nacional Brackets for 2024 (as example)
-// Each key is the upper limit of the RBT12 bracket.
 const simplesBrackets = {
     "anexo-i": [ // Comércio
         { limit: 180000, rate: 0.04, deduction: 0 },
@@ -33,18 +31,39 @@ const simplesBrackets = {
         { limit: 3600000, rate: 0.143, deduction: 87300 },
         { limit: 4800000, rate: 0.19, deduction: 378000 },
     ],
-    "anexo-iii": [ // Serviços
+    "anexo-ii": [ // Indústria
+        { limit: 180000, rate: 0.045, deduction: 0 },
+        { limit: 360000, rate: 0.078, deduction: 5940 },
+        { limit: 720000, rate: 0.1, deduction: 13860 },
+        { limit: 1800000, rate: 0.112, deduction: 22500 },
+        { limit: 3600000, rate: 0.147, deduction: 85500 },
+        { limit: 4800000, rate: 0.3, deduction: 720000 },
+    ],
+    "anexo-iii": [ // Serviços e Locação de Bens Móveis
         { limit: 180000, rate: 0.06, deduction: 0 },
         { limit: 360000, rate: 0.112, deduction: 9360 },
         { limit: 720000, rate: 0.135, deduction: 17640 },
         { limit: 1800000, rate: 0.16, deduction: 35640 },
         { limit: 3600000, rate: 0.21, deduction: 125640 },
         { limit: 4800000, rate: 0.33, deduction: 648000 },
+    ],
+    "anexo-iv": [ // Serviços (Limpeza, Obras, Vigilância, Advocatícios)
+        { limit: 180000, rate: 0.045, deduction: 0 },
+        { limit: 360000, rate: 0.09, deduction: 8100 },
+        { limit: 720000, rate: 0.102, deduction: 12420 },
+        { limit: 1800000, rate: 0.14, deduction: 39780 },
+        { limit: 3600000, rate: 0.22, deduction: 183780 },
+        { limit: 4800000, rate: 0.33, deduction: 828000 },
+    ],
+    "anexo-v": [ // Serviços (Auditoria, Tecnologia, Publicidade, Engenharia)
+        { limit: 180000, rate: 0.155, deduction: 0 },
+        { limit: 360000, rate: 0.18, deduction: 4500 },
+        { limit: 720000, rate: 0.195, deduction: 9900 },
+        { limit: 1800000, rate: 0.205, deduction: 17100 },
+        { limit: 3600000, rate: 0.23, deduction: 62100 },
+        { limit: 4800000, rate: 0.305, deduction: 540000 },
     ]
-    // Other annexes would follow a similar structure
 };
-
-type SimplesAnnex = keyof typeof simplesBrackets;
 
 
 export default function PGDASPage() {
@@ -60,7 +79,7 @@ export default function PGDASPage() {
         }
         return `${month}/${year}`;
     });
-    const [annex, setAnnex] = useState<SimplesAnnex>("anexo-i");
+    const [annex, setAnnex] = useState<SimplesAnnexType>("anexo-i");
     const [isCalculating, setIsCalculating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [calculationResult, setCalculationResult] = useState<PGDASResult | null>(null);
@@ -229,7 +248,7 @@ export default function PGDASPage() {
 
         setIsSaving(true);
         try {
-            const pgdasData: Omit<Pgdas, 'id'> = {
+            const pgdasData: Omit<Pgdas, 'id' | 'createdAt'> = {
                 period,
                 anexo: annex,
                 result: calculationResult,
@@ -294,13 +313,16 @@ export default function PGDASPage() {
                         </div>
                          <div className="grid w-full max-w-xs items-center gap-1.5">
                             <Label htmlFor="annex">Anexo</Label>
-                             <Select value={annex} onValueChange={(value) => setAnnex(value as SimplesAnnex)}>
+                             <Select value={annex} onValueChange={(value) => setAnnex(value as SimplesAnnexType)}>
                                 <SelectTrigger id="annex">
                                     <SelectValue placeholder="Selecione o anexo..." />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="anexo-i">Anexo I - Comércio</SelectItem>
+                                    <SelectItem value="anexo-ii">Anexo II - Indústria</SelectItem>
                                     <SelectItem value="anexo-iii">Anexo III - Serviços</SelectItem>
+                                    <SelectItem value="anexo-iv">Anexo IV - Serviços</SelectItem>
+                                    <SelectItem value="anexo-v">Anexo V - Serviços</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
