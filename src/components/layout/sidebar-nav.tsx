@@ -52,6 +52,7 @@ const menuItems = [
       { href: "/servicos", icon: Wrench, label: "Serviços" },
       { href: "/aliquotas", icon: Percent, label: "Alíquotas" },
       { href: "/rubricas", icon: FileText, label: "Rubricas" },
+      { href: "/fichas", icon: BookUser, label: "Fichas" },
     ],
   },
   {
