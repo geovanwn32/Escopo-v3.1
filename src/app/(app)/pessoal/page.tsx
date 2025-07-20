@@ -20,9 +20,11 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { RCI } from "@/types/rci";
 
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
+  const [rcis, setRcis] = useState<RCI[]>([]);
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [thirteenths, setThirteenths] = useState<Thirteenth[]>([]);
   const [vacations, setVacations] = useState<Vacation[]>([]);
@@ -51,6 +53,7 @@ export default function PessoalPage() {
     if (!user || !activeCompany) {
         setLoading(false);
         setPayrolls([]);
+        setRcis([]);
         setTerminations([]);
         setThirteenths([]);
         setVacations([]);
@@ -58,7 +61,7 @@ export default function PessoalPage() {
     };
 
     setLoading(true);
-    let activeListeners = 4; // Updated for vacations
+    let activeListeners = 5; 
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) {
@@ -72,6 +75,14 @@ export default function PessoalPage() {
         setPayrolls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() } as Payroll)));
         onDone();
     }, (error) => { console.error("Erro (Payrolls): ", error); toast({ variant: "destructive", title: "Erro ao buscar folhas" }); onDone(); });
+
+    const rcisRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`);
+    const rcisQuery = query(rcisRef, orderBy('createdAt', 'desc'));
+    const unsubscribeRcis = onSnapshot(rcisQuery, (snapshot) => {
+        setRcis(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() } as RCI)));
+        onDone();
+    }, (error) => { console.error("Erro (RCIs): ", error); toast({ variant: "destructive", title: "Erro ao buscar RCIs" }); onDone(); });
+
 
     const terminationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
     const terminationsQuery = query(terminationsRef, orderBy('createdAt', 'desc'));
@@ -97,51 +108,23 @@ export default function PessoalPage() {
 
     return () => {
         unsubscribePayrolls();
+        unsubscribeRcis();
         unsubscribeTerminations();
         unsubscribeThirteenths();
         unsubscribeVacations();
     };
   }, [user, activeCompany, toast]);
 
-  const handleDeletePayroll = async (payrollId: string) => {
+  const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
       try {
-        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, payrollId));
-        toast({ title: 'Rascunho da Folha excluído com sucesso!' });
+        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, docId));
+        toast({ title: `${docName} excluído(a) com sucesso!` });
       } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao excluir rascunho da folha.' });
+        toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }
   };
 
-  const handleDeleteTermination = async (terminationId: string) => {
-      if (!user || !activeCompany) return;
-      try {
-        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`, terminationId));
-        toast({ title: 'Rescisão excluída com sucesso!' });
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao excluir rescisão.' });
-      }
-  };
-  
-  const handleDeleteThirteenth = async (thirteenthId: string) => {
-      if (!user || !activeCompany) return;
-      try {
-        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`, thirteenthId));
-        toast({ title: 'Cálculo de 13º excluído com sucesso!' });
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao excluir cálculo.' });
-      }
-  };
-  
-  const handleDeleteVacation = async (vacationId: string) => {
-      if (!user || !activeCompany) return;
-      try {
-        await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`, vacationId));
-        toast({ title: 'Cálculo de férias excluído com sucesso!' });
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao excluir cálculo de férias.' });
-      }
-  };
 
   const getStatusVariant = (status: Payroll['status']): "secondary" | "default" | "outline" => {
     switch (status) {
@@ -186,8 +169,10 @@ export default function PessoalPage() {
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
               </Link>
             </Button>
-            <Button className="w-full justify-start" variant="outline">
+            <Button asChild className="w-full justify-start" variant="outline">
+               <Link href="/pessoal/rci">
                 <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
+               </Link>
             </Button>
             <Button asChild className="w-full justify-start" variant="secondary">
                 <Link href="/pessoal/decimo-terceiro">
@@ -301,7 +286,101 @@ export default function PessoalPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeletePayroll(payroll.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('payrolls', payroll.id!, 'Folha de Pagamento')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+           )}
+        </CardContent>
+      </Card>
+       <Card>
+        <CardHeader>
+          <CardTitle>RCIs (Pró-labore) Salvos</CardTitle>
+          <CardDescription>Visualize os cálculos de pró-labore dos sócios.</CardDescription>
+        </CardHeader>
+        <CardContent>
+           {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : rcis.length === 0 ? (
+             <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="p-4 bg-muted rounded-full mb-4">
+                  <ListChecks className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h3 className="text-xl font-semibold">Nenhum RCI salvo</h3>
+              <p className="text-muted-foreground mt-2">
+                {activeCompany ? 'Crie um novo RCI para começar.' : 'Selecione uma empresa para visualizar os RCIs salvos.'}
+              </p>
+            </div>
+           ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sócio</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Líquido</TableHead>
+                   <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rcis.map((rci) => (
+                  <TableRow key={rci.id}>
+                    <TableCell className="font-medium">{rci.socioName}</TableCell>
+                    <TableCell>{rci.period}</TableCell>
+                     <TableCell>
+                      <Badge 
+                        variant={getStatusVariant(rci.status)} 
+                        className={cn("capitalize", {
+                            'bg-green-600 hover:bg-green-600/90 text-white': rci.status === 'calculated',
+                        })}
+                      >
+                         {getStatusLabel(rci.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rci.totals.liquido)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Abrir menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                                <Link href={`/pessoal/rci?id=${rci.id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Acessar
+                                </Link>
+                            </DropdownMenuItem>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                          Excluir
+                                    </DropdownMenuItem>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. O RCI será permanentemente removido.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('rcis', rci.id!, 'RCI')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -389,7 +468,7 @@ export default function PessoalPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteThirteenth(thirteenth.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('thirteenths', thirteenth.id!, 'Cálculo de 13º')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -475,7 +554,7 @@ export default function PessoalPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteVacation(vacation.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('vacations', vacation.id!, 'Cálculo de Férias')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
@@ -560,7 +639,7 @@ export default function PessoalPage() {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteTermination(termination.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('terminations', termination.id!, 'Rescisão')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
