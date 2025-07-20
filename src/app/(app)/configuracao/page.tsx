@@ -95,14 +95,25 @@ export default function ConfiguracaoPage() {
         }
     }, [user, form]);
     
-    const handleSintegraLookup = async (cnpj: string, uf: string) => {
+    const handleSintegraLookup = async () => {
+        const cnpj = form.getValues("cnpj");
+        const uf = form.getValues("uf");
+
+        if (!cnpj || !uf) {
+            toast({
+                variant: "destructive",
+                title: "Dados Incompletos",
+                description: "É necessário preencher o CNPJ e a UF para buscar a Inscrição Estadual.",
+            });
+            return;
+        }
+
         setLoadingSintegra(true);
         try {
             const cleanedCnpj = cnpj.replace(/\D/g, '');
             const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
             
             if (!response.ok) {
-                // This is often not an error, many companies don't have IE.
                 toast({
                     title: "Inscrição Estadual não encontrada",
                     description: "Nenhuma Inscrição Estadual encontrada para este CNPJ na UF especificada.",
@@ -170,11 +181,6 @@ export default function ConfiguracaoPage() {
                 description: "Os campos foram preenchidos com as informações da BrasilAPI.",
             });
             
-            // Trigger Sintegra lookup automatically
-            if (data.uf && cleanedCnpj) {
-                await handleSintegraLookup(cleanedCnpj, data.uf);
-            }
-
         } catch (error) {
             toast({
                 variant: "destructive",
@@ -327,8 +333,10 @@ export default function ConfiguracaoPage() {
                                         <div className="relative">
                                             <FormControl><Input {...field} /></FormControl>
                                              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                {loadingSintegra && (
+                                                {loadingSintegra ? (
                                                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                                ) : (
+                                                    <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />
                                                 )}
                                             </div>
                                         </div>
@@ -479,5 +487,3 @@ export default function ConfiguracaoPage() {
     </div>
   );
 }
-
-    
