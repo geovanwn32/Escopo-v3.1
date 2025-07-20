@@ -62,6 +62,12 @@ export function generatePayslipPdf(company: Company, employee: Employee, payroll
                 { content: formatCpf(employee.cpf) },
             ],
         ],
+        columnStyles: { 
+            0: { cellWidth: 25 },
+            1: { cellWidth: 71.8 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 'auto' },
+        }
     });
     y = (doc as any).lastAutoTable.finalY + 5;
     

@@ -54,17 +54,44 @@ export function generateContractPdf(company: Company, employee: Employee) {
   doc.setFont('helvetica', 'normal');
   
   // --- PARTIES ---
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('EMPREGADOR:', 14, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${company.razaoSocial}, com sede em ${company.logradouro}, nº ${company.numero}, ${company.bairro}, ${company.cidade} - ${company.uf}, inscrita no CNPJ sob o nº ${formatCnpj(company.cnpj)}.`, 45, y, { maxWidth: 150 });
-  y += 15;
+  doc.text('IDENTIFICAÇÃO DAS PARTES', 14, y);
+  y += 5;
+  autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      head: [
+          [{ content: 'EMPREGADOR', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
+      ],
+      body: [
+          [{ content: 'Razão Social:', styles: { fontStyle: 'bold' } }, company.razaoSocial],
+          [{ content: 'CNPJ:', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
+          [{ content: 'Endereço:', styles: { fontStyle: 'bold' } }, `${company.logradouro}, ${company.numero}, ${company.bairro}, ${company.cidade} - ${company.uf}`],
+      ],
+      columnStyles: { 0: { cellWidth: 40 } }
+  });
+  y = (doc as any).lastAutoTable.finalY + 3;
+
+  autoTable(doc, {
+      startY: y,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      head: [
+          [{ content: 'EMPREGADO(A)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
+      ],
+      body: [
+          [{ content: 'Nome:', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
+          [{ content: 'RG / CPF:', styles: { fontStyle: 'bold' } }, `${employee.rg} / ${formatCpf(employee.cpf)}`],
+          [{ content: 'Endereço:', styles: { fontStyle: 'bold' } }, `${employee.logradouro}, ${employee.numero}, ${employee.bairro}, ${employee.cidade} - ${employee.uf}`],
+      ],
+      columnStyles: { 0: { cellWidth: 40 } }
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 10;
   
-  doc.setFont('helvetica', 'bold');
-  doc.text('EMPREGADO(A):', 14, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${employee.nomeCompleto}, portador(a) do RG nº ${employee.rg} e do CPF nº ${formatCpf(employee.cpf)}, residente e domiciliado(a) em ${employee.logradouro}, nº ${employee.numero}, ${employee.bairro}, ${employee.cidade} - ${employee.uf}.`, 48, y, { maxWidth: 147 });
-  y += 15;
+  doc.setFontSize(10);
 
   y = writeClause(doc, y, 'CLÁUSULA PRIMEIRA - DO OBJETO', 
     `O presente contrato tem por objeto a prestação de trabalho pelo(a) EMPREGADO(A) ao EMPREGADOR, exercendo a função de ${employee.cargo}, obrigando-se a realizar todas as tarefas inerentes ao cargo para o qual foi contratado(a).`

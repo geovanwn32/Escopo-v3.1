@@ -48,11 +48,11 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
       body: [
           [{ content: '01 Razão Social/Nome', styles: { fontStyle: 'bold' } }, company.razaoSocial],
           [{ content: '02 CNPJ/CEI/CNO', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
-          [{ content: '03 Endereço', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''}`],
-          [{ content: '04 Bairro/Município/UF', styles: { fontStyle: 'bold' } }, `${company.bairro || ''} / ${company.cidade || ''} - ${company.uf || ''}`],
+          [{ content: '03 Endereço (Logradouro, nº, bairro)', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''}, ${company.bairro || ''}`],
+          [{ content: '04 Município/UF', styles: { fontStyle: 'bold' } }, `${company.cidade || ''}/${company.uf || ''}`],
           [{ content: '05 CEP', styles: { fontStyle: 'bold' } }, company.cep ? company.cep.replace(/(\d{5})(\d{3})/, "$1-$2") : ''],
       ],
-      columnStyles: { 0: { cellWidth: 40 } }
+      columnStyles: { 0: { cellWidth: 50 } }
   });
   y = (doc as any).lastAutoTable.finalY + 5;
   
@@ -65,13 +65,13 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 1.5 },
       body: [
-          [{ content: '09 Nome do Trabalhador', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
+          [{ content: '09 Nome', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
           [{ content: '10 CPF', styles: { fontStyle: 'bold' } }, formatCpf(employee.cpf)],
           [{ content: '11 Data de Nascimento', styles: { fontStyle: 'bold' } }, formatDate(employee.dataNascimento)],
           [{ content: '12 Nome da Mãe', styles: { fontStyle: 'bold' } }, employee.nomeMae],
           [{ content: '13 CTPS (Nº, Série, UF)', styles: { fontStyle: 'bold' } }, ''], // Placeholder for CTPS
       ],
-      columnStyles: { 0: { cellWidth: 40 } }
+      columnStyles: { 0: { cellWidth: 50 } }
   });
   y = (doc as any).lastAutoTable.finalY + 5;
   
@@ -90,7 +90,7 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
           [{ content: '24 Data de Afastamento', styles: { fontStyle: 'bold' } }, formatDate(termination.terminationDate as Date)],
           [{ content: '25 Causa do Afastamento', styles: { fontStyle: 'bold' } }, termination.reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())],
       ],
-      columnStyles: { 0: { cellWidth: 40 } }
+      columnStyles: { 0: { cellWidth: 50 } }
   });
   y = (doc as any).lastAutoTable.finalY + 5;
 
@@ -143,8 +143,8 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
             ]
         ],
         columnStyles: {
-            0: { cellWidth: 106.8, styles: { cellPadding: { right: 2 } } },
-            1: { cellWidth: 60 },
+            0: { cellWidth: 121.8, styles: { cellPadding: { right: 2 } } },
+            1: { cellWidth: 'auto' },
         }
     });
     y = (doc as any).lastAutoTable.finalY + 8;
