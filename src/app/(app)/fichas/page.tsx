@@ -7,10 +7,17 @@ export default function FichasPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Cadastro de Fichas</h1>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Nova Ficha
-        </Button>
+        <div className="flex gap-2">
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nova Ficha
+            </Button>
+            <Button variant="secondary">Ação 1</Button>
+            <Button variant="secondary">Ação 2</Button>
+            <Button variant="secondary">Ação 3</Button>
+            <Button variant="secondary">Ação 4</Button>
+            <Button variant="secondary">Ação 5</Button>
+        </div>
       </div>
       <Card>
         <CardHeader>
