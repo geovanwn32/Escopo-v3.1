@@ -1,4 +1,12 @@
 
+
+export interface EstablishmentData {
+    aliqRat: number;
+    fap: number;
+    contrataPCD: boolean;
+    nrInscApr: string;
+}
+
 export interface Company {
     id: string;
     nomeFantasia: string;
@@ -11,4 +19,5 @@ export interface Company {
     uf?: string;
     cep?: string;
     cnaePrincipalCodigo?: string;
+    establishment?: EstablishmentData;
 }

@@ -12,10 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Label } from "@/components/ui/label";
+import { EstablishmentForm } from "@/components/empresa/establishment-form";
+import type { Company, EstablishmentData } from '@/types/company';
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -78,6 +80,9 @@ export default function MinhaEmpresaPage() {
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+    const [establishmentData, setEstablishmentData] = useState<EstablishmentData | null>(null);
+    const [isEstablishmentModalOpen, setEstablishmentModalOpen] = useState(false);
+
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
@@ -90,12 +95,18 @@ export default function MinhaEmpresaPage() {
             setActiveCompanyId(companyId);
             const fetchCompanyData = async () => {
                 const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
-                const docSnap = await getDoc(companyRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
+                const establishmentRef = doc(db, `users/${user.uid}/companies/${companyId}/esocial`, 'establishment');
+                
+                const [companySnap, establishmentSnap] = await Promise.all([getDoc(companyRef), getDoc(establishmentRef)]);
+
+                if (companySnap.exists()) {
+                    const data = companySnap.data();
                     const formattedCnpj = data.cnpj ? data.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : "";
                     const safeData = ensureSafeData({ ...data, cnpj: formattedCnpj });
                     form.reset(safeData);
+                }
+                if (establishmentSnap.exists()) {
+                    setEstablishmentData(establishmentSnap.data() as EstablishmentData);
                 }
                 setLoadingPage(false);
             };
@@ -269,6 +280,11 @@ export default function MinhaEmpresaPage() {
         toast({ title: "Sucesso!", description: "A senha do certificado é válida (simulação)." });
 
         setIsVerifyingCert(false);
+    };
+
+    const handleSaveEstablishment = (data: EstablishmentData) => {
+        setEstablishmentData(data);
+        setEstablishmentModalOpen(false);
     };
 
   if (loadingPage) {
@@ -481,6 +497,19 @@ export default function MinhaEmpresaPage() {
 
                      <Card>
                         <CardHeader>
+                            <CardTitle>Dados do eSocial</CardTitle>
+                            <CardDescription>Informações adicionais para geração de eventos do eSocial (S-1005).</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button type="button" variant="outline" onClick={() => setEstablishmentModalOpen(true)}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                Preencher Ficha do Estabelecimento
+                            </Button>
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
                             <CardTitle>Endereço</CardTitle>
                             <CardDescription>Endereço da sede da empresa.</CardDescription>
                         </CardHeader>
@@ -605,6 +634,16 @@ export default function MinhaEmpresaPage() {
                 </div>
             </form>
         </Form>
+        {user && activeCompanyId && (
+            <EstablishmentForm 
+                isOpen={isEstablishmentModalOpen}
+                onClose={() => setEstablishmentModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompanyId}
+                initialData={establishmentData}
+                onSave={handleSaveEstablishment}
+            />
+        )}
     </div>
   );
 }

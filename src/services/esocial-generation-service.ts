@@ -1,8 +1,8 @@
 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { EsocialEvent, EsocialEventType } from '@/types/esocial';
-import type { Company } from '@/types/company';
+import type { Company, EstablishmentData } from '@/types/company';
 
 /**
  * Generates and saves a specific eSocial table event using real company data.
@@ -17,8 +17,11 @@ export async function generateAndSaveEsocialEvent(
 
     let payload = `<?xml version="1.0" encoding="UTF-8"?><eSocial><evtTabela><ideEvento>...</ideEvento></evtTabela></eSocial>`; // Default placeholder
 
-    // Generate a more detailed payload for S-1005
     if (eventType === 'S-1005') {
+        const establishmentRef = doc(db, `users/${userId}/companies/${company.id}/esocial`, 'establishment');
+        const establishmentSnap = await getDoc(establishmentRef);
+        const establishmentData = establishmentSnap.exists() ? establishmentSnap.data() as EstablishmentData : null;
+
         const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -45,15 +48,17 @@ export async function generateAndSaveEsocialEvent(
         </ideEstab>
         <dadosEstab>
           <cnaePrincipal>${company.cnaePrincipalCodigo || '0000000'}</cnaePrincipal>
-          <aliqRat>0</aliqRat>
-          <fap>0</fap>
+          <aliqRat>${establishmentData?.aliqRat || 0}</aliqRat>
+          <fap>${establishmentData?.fap || 0}</fap>
           <infoCaepf/>
           <infoObra/>
           <infoTrab>
             <infoApr>
-              <nrInsc/>
+              <nrInsc>${establishmentData?.nrInscApr || ''}</nrInsc>
             </infoApr>
-            <infoPCD/>
+            <infoPCD>
+              <contrPCD>${establishmentData?.contrataPCD ? 'S' : 'N'}</contrPCD>
+            </infoPCD>
           </infoTrab>
         </dadosEstab>
       </inclusao>
@@ -62,12 +67,11 @@ export async function generateAndSaveEsocialEvent(
 </eSocial>`;
     }
 
-
     const newEvent: Omit<EsocialEvent, 'id' | 'createdAt'> = {
         type: eventType,
         status: 'pending',
         errorDetails: null,
-        payload, // Use the generated payload
+        payload,
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
     };
