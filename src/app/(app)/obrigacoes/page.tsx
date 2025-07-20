@@ -1,5 +1,6 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Share2 } from "lucide-react";
 
 export default function ObrigacoesPage() {
@@ -9,16 +10,16 @@ export default function ObrigacoesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Módulo de Obrigações</CardTitle>
-          <CardDescription>Gerencie as obrigações acessórias da empresa.</CardDescription>
+          <CardDescription>Gerencie e transmita as obrigações acessórias da empresa.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="p-4 bg-muted rounded-full mb-4">
-                <Share2 className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold">Funcionalidade em Desenvolvimento</h3>
-            <p className="text-muted-foreground mt-2">Esta área será utilizada para a transmissão de obrigações como eSocial, EFD-Reinf, DCTFWeb e PGDAS.</p>
-          </div>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button><Share2 className="mr-2 h-4 w-4" /> eSocial</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> EFD-Reinf</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> DCTFWeb</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> PGDAS</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> SPED Fiscal</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> SPED Contribuições</Button>
+          <Button><Share2 className="mr-2 h-4 w-4" /> ECD</Button>
         </CardContent>
       </Card>
     </div>
