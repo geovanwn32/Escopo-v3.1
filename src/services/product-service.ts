@@ -16,6 +16,11 @@ export async function upsertProductsFromLaunch(
   companyId: string,
   products: Produto[]
 ): Promise<void> {
+  if (!userId || !companyId) {
+    console.error("User ID or Company ID is missing. Cannot upsert products.");
+    return;
+  }
+  
   if (!products || products.length === 0) {
     return;
   }
@@ -36,7 +41,7 @@ export async function upsertProductsFromLaunch(
   // Use a batch write for efficiency
   const batch = writeBatch(db);
   newProducts.forEach(productData => {
-    const newProductRef = doc(collection(productsRef)); // Firestore will generate a new ID
+    const newProductRef = doc(productsRef); // Firestore will generate a new ID
     batch.set(newProductRef, productData);
   });
 
