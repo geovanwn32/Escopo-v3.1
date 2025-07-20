@@ -63,9 +63,7 @@ export default function FichasPage() {
                     const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
                     const q = query(
                         vacationsRef,
-                        where("employeeId", "==", employee.id!),
-                        orderBy("createdAt", "desc"),
-                        limit(1)
+                        where("employeeId", "==", employee.id!)
                     );
                     const querySnapshot = await getDocs(q);
 
@@ -74,7 +72,14 @@ export default function FichasPage() {
                         return;
                     }
 
-                    const latestVacationDoc = querySnapshot.docs[0];
+                    // Sort documents by createdAt date descending to find the latest one
+                    const sortedVacations = querySnapshot.docs.sort((a, b) => {
+                        const dateA = (a.data().createdAt as Timestamp)?.toDate() || new Date(0);
+                        const dateB = (b.data().createdAt as Timestamp)?.toDate() || new Date(0);
+                        return dateB.getTime() - dateA.getTime();
+                    });
+
+                    const latestVacationDoc = sortedVacations[0];
                     const vacationData = latestVacationDoc.data() as Vacation;
                     vacationData.id = latestVacationDoc.id;
                     
