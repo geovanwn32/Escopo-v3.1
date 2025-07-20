@@ -1,5 +1,5 @@
 
-import { collection, query, where, getDocs, addDoc, writeBatch } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Produto } from "@/types/produto";
 
