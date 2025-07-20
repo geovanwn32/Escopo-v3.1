@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
@@ -13,7 +13,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { RCI } from "@/types/rci";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ptBR } from "date-fns/locale";
+import { format } from "date-fns";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
 
 export default function PessoalPage() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -30,6 +37,33 @@ export default function PessoalPage() {
   const [vacations, setVacations] = useState<Vacation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+  
+  // Payroll Filters
+  const [payrollNameFilter, setPayrollNameFilter] = useState('');
+  const [payrollPeriodFilter, setPayrollPeriodFilter] = useState('');
+  const [payrollStatusFilter, setPayrollStatusFilter] = useState('');
+
+  // Vacation Filters
+  const [vacationNameFilter, setVacationNameFilter] = useState('');
+  const [vacationStartDateFilter, setVacationStartDateFilter] = useState<Date | undefined>();
+  const [vacationEndDateFilter, setVacationEndDateFilter] = useState<Date | undefined>();
+
+  // Thirteenth Filters
+  const [thirteenthNameFilter, setThirteenthNameFilter] = useState('');
+  const [thirteenthYearFilter, setThirteenthYearFilter] = useState('');
+  const [thirteenthParcelFilter, setThirteenthParcelFilter] = useState('');
+
+  // Termination Filters
+  const [terminationNameFilter, setTerminationNameFilter] = useState('');
+  const [terminationStartDateFilter, setTerminationStartDateFilter] = useState<Date | undefined>();
+  const [terminationEndDateFilter, setTerminationEndDateFilter] = useState<Date | undefined>();
+
+  // RCI Filters
+  const [rciNameFilter, setRciNameFilter] = useState('');
+  const [rciPeriodFilter, setRciPeriodFilter] = useState('');
+  const [rciStatusFilter, setRciStatusFilter] = useState('');
+
+
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -114,6 +148,74 @@ export default function PessoalPage() {
         unsubscribeVacations();
     };
   }, [user, activeCompany, toast]);
+
+    const filteredPayrolls = useMemo(() => {
+        return payrolls.filter(p =>
+            p.employeeName.toLowerCase().includes(payrollNameFilter.toLowerCase()) &&
+            p.period.includes(payrollPeriodFilter) &&
+            (payrollStatusFilter ? p.status === payrollStatusFilter : true)
+        );
+    }, [payrolls, payrollNameFilter, payrollPeriodFilter, payrollStatusFilter]);
+
+    const filteredRcis = useMemo(() => {
+        return rcis.filter(r =>
+            r.socioName.toLowerCase().includes(rciNameFilter.toLowerCase()) &&
+            r.period.includes(rciPeriodFilter) &&
+            (rciStatusFilter ? r.status === rciStatusFilter : true)
+        );
+    }, [rcis, rciNameFilter, rciPeriodFilter, rciStatusFilter]);
+
+    const filteredVacations = useMemo(() => {
+        return vacations.filter(v => {
+            const nameMatch = v.employeeName.toLowerCase().includes(vacationNameFilter.toLowerCase());
+            let dateMatch = true;
+            if (vacationStartDateFilter) {
+                const itemDate = new Date(v.startDate as Date);
+                itemDate.setHours(0,0,0,0);
+                const startDate = new Date(vacationStartDateFilter);
+                startDate.setHours(0,0,0,0);
+                dateMatch = itemDate >= startDate;
+            }
+            if (vacationEndDateFilter && dateMatch) {
+                const itemDate = new Date(v.startDate as Date);
+                itemDate.setHours(23,59,59,999);
+                const endDate = new Date(vacationEndDateFilter);
+                endDate.setHours(23,59,59,999);
+                dateMatch = itemDate <= endDate;
+            }
+            return nameMatch && dateMatch;
+        });
+    }, [vacations, vacationNameFilter, vacationStartDateFilter, vacationEndDateFilter]);
+
+    const filteredThirteenths = useMemo(() => {
+        return thirteenths.filter(t =>
+            t.employeeName.toLowerCase().includes(thirteenthNameFilter.toLowerCase()) &&
+            String(t.year).includes(thirteenthYearFilter) &&
+            (thirteenthParcelFilter ? t.parcel === thirteenthParcelFilter : true)
+        );
+    }, [thirteenths, thirteenthNameFilter, thirteenthYearFilter, thirteenthParcelFilter]);
+    
+    const filteredTerminations = useMemo(() => {
+        return terminations.filter(t => {
+            const nameMatch = t.employeeName.toLowerCase().includes(terminationNameFilter.toLowerCase());
+            let dateMatch = true;
+            if (terminationStartDateFilter) {
+                const itemDate = new Date(t.terminationDate as Date);
+                itemDate.setHours(0,0,0,0);
+                const startDate = new Date(terminationStartDateFilter);
+                startDate.setHours(0,0,0,0);
+                dateMatch = itemDate >= startDate;
+            }
+            if (terminationEndDateFilter && dateMatch) {
+                const itemDate = new Date(t.terminationDate as Date);
+                itemDate.setHours(23,59,59,999);
+                const endDate = new Date(terminationEndDateFilter);
+                endDate.setHours(23,59,59,999);
+                dateMatch = itemDate <= endDate;
+            }
+            return nameMatch && dateMatch;
+        });
+    }, [terminations, terminationNameFilter, terminationStartDateFilter, terminationEndDateFilter]);
 
   const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
@@ -212,6 +314,21 @@ export default function PessoalPage() {
           <CardDescription>Visualize e continue os cálculos salvos.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por nome..." value={payrollNameFilter} onChange={(e) => setPayrollNameFilter(e.target.value)} className="max-w-xs" />
+                <Input placeholder="Filtrar por período..." value={payrollPeriodFilter} onChange={(e) => setPayrollPeriodFilter(e.target.value)} className="w-full sm:w-[180px]" />
+                <Select value={payrollStatusFilter} onValueChange={setPayrollStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="draft">Rascunho</SelectItem>
+                        <SelectItem value="calculated">Calculada</SelectItem>
+                        <SelectItem value="finalized">Finalizada</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Button variant="ghost" onClick={() => { setPayrollNameFilter(''); setPayrollPeriodFilter(''); setPayrollStatusFilter(''); }} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+            </div>
            {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -238,7 +355,7 @@ export default function PessoalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payrolls.map((payroll) => (
+                {filteredPayrolls.map((payroll) => (
                   <TableRow key={payroll.id}>
                     <TableCell className="font-medium">{payroll.employeeName}</TableCell>
                     <TableCell>{payroll.period}</TableCell>
@@ -306,6 +423,21 @@ export default function PessoalPage() {
           <CardDescription>Visualize os cálculos de pró-labore dos sócios.</CardDescription>
         </CardHeader>
         <CardContent>
+           <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por nome..." value={rciNameFilter} onChange={(e) => setRciNameFilter(e.target.value)} className="max-w-xs" />
+                <Input placeholder="Filtrar por período..." value={rciPeriodFilter} onChange={(e) => setRciPeriodFilter(e.target.value)} className="w-full sm:w-[180px]" />
+                <Select value={rciStatusFilter} onValueChange={setRciStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="draft">Rascunho</SelectItem>
+                        <SelectItem value="calculated">Calculada</SelectItem>
+                        <SelectItem value="finalized">Finalizada</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Button variant="ghost" onClick={() => { setRciNameFilter(''); setRciPeriodFilter(''); setRciStatusFilter(''); }} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+            </div>
            {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -332,7 +464,7 @@ export default function PessoalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rcis.map((rci) => (
+                {filteredRcis.map((rci) => (
                   <TableRow key={rci.id}>
                     <TableCell className="font-medium">{rci.socioName}</TableCell>
                     <TableCell>{rci.period}</TableCell>
@@ -401,6 +533,21 @@ export default function PessoalPage() {
           <CardDescription>Visualize os cálculos de 13º salário salvos.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por nome..." value={thirteenthNameFilter} onChange={(e) => setThirteenthNameFilter(e.target.value)} className="max-w-xs" />
+                <Input placeholder="Filtrar por ano..." value={thirteenthYearFilter} onChange={(e) => setThirteenthYearFilter(e.target.value)} className="w-full sm:w-[180px]" />
+                <Select value={thirteenthParcelFilter} onValueChange={setThirteenthParcelFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Parcela" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="first">1ª Parcela</SelectItem>
+                        <SelectItem value="second">2ª Parcela</SelectItem>
+                        <SelectItem value="unique">Parcela Única</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Button variant="ghost" onClick={() => { setThirteenthNameFilter(''); setThirteenthYearFilter(''); setThirteenthParcelFilter(''); }} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+            </div>
            {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -427,7 +574,7 @@ export default function PessoalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {thirteenths.map((thirteenth) => (
+                {filteredThirteenths.map((thirteenth) => (
                   <TableRow key={thirteenth.id}>
                     <TableCell className="font-medium">{thirteenth.employeeName}</TableCell>
                     <TableCell>{thirteenth.year}</TableCell>
@@ -489,6 +636,23 @@ export default function PessoalPage() {
           <CardDescription>Visualize os cálculos de férias salvos.</CardDescription>
         </CardHeader>
         <CardContent>
+             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por nome..." value={vacationNameFilter} onChange={(e) => setVacationNameFilter(e.target.value)} className="max-w-xs" />
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {vacationStartDateFilter && vacationEndDateFilter ? (<>{format(vacationStartDateFilter, "dd/MM/yy")} - {format(vacationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Início</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="range" selected={{ from: vacationStartDateFilter, to: vacationEndDateFilter }} onSelect={(range) => { setVacationStartDateFilter(range?.from); setVacationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={() => { setVacationNameFilter(''); setVacationStartDateFilter(undefined); setVacationEndDateFilter(undefined); }} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+            </div>
            {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -515,7 +679,7 @@ export default function PessoalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vacations.map((vacation) => (
+                {filteredVacations.map((vacation) => (
                   <TableRow key={vacation.id}>
                     <TableCell className="font-medium">{vacation.employeeName}</TableCell>
                     <TableCell>{new Intl.DateTimeFormat('pt-BR').format(vacation.startDate as Date)}</TableCell>
@@ -576,6 +740,23 @@ export default function PessoalPage() {
           <CardDescription>Visualize os cálculos de rescisão salvos.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por nome..." value={terminationNameFilter} onChange={(e) => setTerminationNameFilter(e.target.value)} className="max-w-xs" />
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {terminationStartDateFilter && terminationEndDateFilter ? (<>{format(terminationStartDateFilter, "dd/MM/yy")} - {format(terminationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Afastamento</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="range" selected={{ from: terminationStartDateFilter, to: terminationEndDateFilter }} onSelect={(range) => { setTerminationStartDateFilter(range?.from); setTerminationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={() => { setTerminationNameFilter(''); setTerminationStartDateFilter(undefined); setTerminationEndDateFilter(undefined); }} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                </Button>
+            </div>
            {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -601,7 +782,7 @@ export default function PessoalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {terminations.map((termination) => (
+                {filteredTerminations.map((termination) => (
                   <TableRow key={termination.id}>
                     <TableCell className="font-medium">{termination.employeeName}</TableCell>
                     <TableCell>{new Intl.DateTimeFormat('pt-BR').format(termination.terminationDate as Date)}</TableCell>
@@ -657,5 +838,3 @@ export default function PessoalPage() {
     </div>
   );
 }
-
-    
