@@ -18,9 +18,21 @@ export default function RelatoriosPage() {
               <TrendingUp className="mr-2 h-4 w-4" /> Relatório de Vendas
             </Link>
           </Button>
-          <Button><ShoppingCart className="mr-2 h-4 w-4" /> Relatório de Compras</Button>
-          <Button><Users className="mr-2 h-4 w-4" /> Lista de Funcionários</Button>
-          <Button><Package className="mr-2 h-4 w-4" /> Lista de Produtos</Button>
+          <Button asChild>
+            <Link href="/relatorios/compras">
+                <ShoppingCart className="mr-2 h-4 w-4" /> Relatório de Compras
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/relatorios/funcionarios">
+                <Users className="mr-2 h-4 w-4" /> Lista de Funcionários
+            </Link>
+          </Button>
+           <Button asChild>
+            <Link href="/relatorios/produtos">
+                <Package className="mr-2 h-4 w-4" /> Lista de Produtos
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>
