@@ -399,23 +399,23 @@ function TabEventosPeriodicos({
 
     return (
         <Card>
-            <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <CardTitle>Eventos Periódicos</CardTitle>
-                    <CardDescription>Gere os eventos da folha de pagamento, como remuneração e fechamento.</CardDescription>
-                </div>
-                <div className="flex w-full sm:w-auto items-center gap-2">
-                    <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="period" className="sr-only">Competência</Label>
+            <CardHeader>
+                <CardTitle>Eventos Periódicos</CardTitle>
+                <CardDescription>Gere os eventos da folha de pagamento, como remuneração e fechamento.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col sm:flex-row items-end gap-4 p-4 mb-4 border rounded-lg bg-muted/50">
+                    <div className="grid w-full max-w-xs items-center gap-1.5">
+                        <Label htmlFor="period">Competência</Label>
                         <Input 
                           id="period" 
-                          placeholder="Competência (MM/AAAA)" 
+                          placeholder="MM/AAAA" 
                           value={period} 
                           onChange={handlePeriodChange}
                           maxLength={7}
                         />
                     </div>
-                    <DropdownMenu>
+                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button disabled={isGenerating || !activeCompany} className="w-full sm:w-auto">
                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
@@ -435,8 +435,7 @@ function TabEventosPeriodicos({
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-            </CardHeader>
-            <CardContent>
+
                 <Table>
                     <TableHeader>
                         <TableRow>
