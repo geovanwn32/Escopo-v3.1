@@ -166,8 +166,16 @@ export default function PessoalPage() {
                 <ClipboardList className="mr-2 h-4 w-4" /> Nova Folha de Pagamento
               </Link>
             </Button>
-            <Button className="w-full justify-start" variant="secondary" disabled><Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário</Button>
-            <Button className="w-full justify-start" variant="secondary" disabled><SendToBack className="mr-2 h-4 w-4" /> Calcular Férias</Button>
+            <Button asChild className="w-full justify-start" variant="secondary">
+                <Link href="/pessoal/decimo-terceiro">
+                    <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
+                </Link>
+            </Button>
+            <Button asChild className="w-full justify-start" variant="secondary">
+                <Link href="/pessoal/ferias">
+                    <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
+                </Link>
+            </Button>
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/rescisao">
                 <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
