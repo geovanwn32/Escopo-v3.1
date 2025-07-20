@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, addDoc, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, ListChecks } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -17,8 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function EsocialPage() {
+function TabEventosTabela() {
     const [events, setEvents] = useState<EsocialEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -89,10 +90,8 @@ export default function EsocialPage() {
         try {
             await updateDoc(eventRef, { status: 'sending' });
             
-            // Simulating API call
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Simulating a random success/error response
             const isSuccess = Math.random() > 0.2; 
             if (isSuccess) {
                 await updateDoc(eventRef, { status: 'success' });
@@ -144,107 +143,148 @@ export default function EsocialPage() {
         }
     }
 
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Histórico de Envios de Tabelas</CardTitle>
+                    <CardDescription>Acompanhe o status dos eventos de tabelas gerados e envie-os.</CardDescription>
+                </div>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                         <Button disabled={isGenerating || !activeCompany}>
+                            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
+                            {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
+                            <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuLabel>Eventos de Tabela</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Evento</TableHead>
+                            <TableHead>Data de Geração</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {loading ? (
+                            <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                        ) : events.length === 0 ? (
+                             <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhum evento gerado ainda.</TableCell></TableRow>
+                        ) : events.map(event => (
+                            <TableRow key={event.id}>
+                                <TableCell className="font-mono font-semibold">{event.type}</TableCell>
+                                <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
+                                <TableCell>{getStatusBadge(event.status)}</TableCell>
+                                <TableCell className="text-right">
+                                   <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSending === event.id}>
+                                            <span className="sr-only">Abrir menu</span>
+                                            {isSending === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                        </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => handleSend(event.id!)} disabled={event.status === 'success' || event.status === 'sending'}>
+                                                <Send className="mr-2 h-4 w-4" />
+                                                <span>{event.status === 'error' ? 'Reenviar' : 'Enviar'}</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
+                                                <FileDown className="mr-2 h-4 w-4" />
+                                                <span>Baixar XML</span>
+                                            </DropdownMenuItem>
+                                            {event.status === 'error' && (
+                                                <DropdownMenuItem onClick={() => toast({ title: "Detalhes do Erro", description: event.errorDetails })}>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    <span>Ver Erro</span>
+                                                </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuSeparator />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                          <Trash2 className="mr-2 h-4 w-4" />
+                                                          Excluir
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta ação não pode ser desfeita. O evento será permanentemente removido.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDelete(event.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+}
 
+function PlaceholderTab({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) {
+    return (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="p-4 bg-muted rounded-full mb-4">
+                <Icon className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold">{title}</h3>
+            <p className="text-muted-foreground mt-2">{description}</p>
+        </div>
+    );
+}
+
+
+export default function EsocialPage() {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
             
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Histórico de Envios</CardTitle>
-                        <CardDescription>Acompanhe o status dos eventos gerados e envie-os para o portal do eSocial.</CardDescription>
-                    </div>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                             <Button disabled={isGenerating || !activeCompany}>
-                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
-                                {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
-                                <ChevronDown className="ml-2 h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            <DropdownMenuLabel>Eventos de Tabela</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Evento</TableHead>
-                                <TableHead>Data de Geração</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
-                            ) : events.length === 0 ? (
-                                 <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhum evento gerado ainda.</TableCell></TableRow>
-                            ) : events.map(event => (
-                                <TableRow key={event.id}>
-                                    <TableCell className="font-mono font-semibold">{event.type}</TableCell>
-                                    <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
-                                    <TableCell>{getStatusBadge(event.status)}</TableCell>
-                                    <TableCell className="text-right">
-                                       <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSending === event.id}>
-                                                <span className="sr-only">Abrir menu</span>
-                                                {isSending === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-                                            </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => handleSend(event.id!)} disabled={event.status === 'success' || event.status === 'sending'}>
-                                                    <Send className="mr-2 h-4 w-4" />
-                                                    <span>{event.status === 'error' ? 'Reenviar' : 'Enviar'}</span>
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
-                                                    <FileDown className="mr-2 h-4 w-4" />
-                                                    <span>Baixar XML</span>
-                                                </DropdownMenuItem>
-                                                {event.status === 'error' && (
-                                                    <DropdownMenuItem onClick={() => toast({ title: "Detalhes do Erro", description: event.errorDetails })}>
-                                                        <Eye className="mr-2 h-4 w-4" />
-                                                        <span>Ver Erro</span>
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuSeparator />
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                              <Trash2 className="mr-2 h-4 w-4" />
-                                                              Excluir
-                                                        </DropdownMenuItem>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Esta ação não pode ser desfeita. O evento será permanentemente removido.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDelete(event.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <Tabs defaultValue="tabelas" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="tabelas">Eventos de Tabela</TabsTrigger>
+                    <TabsTrigger value="nao-periodicos">Eventos Não-Periódicos</TabsTrigger>
+                    <TabsTrigger value="periodicos">Eventos Periódicos</TabsTrigger>
+                </TabsList>
+                <TabsContent value="tabelas">
+                    <TabEventosTabela />
+                </TabsContent>
+                <TabsContent value="nao-periodicos">
+                     <PlaceholderTab 
+                        title="Em Desenvolvimento" 
+                        description="A funcionalidade para envio de eventos não-periódicos (ex: S-2200 Admissão) estará disponível em breve."
+                        icon={Briefcase}
+                    />
+                </TabsContent>
+                <TabsContent value="periodicos">
+                    <PlaceholderTab 
+                        title="Em Desenvolvimento" 
+                        description="A funcionalidade para envio de eventos periódicos (ex: S-1200 Remuneração) estará disponível em breve."
+                        icon={CalendarClock}
+                    />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
