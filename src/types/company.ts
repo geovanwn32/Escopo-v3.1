@@ -6,6 +6,14 @@ export interface EstablishmentData {
     contrataPCD: boolean;
     nrInscApr: string;
     nrCaepf?: string;
+    contatoNome: string;
+    contatoCpf: string;
+    contatoFone: string;
+    softwareHouseCnpj: string;
+    softwareHouseRazaoSocial: string;
+    softwareHouseNomeContato: string;
+    softwareHouseTelefone: string;
+    situacaoPj: string;
 }
 
 export interface Company {

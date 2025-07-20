@@ -1,4 +1,5 @@
 
+
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { EsocialEvent, EsocialEventType } from '@/types/esocial';
@@ -22,8 +23,12 @@ export async function generateAndSaveEsocialEvent(
     if (eventType === 'S-1005') {
         const establishmentRef = doc(db, `users/${userId}/companies/${company.id}/esocial`, 'establishment');
         const establishmentSnap = await getDoc(establishmentRef);
-        const establishmentData = establishmentSnap.exists() ? establishmentSnap.data() as EstablishmentData : null;
-
+        
+        if (!establishmentSnap.exists()) {
+            throw new Error("Dados do estabelecimento não encontrados. Preencha a 'Ficha do Estabelecimento' na tela 'Minha Empresa' antes de gerar o evento S-1005.");
+        }
+        
+        const establishmentData = establishmentSnap.data() as EstablishmentData;
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
 
@@ -52,16 +57,16 @@ export async function generateAndSaveEsocialEvent(
         </ideEstab>
         <dadosEstab>
           <cnaePrincipal>${company.cnaePrincipalCodigo || '0000000'}</cnaePrincipal>
-          <aliqRat>${establishmentData?.aliqRat || 0}</aliqRat>
-          <fap>${establishmentData?.fap || 0}</fap>
+          <aliqRat>${establishmentData.aliqRat || 0}</aliqRat>
+          <fap>${establishmentData.fap || 0}</fap>
           ${caepfInfo}
           <infoObra/>
           <infoTrab>
             <infoApr>
-              <nrInsc>${establishmentData?.nrInscApr || ''}</nrInsc>
+              <nrInsc>${establishmentData.nrInscApr || ''}</nrInsc>
             </infoApr>
             <infoPCD>
-              <contrPCD>${establishmentData?.contrataPCD ? 'S' : 'N'}</contrPCD>
+              <contrPCD>${establishmentData.contrataPCD ? 'S' : 'N'}</contrPCD>
             </infoPCD>
           </infoTrab>
         </dadosEstab>
