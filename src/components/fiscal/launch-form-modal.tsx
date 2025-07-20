@@ -17,6 +17,9 @@ import { parse, format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import type { Produto } from '@/types/produto';
+import { upsertProductsFromLaunch } from '@/services/product-service';
+
 
 interface XmlFile {
   file: File;
@@ -42,6 +45,14 @@ const partySchema = z.object({
   cnpj: z.string().optional().nullable(),
 }).optional().nullable();
 
+const productSchema = z.object({
+    codigo: z.string(),
+    descricao: z.string(),
+    ncm: z.string(),
+    cfop: z.string(),
+    valorUnitario: z.number(),
+}).partial();
+
 const launchSchema = z.object({
   fileName: z.string(),
   type: z.string(),
@@ -63,6 +74,7 @@ const launchSchema = z.object({
   destinatario: partySchema,
   valorProdutos: z.number().optional().nullable(),
   valorTotalNota: z.number().optional().nullable(),
+  produtos: z.array(productSchema).optional(),
 });
 
 type FormData = z.infer<typeof launchSchema>;
@@ -143,6 +155,20 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
+
+        // Product Parsing
+        data.produtos = Array.from(xmlDoc.querySelectorAll('det')).map(det => {
+            const prodNode = det.querySelector('prod');
+            if (!prodNode) return {};
+
+            return {
+                codigo: querySelectorText(prodNode, ['cProd']),
+                descricao: querySelectorText(prodNode, ['xProd']),
+                ncm: querySelectorText(prodNode, ['NCM']),
+                cfop: querySelectorText(prodNode, ['CFOP']),
+                valorUnitario: parseFloat(querySelectorText(prodNode, ['vUnCom']) || '0'),
+            };
+        }).filter(p => p.codigo); // Filter out empty product objects
     }
 
     return data;
@@ -269,7 +295,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     }
 
     try {
-        const dataToSave = {
+        const dataToSave: any = {
             fileName: formData.fileName || 'Lançamento Manual',
             type: formData.type || 'desconhecido',
             date: formData.date && isValid(formData.date) ? formData.date : new Date(),
@@ -305,9 +331,14 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
         };
         
         await launchSchema.parseAsync(dataToSave);
+        
+        if (formData.produtos && formData.produtos.length > 0) {
+            await upsertProductsFromLaunch(userId, company.id, formData.produtos as Produto[]);
+        }
 
         if (mode === 'create') {
             const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+            delete dataToSave.produtos; // Do not save products inside the launch document
             await addDoc(launchesRef, dataToSave);
             toast({
                 title: "Lançamento realizado!",
@@ -318,6 +349,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
             onLaunchSuccess(dataToSave.fileName as string);
         } else if (mode === 'edit' && launch) {
             const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, launch.id);
+            delete dataToSave.produtos; // Do not save products inside the launch document
             await updateDoc(launchRef, dataToSave);
             toast({
                 title: "Lançamento atualizado!",
@@ -518,6 +550,19 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                         <Input id="valorTotalNota" name="valorTotalNota" value={new Intl.NumberFormat('pt-BR', { style: 'decimal', minimumFractionDigits: 2 }).format(getInputValue('valorTotalNota') || 0)} onChange={handleNumericInputChange} readOnly={isReadOnly} className="font-bold" />
                     </div>
                 </div>
+                 {formData.produtos && formData.produtos.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        <h4 className="font-semibold text-sm">Itens do XML</h4>
+                        <div className="border rounded-md max-h-48 overflow-y-auto">
+                            {formData.produtos.map((p, i) => (
+                                <div key={i} className="text-xs p-2 border-b last:border-b-0">
+                                    <p className="font-medium truncate">{p.codigo} - {p.descricao}</p>
+                                    <p className="text-muted-foreground">NCM: {p.ncm} | CFOP: {p.cfop} | V. Unit: {new Intl.NumberFormat('pt-BR', {style: 'currency', currency: 'BRL'}).format(p.valorUnitario || 0)}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                 )}
             </AccordionContent>
         </AccordionItem>
     </Accordion>
