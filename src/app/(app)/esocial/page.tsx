@@ -7,15 +7,15 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Play, Send, RefreshCw, Trash2, MoreHorizontal, Eye } from "lucide-react";
+import { Loader2, DownloadCloud, Play, Send, RefreshCw, Trash2, MoreHorizontal, Eye, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
-import type { EsocialEvent, EsocialEventStatus } from "@/types/esocial";
-import { generateAndSaveEsocialEvents } from "@/services/esocial-generation-service";
+import type { EsocialEvent, EsocialEventStatus, EsocialEventType } from "@/types/esocial";
+import { generateAndSaveEsocialEvent } from "@/services/esocial-generation-service";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function EsocialPage() {
@@ -66,15 +66,15 @@ export default function EsocialPage() {
         return () => unsubscribe();
     }, [user, activeCompany, toast]);
 
-    const handleGenerate = async () => {
+    const handleGenerate = async (eventType: EsocialEventType) => {
         if (!user || !activeCompany) return;
         setIsGenerating(true);
         try {
-            await generateAndSaveEsocialEvents(user.uid, activeCompany.id);
-            toast({ title: "Eventos de tabela gerados com sucesso!", description: "Os arquivos estão prontos para serem enviados." });
+            await generateAndSaveEsocialEvent(user.uid, activeCompany.id, eventType);
+            toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser enviado." });
         } catch (error) {
             console.error(error);
-            toast({ variant: 'destructive', title: "Erro ao gerar eventos", description: (error as Error).message });
+            toast({ variant: 'destructive', title: "Erro ao gerar evento", description: (error as Error).message });
         } finally {
             setIsGenerating(false);
         }
@@ -139,13 +139,25 @@ export default function EsocialPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Geração de Eventos de Tabela</CardTitle>
-                    <CardDescription>Inicie o processo gerando os arquivos de cadastro (S-1005, S-1010, S-1020) com base nos dados da empresa ativa.</CardDescription>
+                    <CardDescription>Gere os arquivos de cadastro (S-1005, S-1010, S-1020) com base nos dados da empresa ativa.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Button onClick={handleGenerate} disabled={isGenerating || !activeCompany}>
-                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
-                        {isGenerating ? 'Gerando Arquivos...' : 'Gerar Eventos de Tabela'}
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                             <Button disabled={isGenerating || !activeCompany}>
+                                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DownloadCloud className="mr-2 h-4 w-4" />}
+                                {isGenerating ? 'Gerando...' : 'Gerar Novo Evento'}
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuLabel>Eventos de Tabela</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </CardContent>
             </Card>
 
@@ -225,4 +237,3 @@ export default function EsocialPage() {
         </div>
     );
 }
-
