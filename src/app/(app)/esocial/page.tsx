@@ -197,72 +197,73 @@ function TabEventosTabela() {
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                 <TableCell>{getStatusBadge(event.status)}</TableCell>
                                 <TableCell className="text-right">
-                                   <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isProcessing === event.id}>
-                                            <span className="sr-only">Abrir menu</span>
-                                            {isProcessing === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status === 'success' || event.status === 'processing'}>
-                                                <Send className="mr-2 h-4 w-4" />
-                                                <span>{event.status === 'error' ? 'Reprocessar' : 'Processar Evento'}</span>
-                                            </DropdownMenuItem>
-                                             {event.status !== 'pending' && (
-                                                <DropdownMenuItem onClick={() => handleCheckStatus(event)}>
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    <span>Consultar Status</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                        {event.status !== 'pending' && (
+                                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleCheckStatus(event)} title="Consultar Status">
+                                                <RefreshCw className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={isProcessing === event.id}>
+                                                <span className="sr-only">Abrir menu</span>
+                                                {isProcessing === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                                            </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => handleProcess(event.id!)} disabled={event.status === 'success' || event.status === 'processing'}>
+                                                    <Send className="mr-2 h-4 w-4" />
+                                                    <span>{event.status === 'error' ? 'Reprocessar' : 'Processar Evento'}</span>
                                                 </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
-                                                <FileDown className="mr-2 h-4 w-4" />
-                                                <span>Baixar XML</span>
-                                            </DropdownMenuItem>
-                                            {event.status === 'error' && (
+                                                <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
+                                                    <FileDown className="mr-2 h-4 w-4" />
+                                                    <span>Baixar XML</span>
+                                                </DropdownMenuItem>
+                                                {event.status === 'error' && (
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                <Eye className="mr-2 h-4 w-4" />
+                                                                <span>Ver Erro</span>
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogAction>Fechar</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                )}
+                                                <DropdownMenuSeparator />
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                            <Eye className="mr-2 h-4 w-4" />
-                                                            <span>Ver Erro</span>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                              <Trash2 className="mr-2 h-4 w-4" />
+                                                              Excluir
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
+                                                            <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
+                                                                Esta ação não pode ser desfeita. O evento será permanentemente removido.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
-                                                            <AlertDialogAction>Fechar</AlertDialogAction>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDelete(event.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
-                                            )}
-                                            <DropdownMenuSeparator />
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                          <Trash2 className="mr-2 h-4 w-4" />
-                                                          Excluir
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            Esta ação não pode ser desfeita. O evento será permanentemente removido.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDelete(event.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ))}
