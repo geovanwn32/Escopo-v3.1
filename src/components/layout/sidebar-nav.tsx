@@ -32,6 +32,7 @@ import {
   BookUser,
   FileText,
   Briefcase,
+  Share2,
 } from "lucide-react"
 
 const menuItems = [
@@ -42,6 +43,7 @@ const menuItems = [
       { href: "/fiscal", icon: FileStack, label: "Módulo Fiscal" },
       { href: "/contabil", icon: BookOpen, label: "Módulo Contábil" },
       { href: "/pessoal", icon: Users, label: "Módulo Pessoal" },
+      { href: "/obrigacoes", icon: Share2, label: "Obrigações" },
     ],
   },
   {
