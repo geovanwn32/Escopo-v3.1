@@ -1,11 +1,16 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Employee } from '@/types/employee';
 import type { Vacation } from '@/types/vacation';
-import { format, addDays, addYears, subDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+const formatCurrency = (value: number | undefined | null): string => {
+  if (value === undefined || value === null) return 'R$ 0,00';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
 
 const formatCnpj = (cnpj: string): string => {
     if (!cnpj) return '';
@@ -25,10 +30,10 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
   // --- HEADER ---
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('AVISO DE FÉRIAS', pageWidth / 2, y, { align: 'center' });
+  doc.text('AVISO E RECIBO DE FÉRIAS', pageWidth / 2, y, { align: 'center' });
   y += 10;
   
-  // --- IDENTIFICAÇÃO ---
+  // --- IDENTIFICATION ---
   autoTable(doc, {
     startY: y,
     theme: 'grid',
@@ -49,18 +54,24 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
             { content: 'Cargo:', styles: { fontStyle: 'bold' } },
             employee.cargo,
         ],
+        [
+            { content: 'Endereço:', styles: { fontStyle: 'bold' } },
+            `${company.logradouro}, ${company.numero}`,
+            { content: 'Data de Admissão:', styles: { fontStyle: 'bold' } },
+            formatDate(employee.dataAdmissao),
+        ],
     ],
     columnStyles: { 
-        0: { cellWidth: 30 }, 
-        2: { cellWidth: 30 }
+        0: { cellWidth: 35 }, 
+        2: { cellWidth: 35 }
     }
   });
   y = (doc as any).lastAutoTable.finalY + 8;
   
-  // --- PERÍODO AQUISITIVO E GOZO ---
+  // --- VACATION DETAILS ---
   const startDate = (vacation.startDate as any).toDate ? (vacation.startDate as any).toDate() : vacation.startDate;
   const endDate = addDays(startDate, vacation.vacationDays - 1);
-  const acquisitionEnd = addYears(employee.dataAdmissao, 1);
+  const paymentDate = subDays(startDate, 2);
 
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
@@ -69,46 +80,88 @@ export function generateVacationNoticePdf(company: Company, employee: Employee, 
 
   autoTable(doc, {
       startY: y,
-      theme: 'grid',
-      styles: { fontSize: 9, cellPadding: 2 },
+      theme: 'plain',
+      styles: { fontSize: 9, cellPadding: 1.5 },
       body: [
-          [{ content: 'Período Aquisitivo:', styles: { fontStyle: 'bold' } }, `${formatDate(employee.dataAdmissao)} a ${formatDate(subDays(acquisitionEnd, 1))}`],
+          [{ content: 'Período Aquisitivo:', styles: { fontStyle: 'bold' } }, `${formatDate(employee.dataAdmissao)} a ${formatDate(subDays(addDays(employee.dataAdmissao, 365),1))}`],
           [{ content: 'Período de Gozo:', styles: { fontStyle: 'bold' } }, `${vacation.vacationDays} dias, de ${formatDate(startDate)} a ${formatDate(endDate)}`],
-          ...(vacation.sellVacation ? [[{ content: 'Abono Pecuniário:', styles: { fontStyle: 'bold' } }, 'Solicitada a conversão de 10 dias de férias em abono.']] : []),
-          ...(vacation.advanceThirteenth ? [[{ content: 'Adiantamento 13º Salário:', styles: { fontStyle: 'bold' } }, 'Concedido o adiantamento da 1ª parcela do 13º salário.']] : []),
+          [{ content: 'Data Limite para Pagamento:', styles: { fontStyle: 'bold' } }, `${formatDate(paymentDate)}`],
       ],
-      columnStyles: { 0: { cellWidth: 45 } }
+      columnStyles: { 0: { cellWidth: 50 } }
   });
-  y = (doc as any).lastAutoTable.finalY + 8;
+  y = (doc as any).lastAutoTable.finalY + 3;
 
-  // --- EMBASAMENTO LEGAL ---
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Embasamento Legal', 14, y);
-  y += 5;
+  // --- FINANCIAL VALUES ---
+  const tableRows = vacation.result.events.map(event => [
+        event.descricao,
+        event.referencia,
+        formatCurrency(event.provento),
+        formatCurrency(event.desconto),
+    ]);
+  
+  autoTable(doc, {
+        startY: y,
+        head: [['Discriminação dos Valores', 'Referência', 'Proventos (R$)', 'Descontos (R$)']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 25, halign: 'center' },
+            2: { cellWidth: 35, halign: 'right' },
+            3: { cellWidth: 35, halign: 'right' },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY;
+
+    // --- TOTALS ---
+     autoTable(doc, {
+        startY: y,
+        theme: 'grid',
+        showHead: false,
+        styles: { fontSize: 9, cellPadding: 1.5, fontStyle: 'bold' },
+        body: [
+             [
+                { content: 'Total de Vencimentos:', styles: { halign: 'right' } },
+                { content: formatCurrency(vacation.result.totalProventos), styles: { halign: 'right' } },
+            ],
+             [
+                { content: 'Total de Descontos:', styles: { halign: 'right' } },
+                { content: formatCurrency(vacation.result.totalDescontos), styles: { halign: 'right', textColor: [200, 0, 0] } },
+            ],
+             [
+                { content: 'LÍQUIDO A RECEBER:', styles: { halign: 'right', fillColor: [240, 245, 255] } },
+                { content: formatCurrency(vacation.result.liquido), styles: { halign: 'right', fillColor: [240, 245, 255] } },
+            ],
+        ],
+         columnStyles: {
+            0: { cellWidth: 126.8, styles: { cellPadding: { right: 2 } } },
+            1: { cellWidth: 50 },
+        }
+    });
+    y = (doc as any).lastAutoTable.finalY + 8;
+  
+  // --- LEGAL BASIS & RECEIPT ---
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  const legalText = `Prezado(a) Sr(a). ${employee.nomeCompleto.split(' ')[0]}, comunicamos, em conformidade com o Art. 135 da Consolidação das Leis do Trabalho (CLT), que suas férias serão concedidas conforme detalhado acima. O pagamento das verbas de férias será realizado até 2 (dois) dias antes do início do respectivo período de gozo, conforme § 1º do Art. 145 da CLT.`;
+  const legalText = `Comunicamos, em conformidade com o Art. 135 da Consolidação das Leis do Trabalho (CLT), que suas férias serão concedidas conforme detalhado acima. O pagamento da remuneração das férias, acrescida do terço constitucional, será efetuado até 2 (dois) dias antes do início do respectivo período de gozo, conforme § 1º do Art. 145 da CLT.`;
   doc.text(legalText, 14, y, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 });
-  y = (doc as any).lastAutoTable.finalY + 70; // Adjust y position for signatures dynamically
+  y += doc.getTextDimensions(legalText, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 }).h + 5;
+  
+  const receiptText = `Recebi de ${company.razaoSocial} a importância líquida de ${formatCurrency(vacation.result.liquido)}, referente ao pagamento das minhas férias, conforme discriminado neste recibo, do qual dou plena e total quitação.`
+  doc.text(receiptText, 14, y, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 });
+  y += doc.getTextDimensions(receiptText, { maxWidth: pageWidth - 28, lineHeightFactor: 1.5 }).h + 10;
+  
+  // --- SIGNATURES ---
+  if (y > 250) y = 250; // a safe limit to avoid going off page
 
-  if(y > 240) y = 240; // a safe limit to avoid going off page
-
-  // --- ASSINATURAS ---
-  const city = "São Paulo"; // Placeholder
+  const city = company.cidade || " ";
   const today = new Date();
   doc.setFontSize(10);
   doc.text(`${city}, ${format(today, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
   y += 15;
-
-  doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
-  doc.text('Assinatura do Empregador', pageWidth / 2, y + 4, { align: 'center' });
-  y += 15;
   
-  doc.setFontSize(9);
-  doc.text(`Ciente em ____/____/____.`, 14, y);
-  y += 8;
-
   doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
   doc.text('Assinatura do Empregado(a)', pageWidth / 2, y + 4, { align: 'center' });
   
