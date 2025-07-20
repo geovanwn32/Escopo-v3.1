@@ -19,7 +19,6 @@ import {
   BookCheck,
   LayoutDashboard,
   FileStack,
-  BookOpen,
   Users,
   Building2,
   Handshake,
@@ -34,6 +33,8 @@ import {
   Briefcase,
   Share2,
   Calculator,
+  Link as LinkIcon,
+  Archive
 } from "lucide-react"
 
 const menuItems = [
@@ -63,6 +64,13 @@ const menuItems = [
     items: [
         { href: "/esocial", icon: Share2, label: "eSocial" },
         { href: "/pgdas", icon: Calculator, label: "PGDAS" },
+    ],
+  },
+   {
+    section: "Utilitários",
+    items: [
+        { href: "/utilitarios/links", icon: LinkIcon, label: "Links Úteis" },
+        { href: "/utilitarios/arquivos", icon: Archive, label: "Arquivos" },
     ],
   },
   {
