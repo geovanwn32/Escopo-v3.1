@@ -205,10 +205,25 @@ function TabEventosTabela() {
                                                 <span>Baixar XML</span>
                                             </DropdownMenuItem>
                                             {event.status === 'error' && (
-                                                <DropdownMenuItem onClick={() => toast({ title: "Detalhes do Erro", description: event.errorDetails })}>
-                                                    <Eye className="mr-2 h-4 w-4" />
-                                                    <span>Ver Erro</span>
-                                                </DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            <span>Ver Erro</span>
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogAction>Fechar</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             )}
                                             <DropdownMenuSeparator />
                                             <AlertDialog>
