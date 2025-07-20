@@ -33,6 +33,7 @@ import {
   FileText,
   Briefcase,
   Share2,
+  Calculator,
 } from "lucide-react"
 
 const menuItems = [
@@ -41,7 +42,7 @@ const menuItems = [
     items: [
       { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { href: "/fiscal", icon: FileStack, label: "Módulo Fiscal" },
-      { href: "/contabil", icon: BookOpen, label: "Módulo Contábil" },
+      { href: "/pgdas", icon: Calculator, label: "PGDAS" },
       { href: "/pessoal", icon: Users, label: "Módulo Pessoal" },
     ],
   },
@@ -62,7 +63,6 @@ const menuItems = [
     section: "Conectividade",
     items: [
         { href: "/esocial", icon: Share2, label: "eSocial" },
-        { href: "/contabil", icon: Share2, label: "Módulo Contábil" },
         { href: "/pessoal", icon: Share2, label: "Módulo Pessoal" },
     ],
   },
@@ -100,7 +100,7 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
                 <SidebarMenuItem key={item.href + item.label}>
                   <Link href={item.href} passHref>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith(item.href) && (item.href !== '/contabil' || pathname === '/contabil')}
+                      isActive={pathname.startsWith(item.href)}
                       tooltip={item.label}
                     >
                       <item.icon />
