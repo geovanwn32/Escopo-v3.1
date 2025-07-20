@@ -55,6 +55,13 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const slate200 = [226, 232, 240]; // Light gray for sub-headers
     const slate50 = [248, 250, 252]; // Very light gray for footers
 
+    const checkPageBreak = () => {
+        if (y > 250) {
+            doc.addPage();
+            y = 15;
+        }
+    }
+
 
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
@@ -107,40 +114,38 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     
     let grandTotalProventos = 0;
     let grandTotalDescontos = 0;
-    let grandTotalLiquido = 0;
 
     for (const employeeId in itemsByEmployee) {
+        checkPageBreak();
+
         const employeeItems = itemsByEmployee[employeeId];
         const employeeName = employeeItems[0].employeeName;
         
         let employeeTotalProventos = 0;
         let employeeTotalDescontos = 0;
         
-        if (y > 240) { 
-          doc.addPage();
-          y = 15;
-        }
-
+        // Employee Header Bar
+        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.rect(14, y, pageWidth - 28, 8, 'F');
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text(`Funcionário: ${employeeName}`, 14, y);
-        y += 6;
+        doc.setTextColor(255);
+        doc.text(`Funcionário: ${employeeName}`, 16, y + 5.5);
+        y += 12;
+        doc.setTextColor(0);
 
         for (const item of employeeItems) {
+            checkPageBreak();
+
             const totals = item.totals || item.result;
             const events = item.events || item.result?.events || [];
-            
-            if (y > 250) { 
-              doc.addPage();
-              y = 15;
-            }
             
             autoTable(doc, {
                 startY: y,
                 head: [[{ content: getEventName(item), colSpan: 4, styles: { fillColor: slate200, textColor: 30 } }]],
                 body: events.map((ev: any) => [ev.descricao, ev.referencia, formatCurrency(ev.provento), formatCurrency(ev.desconto)]),
                 foot: [[
-                  { content: 'Subtotal', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+                  { content: 'Subtotal do Lançamento', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
                   { content: formatCurrency(totals.totalProventos), styles: { halign: 'right', fontStyle: 'bold' } },
                   { content: formatCurrency(totals.totalDescontos), styles: { halign: 'right', fontStyle: 'bold', textColor: destructiveColor } },
                 ]],
@@ -157,20 +162,18 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             });
             y = (doc as any).lastAutoTable.finalY + 5;
             
-            employeeTotalProventos += totals.totalProventos || (totals.liquido + totals.totalDescontos) || 0;
+            employeeTotalProventos += totals.totalProventos || 0;
             employeeTotalDescontos += totals.totalDescontos || 0;
         }
         
         const employeeTotalLiquido = employeeTotalProventos - employeeTotalDescontos;
         grandTotalProventos += employeeTotalProventos;
         grandTotalDescontos += employeeTotalDescontos;
-        grandTotalLiquido += employeeTotalLiquido;
 
         autoTable(doc, {
             startY: y,
-            theme: 'grid',
-            head: [[`Resumo do Funcionário - ${employeeName}`]],
-            headStyles: { fillColor: slate500, textColor: 255 },
+            theme: 'striped',
+            head: [[{content: `Resumo do Funcionário - ${employeeName}`, colSpan: 2, styles: {fillColor: slate500, textColor: 255}}]],
             body: [
                 ['Total de Proventos', formatCurrency(employeeTotalProventos)],
                 [{content: 'Total de Descontos', styles: {}}, {content: formatCurrency(employeeTotalDescontos), styles: {textColor: destructiveColor}}],
@@ -179,24 +182,25 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             styles: { fontSize: 9, fontStyle: 'bold' },
             columnStyles: { 0: { halign: 'right' }, 1: { halign: 'right' } }
         });
-        y = (doc as any).lastAutoTable.finalY + 10;
+        y = (doc as any).lastAutoTable.finalY + 12;
     }
 
     if (Object.keys(itemsByEmployee).length > 1) { 
-        doc.addPage();
-        y = 15;
-        doc.setFontSize(16);
+        checkPageBreak();
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text(`Resumo Geral da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
-        y += 15;
+        y += 10;
         
+        const grandTotalLiquido = grandTotalProventos - grandTotalDescontos;
+
         autoTable(doc, {
           startY: y,
           head: [['Descrição Geral', 'Valor Total']],
           body: [
             ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
             [{content: 'Total Geral de Descontos', styles: {}}, {content: formatCurrency(grandTotalDescontos), styles: {textColor: destructiveColor}}],
-            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold' } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor } }],
+            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold', fillColor: slate50 } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor, fillColor: slate50 } }],
           ],
           theme: 'grid',
           headStyles: { fillColor: primaryColor, textColor: 255 },
@@ -205,6 +209,8 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         });
         y = (doc as any).lastAutoTable.finalY + 15;
     }
+
+    checkPageBreak();
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
