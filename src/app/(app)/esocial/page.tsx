@@ -73,17 +73,19 @@ function TabEventosTabela() {
 
         setLoading(true);
         const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
-        const q = query(eventsRef, 
-            where('type', 'in', ['S-1005', 'S-1010', 'S-1020']),
-            orderBy('createdAt', 'desc')
-        );
+        const q = query(eventsRef, orderBy('createdAt', 'desc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setEvents(snapshot.docs.map(doc => ({
+            const allEvents = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
                 createdAt: (doc.data().createdAt as Timestamp)?.toDate(),
-            } as EsocialEvent)));
+            } as EsocialEvent));
+
+            const tableEventTypes: EsocialEventType[] = ['S-1005', 'S-1010', 'S-1020'];
+            const filteredEvents = allEvents.filter(event => tableEventTypes.includes(event.type));
+            
+            setEvents(filteredEvents);
             setLoading(false);
         }, (error) => {
             console.error("Error fetching eSocial table events: ", error);
@@ -521,4 +523,5 @@ export default function EsocialPage() {
             </Tabs>
         </div>
     );
-}
+
+    
