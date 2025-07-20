@@ -1,25 +1,35 @@
 
 "use client";
 
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, BookUser } from "lucide-react";
+import { FileText, CalendarCheck, FileX, BookUser } from "lucide-react";
 import type { Employee } from '@/types/employee';
 import type { Company } from '@/types/company';
 import { useAuth } from '@/lib/auth';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { generateContractPdf } from '@/services/contract-service';
 import { useToast } from '@/hooks/use-toast';
+import { generateVacationNoticePdf } from '@/services/vacation-notice-service';
+import { generateTrctPdf } from '@/services/trct-service';
+import { collection, doc, getDoc, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Vacation } from '@/types/vacation';
+import type { Termination } from '@/types/termination';
+import { Timestamp } from 'firebase/firestore';
 
+
+type DocumentType = 'contract' | 'vacation' | 'termination';
 
 export default function FichasPage() {
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [documentType, setDocumentType] = useState<DocumentType | null>(null);
     const { user } = useAuth();
     const { toast } = useToast();
 
-    useState(() => {
+    useEffect(() => {
         if (typeof window !== 'undefined') {
             const companyId = sessionStorage.getItem('activeCompanyId');
             if (user && companyId) {
@@ -29,46 +39,130 @@ export default function FichasPage() {
                 }
             }
         }
-    });
+    }, [user]);
 
-    const handleSelectEmployee = (employee: Employee) => {
-        if (!activeCompany) {
-            toast({ variant: 'destructive', title: 'Nenhuma empresa ativa selecionada.'});
-            return;
-        }
-        setIsEmployeeModalOpen(false);
-        generateContractPdf(activeCompany, employee);
+    const handleOpenModal = (type: DocumentType) => {
+        setDocumentType(type);
+        setIsEmployeeModalOpen(true);
     };
 
+    const handleSelectEmployee = async (employee: Employee) => {
+        if (!activeCompany || !documentType || !user) {
+            toast({ variant: 'destructive', title: 'Erro inesperado. Tente novamente.'});
+            return;
+        }
+
+        setIsEmployeeModalOpen(false);
+
+        try {
+            switch (documentType) {
+                case 'contract':
+                    generateContractPdf(activeCompany, employee);
+                    break;
+                case 'vacation': {
+                     const vacationRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`, employee.id!);
+                     const vacationSnap = await getDoc(vacationRef);
+                      if (!vacationSnap.exists()) {
+                          toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "É necessário calcular as férias para este funcionário antes de gerar o aviso." });
+                          return;
+                      }
+                    const vacationData = vacationSnap.data() as Vacation;
+                    vacationData.startDate = (vacationData.startDate as Timestamp).toDate();
+                    generateVacationNoticePdf(activeCompany, employee, vacationData);
+                    break;
+                }
+                case 'termination': {
+                    const termRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`, employee.id!);
+                    const termSnap = await getDoc(termRef);
+                    if (!termSnap.exists()) {
+                        toast({ variant: "destructive", title: "Cálculo de Rescisão não encontrado", description: "É necessário calcular a rescisão para este funcionário antes de gerar o TRCT." });
+                        return;
+                    }
+                    const termData = termSnap.data() as Termination;
+                    termData.terminationDate = (termData.terminationDate as Timestamp).toDate();
+                    generateTrctPdf(activeCompany, employee, termData);
+                    break;
+                }
+            }
+        } catch (error) {
+            console.error(`Erro ao gerar documento ${documentType}:`, error);
+            toast({ variant: "destructive", title: `Erro ao gerar ${documentType}`, description: "Verifique o console para mais detalhes."});
+        }
+    };
+
+    const documentCards = [
+        { 
+            type: 'contract' as DocumentType,
+            title: 'Contrato de Trabalho',
+            description: 'Gere o contrato individual de trabalho para um novo funcionário.',
+            icon: FileText
+        },
+        { 
+            type: 'vacation' as DocumentType,
+            title: 'Aviso de Férias',
+            description: 'Gere o aviso de férias para um funcionário com férias calculadas.',
+            icon: CalendarCheck
+        },
+        { 
+            type: 'termination' as DocumentType,
+            title: 'Termo de Rescisão (TRCT)',
+            description: 'Gere o Termo de Rescisão de Contrato de Trabalho para um funcionário desligado.',
+            icon: FileX
+        }
+    ];
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Geração de Documentos</h1>
+        <h1 className="text-2xl font-bold">Central de Documentos</h1>
       </div>
+        <Card>
+            <CardHeader>
+                <CardTitle>Documentos do Departamento Pessoal</CardTitle>
+                <CardDescription>Selecione um documento abaixo para gerar. A maioria dos documentos requer a seleção de um funcionário.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {documentCards.map((card) => (
+                        <Card key={card.type} className="flex flex-col">
+                            <CardHeader>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-muted rounded-md">
+                                        <card.icon className="h-6 w-6 text-primary" />
+                                    </div>
+                                    <CardTitle className="text-lg">{card.title}</CardTitle>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex-grow">
+                                <p className="text-sm text-muted-foreground">{card.description}</p>
+                            </CardContent>
+                            <CardFooter>
+                                <Button className="w-full" onClick={() => handleOpenModal(card.type)} disabled={!activeCompany}>
+                                    Gerar Documento
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+                 {!activeCompany && (
+                    <div className="text-center py-6 text-sm text-destructive">
+                        Selecione uma empresa para habilitar a geração de documentos.
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>Documentos e Contratos</CardTitle>
-          <CardDescription>Gere documentos importantes do departamento pessoal.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <Button onClick={() => setIsEmployeeModalOpen(true)} disabled={!activeCompany}>
-                <FileText className="mr-2 h-4 w-4" />
-                Gerar Contrato de Trabalho
-            </Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Fichas Cadastradas</CardTitle>
-          <CardDescription>Gerencie as fichas aqui.</CardDescription>
+          <CardTitle>Histórico de Documentos Gerados</CardTitle>
+          <CardDescription>Gerencie os documentos gerados aqui.</CardDescription>
         </CardHeader>
         <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="p-4 bg-muted rounded-full mb-4">
                 <BookUser className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="text-xl font-semibold">Nenhuma ficha cadastrada</h3>
-            <p className="text-muted-foreground mt-2">Esta área será implementada no futuro.</p>
+            <h3 className="text-xl font-semibold">Nenhum documento no histórico</h3>
+            <p className="text-muted-foreground mt-2">Esta área será implementada no futuro para listar os documentos já gerados.</p>
         </div>
       </Card>
 
