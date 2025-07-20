@@ -12,9 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search } from "lucide-react";
+import { Save, Loader2, Search, FileKey } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { Label } from "@/components/ui/label";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -36,6 +37,8 @@ const companySchema = z.object({
   uf: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().email({ message: "Email inválido." }).optional().or(z.literal('')),
+  certificateFile: z.any().optional(),
+  certificatePassword: z.string().optional(),
 });
 
 type CompanyFormData = z.infer<typeof companySchema>;
@@ -60,6 +63,8 @@ const ensureSafeData = (data: any): CompanyFormData => {
         uf: data.uf || "",
         telefone: data.telefone || "",
         email: data.email || "",
+        certificateFile: data.certificateFile || null,
+        certificatePassword: data.certificatePassword || "",
     };
 };
 
@@ -115,7 +120,7 @@ export default function MinhaEmpresaPage() {
         setLoadingSintegra(true);
         try {
             const cleanedCnpj = cnpj.replace(/\D/g, '');
-            // The API requires UF in the path, it's better to fetch it directly from the form state.
+            // The API requires UF in the path, it's better to fetch it from the form state.
             const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
             
             if (!response.ok) {
@@ -210,13 +215,18 @@ export default function MinhaEmpresaPage() {
         }
         setIsSaving(true);
         try {
-            const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
+            // We don't save the file itself to Firestore, just the other data.
+            // In a real app, we'd upload the file to a storage bucket and save the reference here.
+            const { certificateFile, ...restOfData } = data;
+
             const dataToSave = {
-                ...data,
+                ...restOfData,
                 cnpj: data.cnpj.replace(/\D/g, ''), // Save only numbers
             };
+            
+            const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
             await setDoc(companyRef, dataToSave, { merge: true });
-
+            
             const updatedCompanyDataForSession = { id: activeCompanyId, ...dataToSave };
             sessionStorage.setItem(`company_${activeCompanyId}`, JSON.stringify(updatedCompanyDataForSession));
 
@@ -383,6 +393,49 @@ export default function MinhaEmpresaPage() {
                                         <FormControl><Input {...field} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Certificado Digital (A1)</CardTitle>
+                            <CardDescription>Faça o upload do seu certificado digital (.pfx ou .p12) e informe a senha para habilitar a transmissão de eventos.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 md:grid-cols-2">
+                             <FormField
+                                control={form.control}
+                                name="certificateFile"
+                                render={({ field: { value, onChange, ...fieldProps } }) => (
+                                <FormItem>
+                                    <FormLabel>Arquivo do Certificado</FormLabel>
+                                    <FormControl>
+                                    <Input
+                                        {...fieldProps}
+                                        type="file"
+                                        accept=".pfx, .p12"
+                                        onChange={(event) =>
+                                        onChange(event.target.files && event.target.files[0])
+                                        }
+                                        className="pt-2"
+                                    />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="certificatePassword"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Senha do Certificado</FormLabel>
+                                    <FormControl>
+                                    <Input type="password" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
                                 )}
                             />
                         </CardContent>
