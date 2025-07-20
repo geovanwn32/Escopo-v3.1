@@ -16,8 +16,34 @@ import { db } from "@/lib/firebase";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Pgdas } from "@/types/pgdas";
 import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+// Simples Nacional Brackets for 2024 (as example)
+// Each key is the upper limit of the RBT12 bracket.
+const simplesBrackets = {
+    "anexo-i": [ // Comércio
+        { limit: 180000, rate: 0.04, deduction: 0 },
+        { limit: 360000, rate: 0.073, deduction: 5940 },
+        { limit: 720000, rate: 0.095, deduction: 13860 },
+        { limit: 1800000, rate: 0.107, deduction: 22500 },
+        { limit: 3600000, rate: 0.143, deduction: 87300 },
+        { limit: 4800000, rate: 0.19, deduction: 378000 },
+    ],
+    "anexo-iii": [ // Serviços
+        { limit: 180000, rate: 0.06, deduction: 0 },
+        { limit: 360000, rate: 0.112, deduction: 9360 },
+        { limit: 720000, rate: 0.135, deduction: 17640 },
+        { limit: 1800000, rate: 0.16, deduction: 35640 },
+        { limit: 3600000, rate: 0.21, deduction: 125640 },
+        { limit: 4800000, rate: 0.33, deduction: 648000 },
+    ]
+    // Other annexes would follow a similar structure
+};
+
+type SimplesAnnex = keyof typeof simplesBrackets;
+
 
 export default function PGDASPage() {
     const { toast } = useToast();
@@ -32,6 +58,7 @@ export default function PGDASPage() {
         }
         return `${month}/${year}`;
     });
+    const [annex, setAnnex] = useState<SimplesAnnex>("anexo-i");
     const [isCalculating, setIsCalculating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [calculationResult, setCalculationResult] = useState<PGDASResult | null>(null);
@@ -97,6 +124,11 @@ export default function PGDASPage() {
              toast({ variant: 'destructive', title: "Selecione uma empresa!" });
              return;
         }
+        
+        if (!annex || !simplesBrackets[annex]) {
+             toast({ variant: 'destructive', title: "Anexo Inválido", description: "Selecione um anexo válido para o cálculo." });
+             return;
+        }
 
         setIsCalculating(true);
         
@@ -107,11 +139,11 @@ export default function PGDASPage() {
             
             const currentPeriodDate = new Date(year, month - 1, 1);
             
+            const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
+            
             // --- Calculate RPA (Receita do Período de Apuração) ---
             const rpaStartDate = startOfMonth(currentPeriodDate);
             const rpaEndDate = endOfMonth(currentPeriodDate);
-            const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-            
             const rpaQuery = query(launchesRef, 
                 where('date', '>=', Timestamp.fromDate(rpaStartDate)), 
                 where('date', '<=', Timestamp.fromDate(rpaEndDate))
@@ -148,9 +180,21 @@ export default function PGDASPage() {
                  return;
             }
 
-            // Simples Nacional calculation logic (using Anexo III, 3rd bracket as example)
-            const aliquotaNominal = 0.135; // 13.50%
-            const parcelaDeduzir = 17640.00;
+            // Simples Nacional calculation logic based on selected annex
+            const brackets = simplesBrackets[annex];
+            let currentBracket = brackets[0];
+
+            for (const bracket of brackets) {
+                if(rbt12 <= bracket.limit) {
+                    currentBracket = bracket;
+                    break;
+                }
+                // Handle the last bracket
+                currentBracket = bracket;
+            }
+            
+            const aliquotaNominal = currentBracket.rate; 
+            const parcelaDeduzir = currentBracket.deduction;
             const aliquotaEfetiva = rbt12 > 0 ? ((rbt12 * aliquotaNominal) - parcelaDeduzir) / rbt12 : aliquotaNominal;
             const taxAmount = rpa * aliquotaEfetiva;
             
@@ -184,6 +228,7 @@ export default function PGDASPage() {
         try {
             const pgdasData: Omit<Pgdas, 'id'> = {
                 period,
+                anexo: annex,
                 result: calculationResult,
                 createdAt: serverTimestamp(),
             };
@@ -205,6 +250,7 @@ export default function PGDASPage() {
     
     const handleViewSaved = (savedCalc: Pgdas) => {
         setPeriod(savedCalc.period);
+        setAnnex(savedCalc.anexo);
         setCalculationResult(savedCalc.result);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -216,7 +262,7 @@ export default function PGDASPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Apuração do Período</CardTitle>
-                    <CardDescription>Selecione a competência para apurar o imposto com base nas notas fiscais de saída e de serviço lançadas no sistema.</CardDescription>
+                    <CardDescription>Selecione a competência e o anexo para apurar o imposto com base nas notas fiscais lançadas.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col sm:flex-row items-end gap-4 p-4 mb-4 border rounded-lg bg-muted/50">
@@ -229,6 +275,18 @@ export default function PGDASPage() {
                                 onChange={handlePeriodChange}
                                 maxLength={7}
                             />
+                        </div>
+                         <div className="grid w-full max-w-xs items-center gap-1.5">
+                            <Label htmlFor="annex">Anexo</Label>
+                             <Select value={annex} onValueChange={(value) => setAnnex(value as SimplesAnnex)}>
+                                <SelectTrigger id="annex">
+                                    <SelectValue placeholder="Selecione o anexo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="anexo-i">Anexo I - Comércio</SelectItem>
+                                    <SelectItem value="anexo-iii">Anexo III - Serviços</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <Button onClick={handleCalculate} disabled={isCalculating || !activeCompany}>
                             {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
@@ -250,7 +308,7 @@ export default function PGDASPage() {
                                 <Percent className="h-10 w-10 text-muted-foreground" />
                             </div>
                             <h3 className="text-xl font-semibold">Aguardando cálculo</h3>
-                            <p className="text-muted-foreground mt-2">Insira a competência e clique em "Calcular Simples Nacional" para começar.</p>
+                            <p className="text-muted-foreground mt-2">Insira a competência, selecione o anexo e clique em "Calcular" para começar.</p>
                         </div>
                      ) : (
                         <div className="space-y-6">
@@ -321,8 +379,8 @@ export default function PGDASPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Competência</TableHead>
+                                    <TableHead>Anexo</TableHead>
                                     <TableHead>Faturamento</TableHead>
-                                    <TableHead>Alíquota Efetiva</TableHead>
                                     <TableHead className="text-right">Valor do Imposto</TableHead>
                                     <TableHead className="text-right">Ações</TableHead>
                                 </TableRow>
@@ -331,8 +389,8 @@ export default function PGDASPage() {
                                 {savedCalculations.map((calc) => (
                                     <TableRow key={calc.id}>
                                         <TableCell className="font-mono">{calc.period}</TableCell>
+                                        <TableCell>{calc.anexo.replace('anexo-', 'Anexo ').toUpperCase()}</TableCell>
                                         <TableCell>{formatCurrency(calc.result.rpa)}</TableCell>
-                                        <TableCell>{calc.result.aliquotaEfetiva.toFixed(2)}%</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(calc.result.taxAmount)}</TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="outline" size="sm" onClick={() => handleViewSaved(calc)}>
