@@ -70,7 +70,7 @@ export default function EsocialPage() {
         if (!user || !activeCompany) return;
         setIsGenerating(true);
         try {
-            await generateAndSaveEsocialEvent(user.uid, activeCompany.id, eventType);
+            await generateAndSaveEsocialEvent(user.uid, activeCompany, eventType);
             toast({ title: `Evento ${eventType} gerado com sucesso!`, description: "O arquivo está pronto para ser enviado." });
         } catch (error) {
             console.error(error);

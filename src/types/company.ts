@@ -10,4 +10,5 @@ export interface Company {
     cidade?: string;
     uf?: string;
     cep?: string;
+    cnaePrincipalCodigo?: string;
 }
