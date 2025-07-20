@@ -195,19 +195,21 @@ export default function FiscalPage() {
             const normalizedActiveCnpj = activeCompany?.cnpj?.replace(/\D/g, '');
 
             let type: XmlFile['type'] = 'desconhecido';
-
-            const findCnpj = (potentialParents: (Element | null | undefined)[], cnpjTagName: string): string | null => {
+            
+            // Flexible function to find CNPJ with multiple tag names and namespaces
+            const findCnpj = (potentialParents: (Element | null | undefined)[], cnpjTagNames: string[]): string | null => {
               for (const parentNode of potentialParents) {
                   if (parentNode) {
-                      const cnpjNodes = Array.from(parentNode.getElementsByTagName(cnpjTagName));
-                       if (cnpjNodes.length > 0 && cnpjNodes[0].textContent) {
-                           return cnpjNodes[0].textContent.replace(/\D/g, '');
-                       }
-                      // Fallback for namespaced tags
-                      const namespacedNodes = Array.from(parentNode.getElementsByTagNameNS('*', cnpjTagName));
-                       if (namespacedNodes.length > 0 && namespacedNodes[0].textContent) {
-                           return namespacedNodes[0].textContent.replace(/\D/g, '');
-                       }
+                      for (const tagName of cnpjTagNames) {
+                          const nodes = Array.from(parentNode.getElementsByTagName(tagName));
+                          if (nodes.length > 0 && nodes[0].textContent) {
+                              return nodes[0].textContent.replace(/\D/g, '');
+                          }
+                          const namespacedNodes = Array.from(parentNode.getElementsByTagNameNS('*', tagName));
+                           if (namespacedNodes.length > 0 && namespacedNodes[0].textContent) {
+                               return namespacedNodes[0].textContent.replace(/\D/g, '');
+                           }
+                      }
                   }
               }
               return null;
@@ -219,8 +221,8 @@ export default function FiscalPage() {
             if (nfeProc) {
                 const emitNode = nfeProc.getElementsByTagName('emit')[0];
                 const destNode = nfeProc.getElementsByTagName('dest')[0];
-                const emitCnpj = findCnpj([emitNode], 'CNPJ');
-                const destCnpj = findCnpj([destNode], 'CNPJ');
+                const emitCnpj = findCnpj([emitNode], ['CNPJ', 'cnpj']);
+                const destCnpj = findCnpj([destNode], ['CNPJ', 'cnpj']);
                 
                 if (emitCnpj === normalizedActiveCnpj) {
                     type = 'saida'; // Venda de produto (saída de mercadoria, mas entrada de receita)
@@ -230,9 +232,9 @@ export default function FiscalPage() {
             } else if (nfse) {
                 const prestadorNode = nfse.querySelector('PrestadorServico, prest');
                 const tomadorNode = nfse.querySelector('TomadorServico, toma');
-
-                const prestadorCnpj = findCnpj([prestadorNode], 'Cnpj');
-                const tomadorCnpj = findCnpj([tomadorNode], 'Cnpj');
+                
+                const prestadorCnpj = findCnpj([prestadorNode], ['Cnpj', 'CNPJ', 'cnpj']);
+                const tomadorCnpj = findCnpj([tomadorNode], ['Cnpj', 'CNPJ', 'cnpj']);
 
                 if (prestadorCnpj === normalizedActiveCnpj) {
                     type = 'servico'; // Prestação de serviço (é uma entrada de receita)
@@ -767,3 +769,5 @@ endDate.setHours(23,59,59,999);
       )}
     </div>
   );
+
+    
