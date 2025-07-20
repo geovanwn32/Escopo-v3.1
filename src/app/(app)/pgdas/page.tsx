@@ -4,19 +4,21 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, Percent, FileText, Loader2, BarChart, Wallet, Save, Eye } from "lucide-react";
+import { Calculator, Percent, FileText, Loader2, BarChart, Wallet, Save, Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generatePgdasReportPdf, type PGDASResult } from "@/services/pgdas-report-service";
-import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp, addDoc, onSnapshot, orderBy, serverTimestamp, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Pgdas } from "@/types/pgdas";
 import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -257,6 +259,18 @@ export default function PGDASPage() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    const handleDelete = async (calcId: string) => {
+        if (!user || !activeCompany) return;
+        try {
+            const docRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/pgdas`, calcId);
+            await deleteDoc(docRef);
+            toast({ title: "Cálculo excluído com sucesso." });
+        } catch (error) {
+            console.error("Erro ao excluir cálculo:", error);
+            toast({ variant: "destructive", title: "Erro ao excluir cálculo." });
+        }
+    };
+
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">PGDAS - Cálculo do Simples Nacional</h1>
@@ -395,10 +409,44 @@ export default function PGDASPage() {
                                         <TableCell>{formatCurrency(calc.result.rpa)}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(calc.result.taxAmount)}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="outline" size="sm" onClick={() => handleViewSaved(calc)}>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                Visualizar
-                                            </Button>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Abrir menu</span>
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleViewSaved(calc)}>
+                                                        <Eye className="mr-2 h-4 w-4" />
+                                                        Visualizar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleGenerateReport(calc.result, calc.period)}>
+                                                        <FileText className="mr-2 h-4 w-4" />
+                                                        Baixar Relatório
+                                                    </DropdownMenuItem>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                                  <Trash2 className="mr-2 h-4 w-4" />
+                                                                  Excluir
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Esta ação não pode ser desfeita. O cálculo será permanentemente removido do histórico.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDelete(calc.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </TableCell>
                                     </TableRow>
                                 ))}
