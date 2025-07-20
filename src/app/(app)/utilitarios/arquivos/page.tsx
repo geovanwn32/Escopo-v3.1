@@ -80,13 +80,18 @@ const formatBytes = (bytes: number, decimals = 2) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+interface UploadingFile {
+  name: string;
+  progress: number;
+}
+
 export default function ArquivosPage() {
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,7 +129,7 @@ export default function ArquivosPage() {
           return {
             id: doc.id,
             ...data,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : null,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
           } as StoredFile;
         });
         setStoredFiles(filesData);
@@ -179,19 +184,17 @@ export default function ArquivosPage() {
         const storageRef = ref(storage, storagePath);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
+        setUploadingFiles(prev => [...prev, { name: file.name, progress: 0 }]);
+        
         uploadTask.on("state_changed",
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(prev => ({...prev, [file.name]: progress}));
+            setUploadingFiles(prev => prev.map(f => f.name === file.name ? { ...f, progress } : f));
           },
           (error) => {
             console.error("Upload error:", error);
             toast({ variant: "destructive", title: "Erro no upload", description: `Falha ao enviar o arquivo ${file.name}.` });
-            setUploadProgress(prev => {
-                const newState = {...prev};
-                delete newState[file.name];
-                return newState;
-            });
+            setUploadingFiles(prev => prev.filter(f => f.name !== file.name));
           },
           async () => {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -207,12 +210,8 @@ export default function ArquivosPage() {
             const filesRef = collection(db, `users/${user.uid}/companies/${activeCompany!.id}/files`);
             await addDoc(filesRef, fileData);
             
-            // Do not show toast here, progress bar disappearing is enough feedback
-            setUploadProgress(prev => {
-                const newState = {...prev};
-                delete newState[file.name];
-                return newState;
-            });
+            // The onSnapshot listener will add the file to storedFiles automatically.
+            setUploadingFiles(prev => prev.filter(f => f.name !== file.name));
           }
         );
     });
@@ -305,7 +304,7 @@ export default function ArquivosPage() {
         <CardContent>
           {loading ? (
              <div className="flex justify-center items-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : storedFiles.length === 0 && Object.keys(uploadProgress).length === 0 ? (
+          ) : storedFiles.length === 0 && uploadingFiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="p-4 bg-muted rounded-full mb-4">
                 <FileArchive className="h-10 w-10 text-muted-foreground" />
@@ -326,11 +325,11 @@ export default function ArquivosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.entries(uploadProgress).map(([name, progress]) => (
-                    <TableRow key={name}>
-                        <TableCell className="font-medium">{name}</TableCell>
+                {uploadingFiles.map((file) => (
+                    <TableRow key={file.name}>
+                        <TableCell className="font-medium">{file.name}</TableCell>
                         <TableCell colSpan={2}>
-                            <Progress value={progress} className="w-[60%]" />
+                            <Progress value={file.progress} className="w-[60%]" />
                         </TableCell>
                         <TableCell className="text-right"><Loader2 className="h-4 w-4 animate-spin ml-auto" /></TableCell>
                     </TableRow>
