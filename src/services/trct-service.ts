@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Company } from '@/app/(app)/fiscal/page';
@@ -138,8 +139,18 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
             1: { cellWidth: 60 },
         }
     });
-    y = (doc as any).lastAutoTable.finalY + 10;
+    y = (doc as any).lastAutoTable.finalY + 8;
     
+    // Legal Basis
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('V - Embasamento Legal', 14, y);
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('O presente termo é emitido em conformidade com o Art. 477 da Consolidação das Leis do Trabalho (CLT), que dispõe sobre a anotação na Carteira de Trabalho e o pagamento das verbas rescisórias.', 14, y, { maxWidth: pageWidth - 28 });
+    y += 12;
+
     // Signatures
     doc.setFontSize(10);
     doc.text('__________________________________', 14, y);
