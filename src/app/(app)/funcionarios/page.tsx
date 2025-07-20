@@ -10,13 +10,14 @@ import { PlusCircle, UserCog, MoreHorizontal, Eye, Pencil, Trash2, Loader2, Chev
 import { EmployeeFormModal } from '@/components/pessoal/employee-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Employee } from '@/types/employee';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Timestamp } from 'firebase/firestore';
 
 export default function FuncionariosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,12 +58,21 @@ export default function FuncionariosPage() {
     const q = query(employeesRef, orderBy('nomeCompleto', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const employeesData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            dataNascimento: doc.data().dataNascimento.toDate(),
-            dataAdmissao: doc.data().dataAdmissao.toDate(),
-        } as Employee));
+        const employeesData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const dependentes = (data.dependentes || []).map((dep: any) => ({
+                ...dep,
+                dataNascimento: (dep.dataNascimento as Timestamp)?.toDate()
+            }));
+
+            return {
+                id: doc.id,
+                ...data,
+                dataNascimento: (data.dataNascimento as Timestamp)?.toDate(),
+                dataAdmissao: (data.dataAdmissao as Timestamp)?.toDate(),
+                dependentes,
+            } as Employee;
+        });
         setEmployees(employeesData);
         setLoading(false);
     }, (error) => {
@@ -70,7 +80,7 @@ export default function FuncionariosPage() {
         toast({
             variant: "destructive",
             title: "Erro ao buscar funcionários",
-            description: "Não foi possível carregar a lista de funcionários."
+            description: "Não foi possível carregar la lista de funcionários."
         });
         setLoading(false);
     });

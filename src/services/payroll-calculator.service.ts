@@ -29,16 +29,17 @@ export function calculateAutomaticEvent(
     const baseSalaryEvent = allEvents.find(e => e.rubrica.id === 'salario_base');
     const inssCalculationBase = baseSalaryEvent ? baseSalaryEvent.provento : baseSalary;
 
+    const numDependentesSalarioFamilia = employee.dependentes?.filter(d => d.isSalarioFamilia).length || 0;
 
     if (rubrica.codigo === '0005') { 
-        if (inssCalculationBase <= familyAllowanceBracket.limit && employee.dependentesSalarioFamilia > 0) {
+        if (inssCalculationBase <= familyAllowanceBracket.limit && numDependentesSalarioFamilia > 0) {
             return {
-                referencia: employee.dependentesSalarioFamilia,
-                provento: employee.dependentesSalarioFamilia * familyAllowanceBracket.valuePerDependent,
+                referencia: numDependentesSalarioFamilia,
+                provento: numDependentesSalarioFamilia * familyAllowanceBracket.valuePerDependent,
                 desconto: 0,
             };
         }
-        return { referencia: employee.dependentesSalarioFamilia || 0, provento: 0, desconto: 0 };
+        return { referencia: numDependentesSalarioFamilia || 0, provento: 0, desconto: 0 };
     }
 
     if (rubrica.codigo === '0004') {

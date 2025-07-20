@@ -1,4 +1,12 @@
 
+export interface Dependent {
+  nomeCompleto: string;
+  dataNascimento: Date;
+  cpf: string;
+  isSalarioFamilia: boolean;
+  isIRRF: boolean;
+}
+
 export interface Employee {
   id?: string;
   // Personal Data
@@ -12,8 +20,7 @@ export interface Employee {
   nomePai?: string;
   email?: string;
   telefone: string;
-  dependentesIRRF: number;
-  dependentesSalarioFamilia: number;
+  dependentes: Dependent[];
 
   // Address
   cep: string;

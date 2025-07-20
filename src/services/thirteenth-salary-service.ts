@@ -141,7 +141,8 @@ export function calculateThirteenth(params: ThirteenthParams): ThirteenthResult 
         }
 
         // IRRF
-        const irrf = calculateIRRF(fullThirteenth, employee.dependentesIRRF, inss.value);
+        const numDependentesIRRF = employee.dependentes?.filter(d => d.isIRRF).length || 0;
+        const irrf = calculateIRRF(fullThirteenth, numDependentesIRRF, inss.value);
         if (irrf.value > 0) {
             events.push({
                 descricao: 'IRRF sobre 13º Salário',

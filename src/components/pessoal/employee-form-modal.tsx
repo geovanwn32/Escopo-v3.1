@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
@@ -11,13 +11,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, PlusCircle, Trash2 } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
-import { Employee } from '@/types/employee';
+import { Employee, Dependent } from '@/types/employee';
 import { Switch } from '../ui/switch';
+import { Checkbox } from '../ui/checkbox';
+import { Separator } from '../ui/separator';
 
 interface EmployeeFormModalProps {
   isOpen: boolean;
@@ -26,6 +28,14 @@ interface EmployeeFormModalProps {
   companyId: string;
   employee: Employee | null;
 }
+
+const dependentSchema = z.object({
+  nomeCompleto: z.string().min(1, "Nome é obrigatório"),
+  dataNascimento: z.date({ required_error: "Data de nascimento é obrigatória." }),
+  cpf: z.string().min(14, "CPF inválido").transform(val => val.replace(/\D/g, '')),
+  isSalarioFamilia: z.boolean().default(false),
+  isIRRF: z.boolean().default(false),
+});
 
 const employeeSchema = z.object({
   // Personal Data
@@ -37,10 +47,11 @@ const employeeSchema = z.object({
   sexo: z.string().min(1, "Sexo é obrigatório"),
   nomeMae: z.string().min(1, "Nome da mãe é obrigatório"),
   nomePai: z.string().optional(),
-  dependentesIRRF: z.coerce.number().min(0, "Número de dependentes não pode ser negativo.").default(0),
-  dependentesSalarioFamilia: z.coerce.number().min(0, "Número de dependentes não pode ser negativo.").default(0),
   email: z.string().email("Email inválido").optional().or(z.literal('')),
   telefone: z.string().min(10, "Telefone inválido"),
+  
+  // Dependents
+  dependentes: z.array(dependentSchema).optional(),
 
   // Address
   cep: z.string().min(9, "CEP inválido").transform(val => val.replace(/\D/g, '')),
@@ -69,6 +80,14 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
   const { toast } = useToast();
   const form = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
+    defaultValues: {
+      dependentes: []
+    }
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "dependentes"
   });
 
   const mode = employee ? 'edit' : 'create';
@@ -82,6 +101,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                 cep: formatCep(employee.cep),
                 salarioBase: String(employee.salarioBase),
                 ativo: employee.ativo ?? true,
+                dependentes: (employee.dependentes || []).map(dep => ({...dep, cpf: formatCpf(dep.cpf)}))
             });
         } else {
             form.reset({
@@ -92,8 +112,6 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
               nomePai: "",
               email: "",
               telefone: "",
-              dependentesIRRF: 0,
-              dependentesSalarioFamilia: 0,
               cep: "",
               logradouro: "",
               numero: "",
@@ -106,6 +124,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
               salarioBase: "",
               jornadaTrabalho: "",
               ativo: true,
+              dependentes: []
             });
         }
     }
@@ -172,7 +191,7 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Funcionário' : 'Alterar Funcionário'}</DialogTitle>
           <DialogDescription>
@@ -185,9 +204,10 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <Tabs defaultValue="personal" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="personal">Dados Pessoais</TabsTrigger>
                 <TabsTrigger value="address">Endereço</TabsTrigger>
+                <TabsTrigger value="dependents">Dependentes</TabsTrigger>
                 <TabsTrigger value="contract">Dados do Contrato</TabsTrigger>
               </TabsList>
               
@@ -212,10 +232,6 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                   </div>
                   <FormField control={form.control} name="nomeMae" render={({ field }) => ( <FormItem><FormLabel>Nome da Mãe</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="nomePai" render={({ field }) => ( <FormItem><FormLabel>Nome do Pai (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="dependentesIRRF" render={({ field }) => ( <FormItem><FormLabel>Nº de Dependentes (IRRF)</FormLabel><FormControl><Input type="number" min="0" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="dependentesSalarioFamilia" render={({ field }) => ( <FormItem><FormLabel>Nº de Dependentes (Sal. Família)</FormLabel><FormControl><Input type="number" min="0" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  </div>
                   <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
                 </TabsContent>
 
@@ -236,6 +252,37 @@ export function EmployeeFormModal({ isOpen, onClose, userId, companyId, employee
                       <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                       <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
                    </div>
+                </TabsContent>
+
+                <TabsContent value="dependents" className="space-y-4">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="p-4 border rounded-md relative space-y-4">
+                      <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2 text-destructive" onClick={() => remove(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <FormField control={form.control} name={`dependentes.${index}.nomeCompleto`} render={({ field }) => ( <FormItem><FormLabel>Nome Completo do Dependente</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField control={form.control} name={`dependentes.${index}.dataNascimento`} render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name={`dependentes.${index}.cpf`} render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
+                           const { value } = e.target;
+                           e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                           field.onChange(e);
+                        }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
+                      </div>
+                      <div className="flex items-center space-x-6">
+                         <FormField control={form.control} name={`dependentes.${index}.isIRRF`} render={({ field }) => ( <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="!mt-0">Dependente para IRRF</FormLabel><FormMessage /></FormItem> )} />
+                         <FormField control={form.control} name={`dependentes.${index}.isSalarioFamilia`} render={({ field }) => ( <FormItem className="flex flex-row items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel className="!mt-0">Dependente para Salário Família</FormLabel><FormMessage /></FormItem> )} />
+                      </div>
+                    </div>
+                  ))}
+                   <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => append({ nomeCompleto: '', dataNascimento: new Date(), cpf: '', isIRRF: true, isSalarioFamilia: false })}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Dependente
+                  </Button>
                 </TabsContent>
 
                 <TabsContent value="contract" className="space-y-4">

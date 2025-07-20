@@ -177,7 +177,8 @@ export function calculateVacation(params: VacationParams): VacationResult {
     // IRRF
     // Base IRRF = Férias + 1/3 - INSS - Dependentes. Abono e adiantamento 13º têm tributação exclusiva.
     const irrfBase = normalVacationPay + oneThirdBonus;
-    const irrfEvent = calculateIRRF(irrfBase, employee.dependentesIRRF, inssValue, 'Férias');
+    const numDependentesIRRF = employee.dependentes?.filter(d => d.isIRRF).length || 0;
+    const irrfEvent = calculateIRRF(irrfBase, numDependentesIRRF, inssValue, 'Férias');
     if (irrfEvent) events.push(irrfEvent);
 
     // --- CÁLCULO FINAL ---
