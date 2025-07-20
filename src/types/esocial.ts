@@ -2,7 +2,7 @@
 import type { FieldValue } from "firebase/firestore";
 
 export type EsocialEventStatus = 'pending' | 'processing' | 'success' | 'error';
-export type EsocialEventType = 'S-1005' | 'S-1010' | 'S-1020' | 'S-2200' | 'S-1200' | 'S-1210' | 'S-1299';
+export type EsocialEventType = 'S-1005' | 'S-1010' | 'S-1020' | 'S-2190' | 'S-2200' | 'S-1200' | 'S-1210' | 'S-1299';
 
 
 export interface EsocialEvent {

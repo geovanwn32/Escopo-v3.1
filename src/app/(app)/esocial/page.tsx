@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import type { EsocialEvent, EsocialEventStatus, EsocialEventType } from "@/types/esocial";
 import { generateAndSaveEsocialEvent } from "@/services/esocial-generation-service";
+import { generatePreliminaryAdmissionEvent } from "@/services/esocial-preliminary-admission-service";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -199,15 +200,28 @@ function TabEventosNaoPeriodicos({
     actionHandlers: any
 }) {
     const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
+    const [admissionType, setAdmissionType] = useState<'S-2200' | 'S-2190' | null>(null);
     const [isAdmissionFormOpen, setAdmissionFormOpen] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+    const { toast } = useToast();
 
-    const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
+    const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload, isGenerating, handleGeneratePreliminaryAdmission } = actionHandlers;
 
     const handleSelectEmployee = (employee: Employee) => {
         setSelectedEmployee(employee);
         setEmployeeModalOpen(false);
-        setAdmissionFormOpen(true);
+        if (admissionType === 'S-2200') {
+            setAdmissionFormOpen(true);
+        } else if (admissionType === 'S-2190' && activeCompany) {
+            handleGeneratePreliminaryAdmission(employee);
+        } else {
+             toast({ variant: 'destructive', title: 'Erro inesperado' });
+        }
+    };
+    
+    const openEmployeeSelection = (type: 'S-2200' | 'S-2190') => {
+        setAdmissionType(type);
+        setEmployeeModalOpen(true);
     };
 
     const handleAdmissionFormClose = () => {
@@ -220,18 +234,32 @@ function TabEventosNaoPeriodicos({
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Admissões (S-2200)</CardTitle>
-                        <CardDescription>Gere e envie o evento de cadastramento inicial do vínculo de novos funcionários.</CardDescription>
+                        <CardTitle>Admissões</CardTitle>
+                        <CardDescription>Gere eventos de admissão preliminar (S-2190) ou completa (S-2200).</CardDescription>
                     </div>
-                     <Button onClick={() => setEmployeeModalOpen(true)} disabled={!activeCompany}>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Gerar Admissão
-                    </Button>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button disabled={!activeCompany || isGenerating}>
+                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                                Gerar Admissão
+                                <ChevronDown className="ml-2 h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                             <DropdownMenuItem onClick={() => openEmployeeSelection('S-2190')}>
+                                <FileText className="mr-2 h-4 w-4"/>S-2190 - Admissão Preliminar
+                            </DropdownMenuItem>
+                             <DropdownMenuItem onClick={() => openEmployeeSelection('S-2200')}>
+                                <Briefcase className="mr-2 h-4 w-4"/>S-2200 - Admissão Completa
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </CardHeader>
                  <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead>Evento</TableHead>
                                 <TableHead>Funcionário</TableHead>
                                 <TableHead>Data de Geração</TableHead>
                                 <TableHead>Status</TableHead>
@@ -240,11 +268,12 @@ function TabEventosNaoPeriodicos({
                         </TableHeader>
                         <TableBody>
                              {loading ? (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="animate-spin h-6 w-6 mx-auto" /></TableCell></TableRow>
                             ) : events.length === 0 ? (
-                                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Nenhuma admissão gerada ainda.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Nenhuma admissão gerada ainda.</TableCell></TableRow>
                             ) : events.map(event => (
                                 <TableRow key={event.id}>
+                                    <TableCell className="font-mono font-semibold">{event.type}</TableCell>
                                     <TableCell>{(event.relatedDoc as Admission)?.employeeName || 'Carregando...'}</TableCell>
                                     <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                     <TableCell>{getStatusBadge(event.status)}</TableCell>
@@ -625,7 +654,7 @@ export default function EsocialPage() {
 
     useEffect(() => {
         const tableEventTypes: EsocialEventType[] = ['S-1005', 'S-1010', 'S-1020'];
-        const admissionEventTypes: EsocialEventType[] = ['S-2200'];
+        const admissionEventTypes: EsocialEventType[] = ['S-2200', 'S-2190'];
         const periodicEventTypes: EsocialEventType[] = ['S-1200', 'S-1210', 'S-1299'];
 
         setTableEvents(allEvents.filter(event => tableEventTypes.includes(event.type)));
@@ -646,6 +675,20 @@ export default function EsocialPage() {
             setIsGenerating(false);
         }
     };
+    
+    const handleGeneratePreliminaryAdmission = async (employee: Employee) => {
+        if (!user || !activeCompany) return;
+        setIsGenerating(true);
+        try {
+            await generatePreliminaryAdmissionEvent(user.uid, activeCompany, employee);
+            toast({ title: "Evento S-2190 gerado com sucesso!", description: "O registro preliminar foi criado." });
+        } catch (error) {
+             console.error(error);
+             toast({ variant: 'destructive', title: "Erro ao gerar evento S-2190", description: (error as Error).message });
+        } finally {
+            setIsGenerating(false);
+        }
+    }
     
     const handleProcess = async (eventId: string) => {
         if (!user || !activeCompany) return;
@@ -732,7 +775,9 @@ export default function EsocialPage() {
         handleProcess,
         handleCheckStatus,
         handleDelete,
-        handleDownload
+        handleDownload,
+        isGenerating,
+        handleGeneratePreliminaryAdmission
     };
 
     return (
