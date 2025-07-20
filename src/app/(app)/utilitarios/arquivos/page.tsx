@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   collection,
   onSnapshot,
@@ -23,6 +23,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import type { Company } from "@/types/company";
 import type { StoredFile } from "@/types/file";
+import { cn } from "@/lib/utils";
 
 import {
   Card,
@@ -41,12 +42,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  PlusCircle,
   FileArchive,
   Loader2,
   MoreHorizontal,
   Download,
   Trash2,
+  UploadCloud,
+  X,
+  File as FileIcon,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -68,9 +71,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
 
+const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 export default function ArquivosPage() {
-  const [files, setFiles] = useState<StoredFile[]>([]);
+  const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const { user } = useAuth();
@@ -96,20 +110,15 @@ export default function ArquivosPage() {
   useEffect(() => {
     if (!user || !activeCompany) {
         setLoading(false);
-        setFiles([]);
+        setStoredFiles([]);
         return;
     };
 
     setLoading(true);
-    const filesRef = collection(
-      db,
-      `users/${user.uid}/companies/${activeCompany.id}/files`
-    );
+    const filesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/files`);
     const q = query(filesRef, orderBy("createdAt", "desc"));
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const filesData = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
@@ -118,83 +127,102 @@ export default function ArquivosPage() {
             createdAt: data.createdAt?.toDate(),
           } as StoredFile;
         });
-        setFiles(filesData);
+        setStoredFiles(filesData);
         setLoading(false);
-      },
-      (error) => {
+      }, (error) => {
         console.error("Erro ao buscar arquivos: ", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao buscar arquivos.",
-        });
+        toast({ variant: "destructive", title: "Erro ao buscar arquivos." });
         setLoading(false);
-      }
-    );
+      });
 
     return () => unsubscribe();
   }, [user, activeCompany, toast]);
-  
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-        Array.from(event.target.files).forEach(handleUpload);
-    }
-    if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFilesToUpload(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
     }
   };
+  
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+        setFilesToUpload(prev => [...prev, ...Array.from(e.target.files)]);
+    }
+  }
 
-  const handleUpload = (file: File) => {
-    if (!user || !activeCompany) return;
+  const removeFileFromQueue = (index: number) => {
+    setFilesToUpload(prev => prev.filter((_, i) => i !== index));
+  }
+  
+  const handleUpload = () => {
+    if (!user || !activeCompany || filesToUpload.length === 0) return;
+    
+    filesToUpload.forEach(file => {
+        const storagePath = `users/${user.uid}/companies/${activeCompany!.id}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, file);
 
-    const storagePath = `users/${user.uid}/companies/${activeCompany.id}/${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, storagePath);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+        uploadTask.on("state_changed",
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(prev => ({...prev, [file.name]: progress}));
+          },
+          (error) => {
+            console.error("Upload error:", error);
+            toast({ variant: "destructive", title: "Erro no upload", description: `Falha ao enviar o arquivo ${file.name}.` });
+            setUploadProgress(prev => {
+                const newState = {...prev};
+                delete newState[file.name];
+                return newState;
+            });
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const fileData: Omit<StoredFile, 'id'> = {
+                name: file.name,
+                url: downloadURL,
+                type: file.type,
+                size: file.size,
+                storagePath: storagePath,
+                createdAt: serverTimestamp(),
+            };
 
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(prev => ({...prev, [file.name]: progress}));
-      },
-      (error) => {
-        console.error("Upload error:", error);
-        toast({ variant: "destructive", title: "Erro no upload", description: `Falha ao enviar o arquivo ${file.name}.` });
-        setUploadProgress(prev => {
-            const newState = {...prev};
-            delete newState[file.name];
-            return newState;
-        });
-      },
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        const fileData: Omit<StoredFile, 'id'> = {
-            name: file.name,
-            url: downloadURL,
-            type: file.type,
-            size: file.size,
-            storagePath: storagePath,
-            createdAt: serverTimestamp(),
-        };
-
-        const filesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/files`);
-        await addDoc(filesRef, fileData);
-
-        toast({ title: "Upload Concluído!", description: `O arquivo ${file.name} foi enviado.` });
-        setUploadProgress(prev => {
-            const newState = {...prev};
-            delete newState[file.name];
-            return newState;
-        });
-      }
-    );
+            const filesRef = collection(db, `users/${user.uid}/companies/${activeCompany!.id}/files`);
+            await addDoc(filesRef, fileData);
+            
+            // Do not show toast here, progress bar disappearing is enough feedback
+            setUploadProgress(prev => {
+                const newState = {...prev};
+                delete newState[file.name];
+                return newState;
+            });
+          }
+        );
+    });
+    setFilesToUpload([]); // Clear queue after starting uploads
   };
   
   const handleDelete = async (file: StoredFile) => {
       if (!user || !activeCompany || !file.id) return;
-
       const fileDocRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/files`, file.id);
       const storageRef = ref(storage, file.storagePath);
-
       try {
           await deleteObject(storageRef);
           await deleteDoc(fileDocRef);
@@ -205,50 +233,86 @@ export default function ArquivosPage() {
       }
   };
 
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  }
-
-
   return (
     <div className="space-y-6">
        <input
         type="file"
         ref={fileInputRef}
-        onChange={handleFileChange}
+        onChange={handleFileSelect}
         className="hidden"
         multiple
       />
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Repositório de Arquivos</h1>
-        <Button onClick={() => fileInputRef.current?.click()} disabled={!activeCompany}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Adicionar Novo Arquivo
-        </Button>
-      </div>
+      <h1 className="text-2xl font-bold">Repositório de Arquivos</h1>
+      
+       <Card>
+        <CardHeader>
+          <CardTitle>Adicionar Novos Arquivos</CardTitle>
+          <CardDescription>Arraste e solte os arquivos na área abaixo ou clique para selecionar.</CardDescription>
+        </CardHeader>
+        <CardContent>
+             <div 
+                className={cn(
+                    "border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center transition-colors",
+                    isDragging && "border-primary bg-primary/10",
+                    !activeCompany && "cursor-not-allowed opacity-50"
+                )}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => activeCompany && fileInputRef.current?.click()}
+             >
+                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <UploadCloud className="h-10 w-10"/>
+                    <p className="font-semibold">Arraste seus arquivos aqui</p>
+                    <p className="text-sm">ou clique para selecionar</p>
+                </div>
+             </div>
+
+            {filesToUpload.length > 0 && (
+                <div className="mt-6 space-y-4">
+                    <h4 className="text-lg font-medium">Fila de Upload ({filesToUpload.length})</h4>
+                    <div className="space-y-2">
+                        {filesToUpload.map((file, index) => (
+                             <div key={index} className="flex items-center justify-between p-2 border rounded-md bg-muted/50">
+                                <div className="flex items-center gap-3">
+                                    <FileIcon className="h-5 w-5 text-muted-foreground"/>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium">{file.name}</span>
+                                        <span className="text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+                                    </div>
+                                </div>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFileFromQueue(index)}>
+                                    <X className="h-4 w-4"/>
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                         <Button variant="outline" onClick={() => setFilesToUpload([])}>Limpar Fila</Button>
+                         <Button onClick={handleUpload}>Enviar Arquivos</Button>
+                    </div>
+                </div>
+            )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Arquivos da Empresa</CardTitle>
-          <CardDescription>
-            Gerencie documentos e arquivos importantes da sua empresa.
-          </CardDescription>
+          <CardDescription>Gerencie documentos e arquivos importantes da sua empresa.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
              <div className="flex justify-center items-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : files.length === 0 && Object.keys(uploadProgress).length === 0 ? (
+          ) : storedFiles.length === 0 && Object.keys(uploadProgress).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="p-4 bg-muted rounded-full mb-4">
                 <FileArchive className="h-10 w-10 text-muted-foreground" />
               </div>
               <h3 className="text-xl font-semibold">Nenhum arquivo encontrado</h3>
               <p className="text-muted-foreground mt-2">
-                {!activeCompany ? "Selecione uma empresa para começar." : 'Clique em "Adicionar Novo Arquivo" para enviar.'}
+                {!activeCompany ? "Selecione uma empresa para começar." : 'Use a área acima para enviar seu primeiro arquivo.'}
               </p>
             </div>
           ) : (
@@ -271,7 +335,7 @@ export default function ArquivosPage() {
                         <TableCell className="text-right"><Loader2 className="h-4 w-4 animate-spin ml-auto" /></TableCell>
                     </TableRow>
                 ))}
-                {files.map((file) => (
+                {storedFiles.map((file) => (
                   <TableRow key={file.id}>
                     <TableCell className="font-medium max-w-sm truncate">{file.name}</TableCell>
                     <TableCell>{formatBytes(file.size)}</TableCell>
@@ -317,5 +381,3 @@ export default function ArquivosPage() {
     </div>
   );
 }
-
-    
