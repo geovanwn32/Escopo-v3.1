@@ -22,23 +22,30 @@ const formatCurrency = (value: number | undefined | null): string => {
 };
 
 const formatCnpj = (cnpj: string): string => {
+    if (!cnpj) return '';
     return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 };
 
-const getEventName = (item: any): string => {
-    if (item.period) return `Folha de Pagamento - ${item.period}`;
-    if (item.vacationDays) {
-        const startDate = (item.startDate as any)?.toDate ? (item.startDate as any).toDate() : item.startDate;
-        return `Férias - Início em ${format(startDate, 'dd/MM/yyyy')}`;
+const formatDate = (date: any): string => {
+    if (!date) return '';
+    try {
+        const jsDate = date.toDate ? date.toDate() : new Date(date);
+        if (isNaN(jsDate.getTime())) return '';
+        return format(jsDate, 'dd/MM/yyyy');
+    } catch {
+        return '';
     }
+}
+
+
+const getEventName = (item: any): string => {
+    if (item.period) return `Folha Pag. (${item.period})`;
+    if (item.vacationDays) return `Férias (Início: ${formatDate(item.startDate)})`;
     if (item.parcel) {
         const parcelLabel = { first: '1ª Parcela', second: '2ª Parcela', unique: 'Parcela Única' }[item.parcel] || item.parcel;
-        return `13º Salário (${parcelLabel}) - ${item.year}`;
+        return `13º Salário (${parcelLabel})`;
     }
-    if (item.reason) {
-        const termDate = (item.terminationDate as any)?.toDate ? (item.terminationDate as any).toDate() : item.terminationDate;
-        return `Rescisão - ${format(termDate, 'dd/MM/yyyy')}`;
-    }
+    if (item.reason) return `Rescisão (${formatDate(item.terminationDate)})`;
     return 'Lançamento';
 };
 
@@ -48,29 +55,19 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
     
-    // Color Palette
-    const primaryColor = [51, 145, 255]; // HSL(210, 70%, 50%) - Blue
-    const destructiveColor = [220, 38, 38]; // #DC2626 - Red-600
-    const slate500 = [100, 116, 139]; // Gray for neutral headers
-    const slate200 = [226, 232, 240]; // Light gray for sub-headers
-    const slate50 = [248, 250, 252]; // Very light gray for footers
-
-    const checkPageBreak = () => {
-        if (y > 250) {
-            doc.addPage();
-            y = 15;
-        }
-    }
-
+    const primaryColor = [51, 145, 255]; 
+    const destructiveColor = [220, 38, 38]; 
+    const slate500 = [100, 116, 139]; 
+    const slate100 = [241, 245, 249]; 
 
     // --- FETCH DATA ---
     const startDate = new Date(period.year, period.month - 1, 1);
     const endDate = new Date(period.year, period.month, 0, 23, 59, 59);
 
-    const fetchCollection = async (collectionName: string, dateField: string) => {
+    const fetchCollection = async (collectionName: string, dateField: string, isPeriodBased: boolean = false) => {
         const ref = collection(db, `users/${userId}/companies/${company.id}/${collectionName}`);
         let q;
-        if (collectionName === 'payrolls') {
+        if (isPeriodBased) {
              q = query(ref, where('period', '==', `${String(period.month).padStart(2, '0')}/${period.year}`));
         } else {
              q = query(ref, where(dateField, '>=', Timestamp.fromDate(startDate)), where(dateField, '<=', Timestamp.fromDate(endDate)));
@@ -79,7 +76,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     };
 
-    const payrolls = await fetchCollection('payrolls', 'createdAt') as Payroll[];
+    const payrolls = await fetchCollection('payrolls', 'createdAt', true) as Payroll[];
     const vacations = await fetchCollection('vacations', 'startDate') as Vacation[];
     const thirteenths = await fetchCollection('thirteenths', 'createdAt') as Thirteenth[];
     const terminations = await fetchCollection('terminations', 'terminationDate') as Termination[];
@@ -102,7 +99,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     // Header
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Relatório Detalhado da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
+    doc.text(`Resumo da Folha de Pagamento - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
     y += 8;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -114,103 +111,76 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     
     let grandTotalProventos = 0;
     let grandTotalDescontos = 0;
+    const allTableRows: any[] = [];
 
     for (const employeeId in itemsByEmployee) {
-        checkPageBreak();
-
         const employeeItems = itemsByEmployee[employeeId];
         const employeeName = employeeItems[0].employeeName;
-        
-        let employeeTotalProventos = 0;
-        let employeeTotalDescontos = 0;
-        
-        // Employee Header Bar
-        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.rect(14, y, pageWidth - 28, 8, 'F');
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255);
-        doc.text(`Funcionário: ${employeeName}`, 16, y + 5.5);
-        y += 12;
-        doc.setTextColor(0);
+
+        // Add a group header row for the employee
+        allTableRows.push([{ content: `Funcionário: ${employeeName}`, colSpan: 5, styles: { fillColor: slate500, textColor: 255, fontStyle: 'bold' } }]);
 
         for (const item of employeeItems) {
-            checkPageBreak();
+            const events = item.events || item.result?.events || [];
+            if (events.length > 0) {
+                 allTableRows.push([{ content: getEventName(item), colSpan: 5, styles: { fillColor: slate100, textColor: 50, fontStyle: 'bold', fontSize: 9 } }]);
+            }
+            events.forEach((ev: any) => {
+                 allTableRows.push([
+                    '', // Empty first column for indentation
+                    ev.descricao,
+                    ev.referencia,
+                    formatCurrency(ev.provento),
+                    formatCurrency(ev.desconto)
+                ]);
+            });
 
             const totals = item.totals || item.result;
-            const events = item.events || item.result?.events || [];
-            
-            autoTable(doc, {
-                startY: y,
-                head: [[{ content: getEventName(item), colSpan: 4, styles: { fillColor: slate200, textColor: 30 } }]],
-                body: events.map((ev: any) => [ev.descricao, ev.referencia, formatCurrency(ev.provento), formatCurrency(ev.desconto)]),
-                foot: [[
-                  { content: 'Subtotal do Lançamento', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-                  { content: formatCurrency(totals.totalProventos), styles: { halign: 'right', fontStyle: 'bold' } },
-                  { content: formatCurrency(totals.totalDescontos), styles: { halign: 'right', fontStyle: 'bold', textColor: destructiveColor } },
-                ]],
-                theme: 'grid',
-                styles: { fontSize: 8 },
-                headStyles: { fontStyle: 'bold' },
-                footStyles: { fillColor: slate50 },
-                columnStyles: {
-                  0: { cellWidth: 'auto' },
-                  1: { cellWidth: 25, halign: 'right' },
-                  2: { cellWidth: 30, halign: 'right' },
-                  3: { cellWidth: 30, halign: 'right' },
-                }
-            });
-            y = (doc as any).lastAutoTable.finalY + 5;
-            
-            employeeTotalProventos += totals.totalProventos || 0;
-            employeeTotalDescontos += totals.totalDescontos || 0;
+            grandTotalProventos += totals?.totalProventos || 0;
+            grandTotalDescontos += totals?.totalDescontos || 0;
         }
-        
-        const employeeTotalLiquido = employeeTotalProventos - employeeTotalDescontos;
-        grandTotalProventos += employeeTotalProventos;
-        grandTotalDescontos += employeeTotalDescontos;
-
-        autoTable(doc, {
-            startY: y,
-            theme: 'striped',
-            head: [[{content: `Resumo do Funcionário - ${employeeName}`, colSpan: 2, styles: {fillColor: slate500, textColor: 255}}]],
-            body: [
-                ['Total de Proventos', formatCurrency(employeeTotalProventos)],
-                [{content: 'Total de Descontos', styles: {}}, {content: formatCurrency(employeeTotalDescontos), styles: {textColor: destructiveColor}}],
-                [{ content: 'Total Líquido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(employeeTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor } }],
-            ],
-            styles: { fontSize: 9, fontStyle: 'bold' },
-            columnStyles: { 0: { halign: 'right' }, 1: { halign: 'right' } }
-        });
-        y = (doc as any).lastAutoTable.finalY + 12;
     }
+    
+    const grandTotalLiquido = grandTotalProventos - grandTotalDescontos;
 
-    if (Object.keys(itemsByEmployee).length > 1) { 
-        checkPageBreak();
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Resumo Geral da Folha - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
-        y += 10;
-        
-        const grandTotalLiquido = grandTotalProventos - grandTotalDescontos;
+    autoTable(doc, {
+        startY: y,
+        head: [['', 'Verba', 'Referência', 'Proventos', 'Descontos']],
+        body: allTableRows,
+        foot: [
+            [
+                { content: 'TOTAIS GERAIS DA EMPRESA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
+                { content: formatCurrency(grandTotalProventos), styles: { fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
+                { content: formatCurrency(grandTotalDescontos), styles: { fontStyle: 'bold', fillColor: slate100, textColor: destructiveColor } },
+                { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', fillColor: slate100, textColor: primaryColor } },
+            ]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
+        footStyles: { halign: 'right' },
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        didParseCell: function(data) {
+            // This is to color the footer text since jspdf-autotable has issues with it
+            if (data.row.section === 'foot') {
+                if (data.column.index === 3) data.cell.styles.textColor = destructiveColor;
+                if (data.column.index === 4) data.cell.styles.textColor = primaryColor;
+            }
+        },
+        columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 25, halign: 'right' },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 30, halign: 'right' },
+        }
+    });
 
-        autoTable(doc, {
-          startY: y,
-          head: [['Descrição Geral', 'Valor Total']],
-          body: [
-            ['Total Geral de Proventos', formatCurrency(grandTotalProventos)],
-            [{content: 'Total Geral de Descontos', styles: {}}, {content: formatCurrency(grandTotalDescontos), styles: {textColor: destructiveColor}}],
-            [{ content: 'Total Líquido Geral', styles: { fontStyle: 'bold', fillColor: slate50 } }, { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', textColor: primaryColor, fillColor: slate50 } }],
-          ],
-          theme: 'grid',
-          headStyles: { fillColor: primaryColor, textColor: 255 },
-          styles: { fontSize: 10 },
-          columnStyles: { 0: { halign: 'left' }, 1: { halign: 'right' } }
-        });
-        y = (doc as any).lastAutoTable.finalY + 15;
+    y = (doc as any).lastAutoTable.finalY + 15;
+    
+    if (y > 250) {
+      doc.addPage();
+      y = 15;
     }
-
-    checkPageBreak();
 
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -223,5 +193,3 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     
     doc.output('dataurlnewwindow');
 }
-
-    
