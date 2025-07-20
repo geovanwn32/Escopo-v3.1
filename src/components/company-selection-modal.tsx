@@ -8,13 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, PlusCircle, Trash2, Edit, Search, CheckCircle } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, Search, CheckCircle, Building2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Card, CardContent } from './ui/card';
+import { cn } from '@/lib/utils';
 
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
@@ -92,7 +93,8 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
     }
   }
 
-  const handleEdit = (company: any) => {
+  const handleEdit = (e: React.MouseEvent, company: any) => {
+    e.stopPropagation(); // Prevent card click
     setEditingCompany(company);
     form.reset({
         nomeFantasia: company.nomeFantasia,
@@ -100,6 +102,10 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
         cnpj: company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5"),
     });
     setIsCreating(true);
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
   }
 
   return (
@@ -142,48 +148,53 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
             {loading ? (
               <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
             ) : (
-              <div className="border rounded-md max-h-[50vh] overflow-y-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nome Fantasia</TableHead>
-                            <TableHead>CNPJ</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredCompanies.length > 0 ? (
-                            filteredCompanies.map(company => (
-                                <TableRow key={company.id} className="group">
-                                    <TableCell className="font-medium">{company.nomeFantasia}</TableCell>
-                                    <TableCell className="font-mono text-xs">{company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}</TableCell>
-                                    <TableCell className="text-right space-x-1">
-                                        <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEdit(company)}><Edit className="h-4 w-4" /></Button>
-                                        <AlertDialog>
+              <div className="max-h-[50vh] overflow-y-auto p-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredCompanies.length > 0 ? (
+                      filteredCompanies.map(company => (
+                          <Card 
+                              key={company.id} 
+                              className="group cursor-pointer hover:border-primary transition-all relative"
+                              onClick={() => onCompanySelect(company)}
+                          >
+                              <CardContent className="p-4 flex flex-col justify-between h-full">
+                                <div>
+                                    <div className="absolute top-2 right-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handleEdit(e, company)}>
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-4 w-4" /></Button>
+                                                <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive h-7 w-7" onClick={handleDeleteClick}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader><AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita e irá remover todos os dados associados a esta empresa.</AlertDialogDescription></AlertDialogHeader>
                                                 <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDeleteCompany(company.id)}>Excluir</AlertDialogAction>
+                                                    <AlertDialogCancel onClick={handleDeleteClick}>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={(e) => { e.stopPropagation(); handleDeleteCompany(company.id); }}>Excluir</AlertDialogAction>
                                                 </AlertDialogFooter>
                                             </AlertDialogContent>
                                         </AlertDialog>
-                                        <Button size="sm" onClick={() => onCompanySelect(company)}><CheckCircle className="mr-2 h-4 w-4"/>Selecionar</Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
-                           <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                                    Nenhuma empresa encontrada.
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                                    </div>
+                                    <Building2 className="w-8 h-8 text-muted-foreground mb-3" />
+                                    <p className="font-semibold text-card-foreground truncate">{company.nomeFantasia}</p>
+                                    <p className="text-sm text-muted-foreground font-mono">{company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}</p>
+                                </div>
+                                <Button className="w-full mt-4" variant="secondary" onClick={() => onCompanySelect(company)}>
+                                  <CheckCircle className="mr-2 h-4 w-4"/>
+                                  Selecionar
+                                </Button>
+                              </CardContent>
+                          </Card>
+                      ))
+                  ) : (
+                     <div className="col-span-full h-24 text-center flex justify-center items-center text-muted-foreground">
+                          Nenhuma empresa encontrada.
+                      </div>
+                  )}
+                </div>
               </div>
             )}
             <DialogFooter className="mt-4">
