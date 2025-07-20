@@ -90,9 +90,7 @@ export default function FichasPage() {
                     const termRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
                     const q = query(
                         termRef,
-                        where("employeeId", "==", employee.id!),
-                        orderBy("createdAt", "desc"),
-                        limit(1)
+                        where("employeeId", "==", employee.id!)
                     );
                     const termSnap = await getDocs(q);
                     
@@ -100,7 +98,15 @@ export default function FichasPage() {
                         toast({ variant: "destructive", title: "Cálculo de Rescisão não encontrado", description: "É necessário calcular a rescisão para este funcionário antes de gerar o TRCT." });
                         return;
                     }
-                    const latestTermDoc = termSnap.docs[0];
+                    
+                    // Sort documents by createdAt date descending to find the latest one
+                    const sortedTerminations = termSnap.docs.sort((a, b) => {
+                        const dateA = (a.data().createdAt as Timestamp)?.toDate() || new Date(0);
+                        const dateB = (b.data().createdAt as Timestamp)?.toDate() || new Date(0);
+                        return dateB.getTime() - dateA.getTime();
+                    });
+
+                    const latestTermDoc = sortedTerminations[0];
                     const termData = latestTermDoc.data() as Termination;
                     termData.terminationDate = (termData.terminationDate as Timestamp).toDate();
                     generateTrctPdf(activeCompany, employee, termData);
