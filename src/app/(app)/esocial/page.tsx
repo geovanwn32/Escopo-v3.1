@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Play, Send, RefreshCw, Trash2, MoreHorizontal, Eye, ChevronDown } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -121,6 +121,19 @@ export default function EsocialPage() {
          }
     };
 
+    const handleDownload = (payload: string, type: EsocialEventType) => {
+        const blob = new Blob([payload], { type: 'text/xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${type}-${new Date().getTime()}.xml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Download iniciado", description: `O arquivo ${a.download} está sendo baixado.` });
+    };
+
     const getStatusBadge = (status: EsocialEventStatus) => {
         switch (status) {
             case 'pending': return <Badge variant="secondary">Pendente</Badge>;
@@ -199,12 +212,17 @@ export default function EsocialPage() {
                                                     <Send className="mr-2 h-4 w-4" />
                                                     <span>{event.status === 'error' ? 'Reenviar' : 'Enviar'}</span>
                                                 </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleDownload(event.payload, event.type)}>
+                                                    <FileDown className="mr-2 h-4 w-4" />
+                                                    <span>Baixar XML</span>
+                                                </DropdownMenuItem>
                                                 {event.status === 'error' && (
                                                     <DropdownMenuItem onClick={() => toast({ title: "Detalhes do Erro", description: event.errorDetails })}>
                                                         <Eye className="mr-2 h-4 w-4" />
                                                         <span>Ver Erro</span>
                                                     </DropdownMenuItem>
                                                 )}
+                                                <DropdownMenuSeparator />
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
                                                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
