@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Employee } from '@/types/employee';
 import type { Termination } from '@/types/termination';
 import { format } from 'date-fns';
@@ -48,6 +48,9 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
       body: [
           [{ content: '01 Razão Social/Nome', styles: { fontStyle: 'bold' } }, company.razaoSocial],
           [{ content: '02 CNPJ/CEI/CNO', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
+          [{ content: '03 Endereço', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''}`],
+          [{ content: '04 Bairro/Município/UF', styles: { fontStyle: 'bold' } }, `${company.bairro || ''} / ${company.cidade || ''} - ${company.uf || ''}`],
+          [{ content: '05 CEP', styles: { fontStyle: 'bold' } }, company.cep ? company.cep.replace(/(\d{5})(\d{3})/, "$1-$2") : ''],
       ],
       columnStyles: { 0: { cellWidth: 40 } }
   });
@@ -85,7 +88,7 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
           [{ content: '22 Salário Base', styles: { fontStyle: 'bold' } }, formatCurrency(employee.salarioBase)],
           [{ content: '23 Data de Admissão', styles: { fontStyle: 'bold' } }, formatDate(employee.dataAdmissao)],
           [{ content: '24 Data de Afastamento', styles: { fontStyle: 'bold' } }, formatDate(termination.terminationDate as Date)],
-          [{ content: '25 Causa do Afastamento', styles: { fontStyle: 'bold' } }, termination.reason],
+          [{ content: '25 Causa do Afastamento', styles: { fontStyle: 'bold' } }, termination.reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())],
       ],
       columnStyles: { 0: { cellWidth: 40 } }
   });
@@ -105,7 +108,7 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
 
     autoTable(doc, {
         startY: y,
-        head: [['Verba Rescisória', 'Referência', 'Valor', 'Dedução']],
+        head: [['Verba Rescisória', 'Referência', 'Proventos', 'Descontos']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
@@ -140,7 +143,7 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
             ]
         ],
         columnStyles: {
-            0: { cellWidth: 106.8 }, 
+            0: { cellWidth: 106.8, styles: { cellPadding: { right: 2 } } },
             1: { cellWidth: 60 },
         }
     });

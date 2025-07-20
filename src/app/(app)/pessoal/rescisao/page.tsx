@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculateTermination, TerminationResult } from '@/services/termination-service';
@@ -228,7 +228,7 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
     };
 
     const handleGeneratePdf = () => {
-        if (!activeCompany || !selectedEmployee || !calculationResult) {
+        if (!activeCompany || !selectedEmployee || !calculationResult || !terminationDate) {
             toast({ variant: 'destructive', title: 'Dados incompletos para gerar PDF.' });
             return;
         }
