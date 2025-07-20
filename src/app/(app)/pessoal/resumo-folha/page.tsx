@@ -10,7 +10,7 @@ import { FileText, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
-import { Company } from "@/types/company";
+import type { Company } from '@/types/company';
 import { generatePayrollSummaryPdf } from "@/services/payroll-summary-service";
 
 export default function ResumoFolhaPage() {

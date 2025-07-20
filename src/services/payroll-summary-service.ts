@@ -76,7 +76,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     };
 
-    const payrolls = await fetchCollection('payrolls', 'createdAt', true) as Payroll[];
+    const payrolls = await fetchCollection('payrolls', '', true) as Payroll[];
     const vacations = await fetchCollection('vacations', 'startDate') as Vacation[];
     const thirteenths = await fetchCollection('thirteenths', 'createdAt') as Thirteenth[];
     const terminations = await fetchCollection('terminations', 'terminationDate') as Termination[];
@@ -136,7 +136,7 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
             });
 
             const totals = item.totals || item.result;
-            grandTotalProventos += totals?.totalProventos || 0;
+            grandTotalProventos += totals?.totalProventos || totals?.liquido || 0;
             grandTotalDescontos += totals?.totalDescontos || 0;
         }
     }
@@ -149,9 +149,12 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         body: allTableRows,
         foot: [
             [
-                { content: 'TOTAIS GERAIS DA EMPRESA', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
+                { content: 'TOTAIS GERAIS DA EMPRESA', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
                 { content: formatCurrency(grandTotalProventos), styles: { fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
                 { content: formatCurrency(grandTotalDescontos), styles: { fontStyle: 'bold', fillColor: slate100, textColor: destructiveColor } },
+            ],
+            [
+                 { content: 'LÍQUIDO A PAGAR:', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold', fillColor: slate100, textColor: 0 } },
                 { content: formatCurrency(grandTotalLiquido), styles: { fontStyle: 'bold', fillColor: slate100, textColor: primaryColor } },
             ]
         ],
@@ -162,8 +165,8 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
         didParseCell: function(data) {
             // This is to color the footer text since jspdf-autotable has issues with it
             if (data.row.section === 'foot') {
-                if (data.column.index === 3) data.cell.styles.textColor = destructiveColor;
-                if (data.column.index === 4) data.cell.styles.textColor = primaryColor;
+                if (data.column.index === 4 && data.row.index === 0) data.cell.styles.textColor = destructiveColor;
+                if (data.column.index === 4 && data.row.index === 1) data.cell.styles.textColor = primaryColor;
             }
         },
         columnStyles: {
