@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
-import { UserPlus, Loader2 } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 
@@ -26,6 +26,7 @@ export function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -92,7 +93,22 @@ export function RegisterForm() {
                     <FormItem>
                       <FormLabel>Senha</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Mínimo 6 caracteres" {...field} />
+                        <div className="relative">
+                           <Input 
+                            type={showPassword ? 'text' : 'password'} 
+                            placeholder="Mínimo 6 caracteres" 
+                            {...field}
+                            className="pr-10"
+                           />
+                           <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)} 
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground"
+                            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                          >
+                            {showPassword ? <EyeOff className="h-5 w-5"/> : <Eye className="h-5 w-5"/>}
+                          </button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -119,7 +135,7 @@ export function RegisterForm() {
             alt="Pessoa trabalhando em um ambiente organizado"
             fill
             className="object-cover"
-            data-ai-hint="financial key"
+            data-ai-hint="accounting charts"
         />
         <div className="relative z-10">
             <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">

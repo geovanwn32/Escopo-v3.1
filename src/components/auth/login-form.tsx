@@ -69,7 +69,7 @@ export function LoginForm() {
             alt="Pessoa organizando finanças"
             fill
             className="object-cover"
-            data-ai-hint="financial key"
+            data-ai-hint="accounting desk"
         />
         <div className="relative z-10">
             <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">
