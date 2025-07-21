@@ -13,9 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
-import { UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import Image from 'next/image';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
@@ -60,19 +59,25 @@ export function RegisterForm() {
   }
 
   return (
-     <div className="w-full h-screen lg:grid lg:grid-cols-2">
-       <div className="flex items-center justify-center py-12">
-        <Card className="w-full max-w-md mx-auto border-0 shadow-none sm:border sm:shadow-sm">
-          <CardHeader className="text-center">
-            <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
-                <UserPlus className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>Crie a sua Conta</CardTitle>
-            <CardDescription>É rápido e fácil. Preencha os campos abaixo para começar.</CardDescription>
-          </CardHeader>
-          <CardContent>
+    <div className="w-full h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+            <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
+                <BookCheck className="h-8 w-8" />
+                <span>Escopo</span>
+            </Link>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">Crie sua conta gratuita</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Já possui uma conta?{' '}
+                <Link href="/login" className="font-medium text-primary hover:underline">
+                    Acesse aqui
+                </Link>
+            </p>
+        </div>
+        <Card className="shadow-lg">
+          <CardContent className="p-8">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
                   control={form.control}
                   name="email"
@@ -116,38 +121,12 @@ export function RegisterForm() {
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Registar
+                  Criar Conta
                 </Button>
               </form>
             </Form>
-            <p className="mt-4 text-center text-sm">
-              Já tem uma conta?{' '}
-              <Link href="/login" className="font-semibold text-primary hover:underline">
-                Faça Login
-              </Link>
-            </p>
           </CardContent>
         </Card>
-      </div>
-       <div className="hidden bg-muted lg:flex flex-col justify-between p-8 relative">
-        <Image
-            src="https://placehold.co/800x1200.png"
-            alt="Pessoa trabalhando em um ambiente organizado"
-            fill
-            className="object-cover"
-            data-ai-hint="accounting charts"
-        />
-        <div className="relative z-10">
-            <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">
-                Escopo
-            </Link>
-        </div>
-         <div className="relative z-10 mt-auto bg-black/50 p-4 rounded-lg backdrop-blur-sm">
-            <blockquote className="space-y-2 text-white">
-                <p className="text-lg">&ldquo;A contabilidade é a linguagem dos negócios. Dominá-la é o primeiro passo para o sucesso sustentável.&rdquo;</p>
-                <footer className="text-sm">Equipe Escopo</footer>
-            </blockquote>
-        </div>
       </div>
     </div>
   );

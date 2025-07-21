@@ -13,10 +13,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
-import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import Image from 'next/image';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
@@ -62,39 +61,25 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full h-screen lg:grid lg:grid-cols-2">
-      <div className="hidden bg-muted lg:flex flex-col justify-between p-8 relative">
-        <Image
-            src="https://placehold.co/800x1200.png"
-            alt="Pessoa organizando finanças"
-            fill
-            className="object-cover"
-            data-ai-hint="accounting desk"
-        />
-        <div className="relative z-10">
-            <Link href="/" className="flex items-center gap-2 font-bold text-lg text-white">
-                Escopo
+    <div className="w-full h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+            <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
+                <BookCheck className="h-8 w-8" />
+                <span>Escopo</span>
             </Link>
+            <h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">Acesse sua conta</h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                Ainda não tem uma?{' '}
+                <Link href="/register" className="font-medium text-primary hover:underline">
+                    Crie uma agora
+                </Link>
+            </p>
         </div>
-         <div className="relative z-10 mt-auto bg-black/50 p-4 rounded-lg backdrop-blur-sm">
-            <blockquote className="space-y-2 text-white">
-                <p className="text-lg">&ldquo;A organização é a chave para a paz de espírito financeira. Com as ferramentas certas, qualquer complexidade se torna simples.&rdquo;</p>
-                <footer className="text-sm">Sofia Mendes, CFO</footer>
-            </blockquote>
-        </div>
-      </div>
-      <div className="flex items-center justify-center py-12">
-        <Card className="w-full max-w-md mx-auto border-0 shadow-none sm:border sm:shadow-sm">
-          <CardHeader className="text-center">
-             <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-2">
-                <LogIn className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle>Bem-vindo de volta!</CardTitle>
-            <CardDescription>Faça login para acessar o painel de controle.</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Card className="shadow-lg">
+          <CardContent className="p-8">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
                   control={form.control}
                   name="email"
@@ -136,37 +121,39 @@ export function LoginForm() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="rememberMe"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Lembrar-me
-                        </FormLabel>
-                      </div>
-                    </FormItem>
-                  )}
-                />
+                 <div className="flex items-center justify-between">
+                    <FormField
+                    control={form.control}
+                    name="rememberMe"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                            <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                            <FormLabel>
+                            Lembrar-me
+                            </FormLabel>
+                        </div>
+                        </FormItem>
+                    )}
+                    />
+                    <div className="text-sm">
+                        <a href="#" className="font-medium text-primary hover:underline">
+                            Esqueceu a senha?
+                        </a>
+                    </div>
+                </div>
+
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                  Entrar
+                  Entrar na Plataforma
                 </Button>
               </form>
             </Form>
-            <p className="mt-4 text-center text-sm">
-              Não tem uma conta?{' '}
-              <Link href="/register" className="font-semibold text-primary hover:underline">
-                Registe-se
-              </Link>
-            </p>
           </CardContent>
         </Card>
       </div>
