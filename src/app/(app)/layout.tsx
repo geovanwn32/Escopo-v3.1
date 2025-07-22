@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -71,7 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-neutral-100 dark:bg-neutral-800">
         <SidebarNav activeCompany={activeCompany} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header
