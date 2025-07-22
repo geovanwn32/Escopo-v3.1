@@ -32,48 +32,38 @@ const aliquotaSchema = z.object({
   itemLc: z.string().optional(),
 });
 
-export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota, esfera }: AliquotaFormModalProps) {
+type FormData = z.infer<typeof aliquotaSchema>;
+
+function AliquotaForm({ userId, companyId, aliquota, esfera, onClose }: Omit<AliquotaFormModalProps, 'isOpen'>) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   
-  const form = useForm<z.infer<typeof aliquotaSchema>>({
+  const mode = aliquota ? 'edit' : 'create';
+  
+  const form = useForm<FormData>({
     resolver: zodResolver(aliquotaSchema),
-    defaultValues: {
-      esfera: esfera,
-      nomeDoImposto: '',
-      descricao: '',
-      aliquota: 0,
-      itemLc: '',
-    }
+    defaultValues: mode === 'create' 
+      ? {
+          esfera: esfera,
+          nomeDoImposto: '',
+          descricao: '',
+          aliquota: 0,
+          itemLc: '',
+        }
+      : {
+          ...aliquota,
+          aliquota: String(aliquota?.aliquota || 0),
+        },
   });
 
-  const mode = aliquota ? 'edit' : 'create';
   const title = {
     municipal: 'Imposto Municipal',
     estadual: 'Imposto Estadual',
     federal: 'Imposto Federal',
   }[esfera];
 
-  useEffect(() => {
-    if (isOpen) {
-        if (aliquota) {
-            form.reset({
-                ...aliquota,
-                aliquota: String(aliquota.aliquota),
-            });
-        } else {
-            form.reset({
-                esfera: esfera,
-                nomeDoImposto: '',
-                descricao: '',
-                aliquota: 0,
-                itemLc: '',
-            });
-        }
-    }
-  }, [isOpen, aliquota, esfera, form]);
 
-  const onSubmit = async (values: z.infer<typeof aliquotaSchema>) => {
+  const onSubmit = async (values: FormData) => {
     setLoading(true);
     try {
       const dataToSave = { ...values };
@@ -97,38 +87,56 @@ export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota
   };
 
   return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? `Nova Alíquota (${title})` : `Editar Alíquota (${title})`}</DialogTitle>
+        <DialogDescription>Preencha os dados do imposto abaixo.</DialogDescription>
+      </DialogHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <FormField control={form.control} name="nomeDoImposto" render={({ field }) => ( <FormItem><FormLabel>Nome do Imposto</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS' : esfera === 'estadual' ? 'Ex: ICMS' : 'Ex: PIS'} /></FormControl><FormMessage /></FormItem> )} />
+          <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS sobre serviço de TI - Goiânia' : 'Ex: ICMS Alíquota Interna'} /></FormControl><FormMessage /></FormItem> )} />
+          
+          <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="aliquota" render={({ field }) => ( <FormItem><FormLabel>Alíquota (%)</FormLabel><FormControl><Input {...field} type="text" onChange={e => {
+                          const { value } = e.target;
+                          e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                          field.onChange(e);
+                      }} /></FormControl><FormMessage /></FormItem> )} />
+
+              {esfera === 'municipal' && (
+                  <FormField control={form.control} name="itemLc" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} placeholder="Ex: 01.01" /></FormControl><FormMessage /></FormItem> )} />
+              )}
+          </div>
+
+          <DialogFooter className="pt-6">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" /> : <Save />}
+              {mode === 'create' ? 'Salvar Alíquota' : 'Salvar Alterações'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
+  );
+}
+
+
+export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota, esfera }: AliquotaFormModalProps) {
+  // Use a key to force re-render and re-initialization of the form when the modal opens for a different item.
+  const modalKey = `${aliquota?.id || 'new'}-${esfera}`;
+
+  return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{mode === 'create' ? `Nova Alíquota (${title})` : `Editar Alíquota (${title})`}</DialogTitle>
-          <DialogDescription>Preencha os dados do imposto abaixo.</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            <FormField control={form.control} name="nomeDoImposto" render={({ field }) => ( <FormItem><FormLabel>Nome do Imposto</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS' : esfera === 'estadual' ? 'Ex: ICMS' : 'Ex: PIS'} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição</FormLabel><FormControl><Input {...field} placeholder={esfera === 'municipal' ? 'Ex: ISS sobre serviço de TI - Goiânia' : 'Ex: ICMS Alíquota Interna'} /></FormControl><FormMessage /></FormItem> )} />
-            
-            <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="aliquota" render={({ field }) => ( <FormItem><FormLabel>Alíquota (%)</FormLabel><FormControl><Input {...field} type="text" onChange={e => {
-                            const { value } = e.target;
-                            e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
-                            field.onChange(e);
-                        }} /></FormControl><FormMessage /></FormItem> )} />
-
-                {esfera === 'municipal' && (
-                    <FormField control={form.control} name="itemLc" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} placeholder="Ex: 01.01" /></FormControl><FormMessage /></FormItem> )} />
-                )}
-            </div>
-
-            <DialogFooter className="pt-6">
-              <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                {mode === 'create' ? 'Salvar Alíquota' : 'Salvar Alterações'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+      <DialogContent className="max-w-xl" key={modalKey}>
+        <AliquotaForm 
+            userId={userId} 
+            companyId={companyId} 
+            aliquota={aliquota} 
+            esfera={esfera} 
+            onClose={onClose} 
+        />
       </DialogContent>
     </Dialog>
   );

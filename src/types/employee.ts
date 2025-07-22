@@ -1,7 +1,9 @@
 
+import { Timestamp } from "firebase/firestore";
+
 export interface Dependent {
   nomeCompleto: string;
-  dataNascimento: Date;
+  dataNascimento: Date | Timestamp;
   cpf: string;
   isSalarioFamilia: boolean;
   isIRRF: boolean;

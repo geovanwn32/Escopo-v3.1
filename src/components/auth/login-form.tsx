@@ -96,6 +96,14 @@ export function LoginForm() {
     }
   }
 
+  const handleOpenResetModal = () => {
+    const email = loginForm.getValues('email');
+    if (email) {
+        resetForm.setValue('email', email);
+    }
+    setIsResetModalOpen(true);
+  };
+
   return (
     <BackgroundPaths>
       <div className="w-full max-w-md space-y-8 z-10">
@@ -174,7 +182,7 @@ export function LoginForm() {
                     )}
                     />
                     <div className="text-sm">
-                        <Button type="button" variant="link" className="p-0 h-auto font-medium text-primary hover:underline" onClick={() => setIsResetModalOpen(true)}>
+                        <Button type="button" variant="link" className="p-0 h-auto font-medium text-primary hover:underline" onClick={handleOpenResetModal}>
                             Esqueceu a senha?
                         </Button>
                     </div>

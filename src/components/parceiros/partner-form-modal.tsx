@@ -49,6 +49,8 @@ const partnerSchema = z.object({
   telefone: z.string().optional(),
 });
 
+type FormData = z.infer<typeof partnerSchema>;
+
 const formatCpfCnpj = (value: string = '') => {
   const cleaned = value.replace(/\D/g, '');
   if (cleaned.length <= 11) {
@@ -66,48 +68,37 @@ const formatCpfCnpj = (value: string = '') => {
 
 const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, "$1-$2");
 
-export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, partnerType }: PartnerFormModalProps) {
+function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   
-  const form = useForm<z.infer<typeof partnerSchema>>({
+  const mode = partner ? 'edit' : 'create';
+  
+  const form = useForm<FormData>({
     resolver: zodResolver(partnerSchema),
+    defaultValues: mode === 'create'
+        ? {
+            razaoSocial: '',
+            nomeFantasia: '',
+            cpfCnpj: '',
+            inscricaoEstadual: '',
+            cep: '',
+            logradouro: '',
+            numero: '',
+            complemento: '',
+            bairro: '',
+            cidade: '',
+            uf: '',
+            email: '',
+            telefone: '',
+          }
+        : {
+            ...partner,
+            cpfCnpj: formatCpfCnpj(partner?.cpfCnpj),
+            cep: partner?.cep ? formatCep(partner.cep) : '',
+        }
   });
 
-  const mode = partner ? 'edit' : 'create';
-  const typeLabel = {
-    cliente: 'Cliente',
-    fornecedor: 'Fornecedor',
-    transportadora: 'Transportadora',
-  }[partnerType];
-
-  useEffect(() => {
-    if (isOpen) {
-        if (partner) {
-            form.reset({
-                ...partner,
-                cpfCnpj: formatCpfCnpj(partner.cpfCnpj),
-                cep: partner.cep ? formatCep(partner.cep) : '',
-            });
-        } else {
-            form.reset({
-              razaoSocial: '',
-              nomeFantasia: '',
-              cpfCnpj: '',
-              inscricaoEstadual: '',
-              cep: '',
-              logradouro: '',
-              numero: '',
-              complemento: '',
-              bairro: '',
-              cidade: '',
-              uf: '',
-              email: '',
-              telefone: '',
-            });
-        }
-    }
-  }, [isOpen, partner, form]);
 
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
@@ -132,7 +123,7 @@ export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, 
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof partnerSchema>) => {
+  const onSubmit = async (values: FormData) => {
     setLoading(true);
     try {
       const dataToSave = { ...values, type: partnerType };
@@ -155,61 +146,84 @@ export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, 
     }
   };
 
+  const typeLabel = {
+    cliente: 'Cliente',
+    fornecedor: 'Fornecedor',
+    transportadora: 'Transportadora',
+  }[partnerType];
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? `Novo ${typeLabel}` : `Editar ${typeLabel}`}</DialogTitle>
+        <DialogDescription>Preencha os dados abaixo para cadastrar ou editar.</DialogDescription>
+      </DialogHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <Tabs defaultValue="identity" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="identity">Identificação</TabsTrigger>
+              <TabsTrigger value="address">Endereço</TabsTrigger>
+              <TabsTrigger value="contact">Contato</TabsTrigger>
+            </TabsList>
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              <TabsContent value="identity" className="space-y-4">
+                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( <FormItem><FormLabel>CPF / CNPJ</FormLabel><FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl><FormMessage /></FormItem> )} />
+                      <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  </div>
+              </TabsContent>
+              <TabsContent value="address" className="space-y-4">
+                 <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {
+                     field.onChange(formatCep(e.target.value));
+                     if(e.target.value.replace(/\D/g, '').length === 8) handleCepLookup(e.target.value);
+                  }} maxLength={9} /></FormControl><FormMessage /></FormItem> )} />
+                 <div className="grid grid-cols-3 gap-4">
+                    <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 </div>
+                 <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 <div className="grid grid-cols-3 gap-4">
+                    <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
+                 </div>
+              </TabsContent>
+              <TabsContent value="contact" className="space-y-4">
+                  <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+              </TabsContent>
+            </div>
+          </Tabs>
+          <DialogFooter className="pt-6">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" /> : <Save />}
+              {mode === 'create' ? `Salvar ${typeLabel}` : 'Salvar Alterações'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
+  );
+}
+
+
+export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, partnerType }: PartnerFormModalProps) {
+  const modalKey = `${partner?.id || 'new'}-${partnerType}`;
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{mode === 'create' ? `Novo ${typeLabel}` : `Editar ${typeLabel}`}</DialogTitle>
-          <DialogDescription>Preencha os dados abaixo para cadastrar ou editar.</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <Tabs defaultValue="identity" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="identity">Identificação</TabsTrigger>
-                <TabsTrigger value="address">Endereço</TabsTrigger>
-                <TabsTrigger value="contact">Contato</TabsTrigger>
-              </TabsList>
-              <div className="max-h-[60vh] overflow-y-auto p-4">
-                <TabsContent value="identity" className="space-y-4">
-                    <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( <FormItem><FormLabel>CPF / CNPJ</FormLabel><FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                </TabsContent>
-                <TabsContent value="address" className="space-y-4">
-                   <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {
-                       field.onChange(formatCep(e.target.value));
-                       if(e.target.value.replace(/\D/g, '').length === 8) handleCepLookup(e.target.value);
-                    }} maxLength={9} /></FormControl><FormMessage /></FormItem> )} />
-                   <div className="grid grid-cols-3 gap-4">
-                      <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                      <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                   </div>
-                   <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                   <div className="grid grid-cols-3 gap-4">
-                      <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                      <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                      <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
-                   </div>
-                </TabsContent>
-                <TabsContent value="contact" className="space-y-4">
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </TabsContent>
-              </div>
-            </Tabs>
-            <DialogFooter className="pt-6">
-              <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                {mode === 'create' ? `Salvar ${typeLabel}` : 'Salvar Alterações'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+      <DialogContent className="max-w-3xl" key={modalKey}>
+        <PartnerForm 
+            userId={userId} 
+            companyId={companyId} 
+            partner={partner} 
+            partnerType={partnerType}
+            onClose={onClose} 
+        />
       </DialogContent>
     </Dialog>
   );
