@@ -1,32 +1,31 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only access their own data within their user document
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // Helper function to check for admin UID
+    function isAdmin() {
+      // NOTE: Replace with your actual admin user's UID from Firebase Authentication
+      return request.auth.uid == "Jc1E4Njd2aOqT1Ea2szI8n1VlE82"; 
     }
 
-    // Rules for the global tickets collection
+    // Rules for user-specific data
+    // Ensures a user can only access their own documents
+    match /users/{userId}/{documents=**} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Rules for the global 'tickets' collection
     match /tickets/{ticketId} {
-      // Allow any authenticated user to create a ticket, but they must be the requester.
-      allow create: if request.auth != null && request.resource.data.requesterUid == request.auth.uid;
-
-      // Allow the user who created the ticket to read it.
-      // Also allow any user from the admin company to read it.
-      // The exists() check ensures we don't allow reads on non-existent admin company docs.
-      allow read: if request.auth != null && (
-                    resource.data.requesterUid == request.auth.uid ||
-                    exists(/databases/$(database)/documents/users/$(request.auth.uid)/companies/$(resource.data.requesterCompanyId)) // This is a placeholder, real rule below
-                  );
-
-      // Allow only users from the admin company to update tickets (e.g., change status).
-      allow update: if request.auth != null && 
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)/companies/$(request.resource.data.requesterCompanyId)).data.cnpj == '00000000000000';
+      // Allow any authenticated user to create a ticket
+      allow create: if request.auth != null;
       
-      // Allow only users from the admin company to delete tickets.
-      allow delete: if request.auth != null && 
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)/companies/$(resource.data.requesterCompanyId)).data.cnpj == '00000000000000';
+      // Allow read/update if the user is the owner OR if they are an admin.
+      allow read, update: if request.auth.uid == resource.data.requesterUid || isAdmin();
+      
+      // Only admins can delete tickets
+      allow delete: if isAdmin();
     }
   }
 }
