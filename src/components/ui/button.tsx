@@ -48,12 +48,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
-      >
-        <span className="relative z-10">{props.children}</span>
-         {neon && variant === 'default' && (
-            <span className="absolute h-px w-2/3 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-in-out -bottom-px inset-x-0 mx-auto bg-gradient-to-r from-transparent via-primary to-transparent" />
-         )}
-      </Comp>
+      />
     )
   }
 )
