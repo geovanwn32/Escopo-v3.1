@@ -128,7 +128,7 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
             {menuGroups.map((group) => (
               <div key={group.section} className="px-2">
                 {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
-                {group.items.map((link, idx) => (
+                {group.items.map((link) => (
                   <SidebarLink key={link.href} link={link} />
                 ))}
               </div>
