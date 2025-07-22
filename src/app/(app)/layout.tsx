@@ -12,6 +12,7 @@ import { db } from '@/lib/firebase';
 import { CompanySelectionModal } from '@/components/company-selection-modal';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { HelpModal } from '@/components/layout/help-modal';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   
   const [isCompanyModalOpen, setCompanyModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [activeCompany, setActiveCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-neutral-100 dark:bg-neutral-800">
-        <SidebarNav activeCompany={activeCompany} />
+        <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header
             activeCompany={activeCompany}
@@ -102,6 +104,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           userId={user.uid}
         />
       )}
+      <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </SidebarProvider>
   );
 }

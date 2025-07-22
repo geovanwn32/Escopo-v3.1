@@ -32,7 +32,9 @@ import {
   Link as LinkIcon,
   Archive,
   Calendar,
+  LifeBuoy,
 } from "lucide-react"
+import { Button } from "../ui/button"
 
 const menuGroups = [
   {
@@ -115,7 +117,7 @@ const LogoIcon = () => {
 };
 
 
-export function SidebarNav({ activeCompany }: { activeCompany: any }) {
+export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any, onHelpClick: () => void }) {
   const { open } = useSidebar();
   const pathname = usePathname();
 
@@ -127,12 +129,29 @@ export function SidebarNav({ activeCompany }: { activeCompany: any }) {
             {open ? <Logo /> : <LogoIcon />}
           </div>
           <div className="mt-8 flex flex-col gap-2">
-            {menuGroups.map((group) => (
+            {menuGroups.map((group, groupIdx) => (
               <div key={group.section} className="px-2">
                 {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
                 {group.items.map((link) => (
                   <SidebarLink key={link.href} link={link} />
                 ))}
+                 {group.section === 'Sistema' && (
+                    <button
+                        className="flex items-center justify-start gap-2 group/sidebar py-2 w-full text-left"
+                        onClick={onHelpClick}
+                    >
+                        <LifeBuoy className="h-5 w-5 flex-shrink-0" />
+                        <motion.span
+                            animate={{
+                                display: open ? "inline-block" : "none",
+                                opacity: open ? 1 : 0,
+                            }}
+                            className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+                        >
+                            Ajuda
+                        </motion.span>
+                    </button>
+                 )}
               </div>
             ))}
           </div>
