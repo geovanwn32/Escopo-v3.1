@@ -71,7 +71,10 @@ function TicketList({ forAdmin }: { forAdmin: boolean }) {
             setLoading(false);
         }, (error) => {
             console.error("Error fetching tickets for modal: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar chamados." });
+            // This permission error is expected for non-admin users trying to list all tickets
+            if (error.code !== 'permission-denied') {
+                toast({ variant: "destructive", title: "Erro ao buscar chamados." });
+            }
             setLoading(false);
         });
 

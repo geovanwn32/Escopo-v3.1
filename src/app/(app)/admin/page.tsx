@@ -37,17 +37,16 @@ export default function AdminPage() {
                 const companyData = JSON.parse(companyDataString);
                 setActiveCompany(companyData);
                 if (companyData.cnpj !== ADMIN_COMPANY_CNPJ) {
-                    toast({ variant: 'destructive', title: 'Acesso Negado' });
+                    toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
                     router.push('/dashboard');
-                    return;
                 }
             } else {
                  router.push('/dashboard');
-                 return;
             }
+        } else if (!user) {
+            router.push('/login');
         } else {
-            router.push('/dashboard');
-            return;
+             router.push('/dashboard');
         }
     }
   }, [user, router, toast]);
@@ -112,7 +111,7 @@ export default function AdminPage() {
     }
   }
 
-  if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
+  if (loading || !activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
