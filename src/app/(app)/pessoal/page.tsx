@@ -269,35 +269,35 @@ export default function PessoalPage() {
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/folha-de-pagamento">
                 <span>
-                    <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
+                  <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
                 </span>
               </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-green-100 text-green-800 hover:bg-green-200">
-               <Link href="/pessoal/rci">
+              <Link href="/pessoal/rci">
                 <span>
-                    <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
+                  <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
                 </span>
-               </Link>
+              </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
-                <Link href="/pessoal/decimo-terceiro">
-                    <span>
-                        <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
-                    </span>
-                </Link>
+              <Link href="/pessoal/decimo-terceiro">
+                <span>
+                  <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
+                </span>
+              </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-orange-100 text-orange-800 hover:bg-orange-200">
-                <Link href="/pessoal/ferias">
-                    <span>
-                        <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
-                    </span>
-                </Link>
+              <Link href="/pessoal/ferias">
+                <span>
+                  <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
+                </span>
+              </Link>
             </Button>
             <Button asChild className="w-full justify-start" variant="destructive">
               <Link href="/pessoal/rescisao">
                 <span>
-                    <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
+                  <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
                 </span>
               </Link>
             </Button>
@@ -312,7 +312,7 @@ export default function PessoalPage() {
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/resumo-folha">
                 <span>
-                    <BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha
+                  <BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha
                 </span>
               </Link>
             </Button>
