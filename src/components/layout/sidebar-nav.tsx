@@ -103,7 +103,7 @@ const LogoIcon = () => {
   return (
     <Link
       href="/dashboard"
-      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+      className="font-normal flex items-center justify-center text-sm text-black py-1 relative z-20"
     >
        <div className="h-7 w-7 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
         <BookCheck className="h-5 w-5 text-white" />
