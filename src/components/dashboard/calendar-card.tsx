@@ -2,6 +2,7 @@
 "use client"
 
 import * as React from "react"
+import { ptBR } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -44,6 +45,7 @@ export function CalendarCard() {
           selected={date}
           onSelect={setDate}
           className="bg-transparent p-0"
+          locale={ptBR}
         />
       </CardContent>
     </Card>
