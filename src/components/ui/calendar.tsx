@@ -1,3 +1,4 @@
+
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -42,6 +43,7 @@ function Calendar({
     outside: "text-muted-foreground data-selected:bg-accent/50 data-selected:text-muted-foreground",
     hidden: "invisible",
     week_number: "size-9 p-0 text-xs font-medium text-muted-foreground/80",
+    day_modifier_scheduled: "bg-primary/20 rounded-md", // Example modifier class
   };
 
   const mergedClassNames: typeof defaultClassNames = Object.keys(defaultClassNames).reduce(

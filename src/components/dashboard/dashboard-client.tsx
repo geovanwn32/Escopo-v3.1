@@ -12,6 +12,7 @@ import {
   ArrowDownLeftSquare,
   ArrowUpRightSquare,
   BookOpen,
+  CalendarCheck,
   DollarSign,
   FileStack,
   Loader2,
@@ -21,12 +22,15 @@ import {
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth"
-import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, startOfDay, endOfDay } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
 import { Badge } from "../ui/badge"
-import { CalendarCard } from "./calendar-card"
+import { Calendar } from "@/components/ui/calendar"
+import { ptBR } from "date-fns/locale"
+import type { CalendarEvent } from "@/types/event"
+import { EventFormModal } from "../utilitarios/event-form-modal"
 
 interface Launch {
   id: string;
@@ -77,6 +81,42 @@ export function DashboardClient() {
     { title: "Produtos Cadastrados", amount: "0", icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
   ]);
   const [chartData, setChartData] = useState<MonthlyData[]>([]);
+
+  // Calendar State
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [month, setMonth] = useState<Date | undefined>(new Date())
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [isEventModalOpen, setEventModalOpen] = useState(false);
+  const [selectedEventDate, setSelectedEventDate] = useState<Date | null>(null);
+
+  const handleDayClick = (day: Date) => {
+      setSelectedEventDate(day);
+      setEventModalOpen(true);
+  };
+
+  const closeEventModal = () => {
+    setEventModalOpen(false);
+    setSelectedEventDate(null);
+  }
+
+  useEffect(() => {
+    if (!user || !activeCompanyId) return;
+
+    const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/events`);
+    const q = query(eventsRef, orderBy('date', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const eventsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: (doc.data().date as Timestamp).toDate(),
+      } as CalendarEvent));
+      setEvents(eventsData);
+    });
+
+    return () => unsubscribe();
+  }, [user, activeCompanyId]);
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -213,7 +253,10 @@ export function DashboardClient() {
     };
   }, [user, activeCompanyId, activeCompanyCnpj, toast, employeesCount]);
 
+  const upcomingEvents = events.filter(e => e.date >= startOfDay(new Date())).slice(0, 5);
+
   return (
+    <>
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
@@ -254,52 +297,72 @@ export function DashboardClient() {
             </Card>
         </div>
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-6">
-            <CalendarCard />
+             <Card>
+                <CardHeader>
+                    <CardTitle>Calendário de Eventos</CardTitle>
+                    <CardDescription>Clique em um dia para adicionar um evento.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Calendar
+                    mode="single"
+                    month={month}
+                    onMonthChange={setMonth}
+                    selected={date}
+                    onSelect={setDate}
+                    onDayClick={handleDayClick}
+                    className="p-0"
+                    locale={ptBR}
+                    modifiers={{ scheduled: events.map(e => e.date as Date) }}
+                    modifiersClassNames={{ scheduled: 'bg-primary/20 rounded-full' }}
+                    />
+                </CardContent>
+            </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Atividades Recentes</CardTitle>
-                <CardDescription>Últimos 5 lançamentos realizados.</CardDescription>
+                <CardTitle>Próximos Eventos</CardTitle>
+                <CardDescription>Seus 5 próximos compromissos.</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
-                launches.length === 0 ? (
+                upcomingEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                         <div className="p-4 bg-muted rounded-full mb-4">
-                            <FileStack className="h-8 w-8 text-muted-foreground" />
+                            <CalendarCheck className="h-8 w-8 text-muted-foreground" />
                         </div>
-                        <h3 className="text-lg font-semibold">Nenhuma atividade recente</h3>
-                        <p className="text-muted-foreground mt-1 text-sm">Os últimos lançamentos aparecerão aqui.</p>
+                        <h3 className="text-lg font-semibold">Nenhum evento futuro</h3>
+                        <p className="text-muted-foreground mt-1 text-sm">Use o calendário para agendar.</p>
                     </div>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead className="text-right">Valor</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {launches.slice(0, 5).map(launch => (
-                                <TableRow key={launch.id}>
-                                    <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={launch.type === 'entrada' ? 'destructive' : 'secondary'}>
-                                            {launch.type.charAt(0).toUpperCase() + launch.type.slice(1)}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium">
-                                        {formatCurrency(launch.valorLiquido || launch.valorTotalNota || 0)}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <div className="space-y-2">
+                        {upcomingEvents.map(event => (
+                            <div key={event.id} className="flex items-start gap-3 p-2 border-l-4 border-primary bg-primary/5 rounded">
+                                <div className="text-center font-semibold">
+                                    <p className="text-sm">{new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(event.date as Date).toUpperCase()}</p>
+                                    <p className="text-xl">{new Intl.DateTimeFormat('pt-BR', { day: '2-digit' }).format(event.date as Date)}</p>
+                                </div>
+                                <div>
+                                    <p className="font-semibold">{event.title}</p>
+                                    <p className="text-sm text-muted-foreground">{event.description}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 )}
               </CardContent>
             </Card>
         </div>
       </div>
     </div>
+    {user && activeCompanyId && (
+        <EventFormModal
+            isOpen={isEventModalOpen}
+            onClose={closeEventModal}
+            userId={user.uid}
+            companyId={activeCompanyId}
+            event={null}
+            selectedDate={selectedEventDate}
+        />
+    )}
+    </>
   )
 }

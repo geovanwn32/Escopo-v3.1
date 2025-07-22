@@ -30,7 +30,8 @@ import {
   Share2,
   Calculator,
   Link as LinkIcon,
-  Archive
+  Archive,
+  Calendar,
 } from "lucide-react"
 
 const menuGroups = [
@@ -65,6 +66,7 @@ const menuGroups = [
    {
     section: "Utilitários",
     items: [
+        { href: "/utilitarios/eventos", icon: <Calendar className="h-5 w-5 flex-shrink-0" />, label: "Agenda" },
         { href: "/utilitarios/links", icon: <LinkIcon className="h-5 w-5 flex-shrink-0" />, label: "Links Úteis" },
         { href: "/utilitarios/arquivos", icon: <Archive className="h-5 w-5 flex-shrink-0" />, label: "Arquivos" },
     ],
