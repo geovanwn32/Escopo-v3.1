@@ -1,22 +1,22 @@
-import { collection, addDoc, serverTimestamp, getDocs, query, limit, orderBy } from 'firebase/firestore';
+
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Ticket } from '@/types/ticket';
 
-// Creates a new support ticket in a global 'tickets' collection.
+/**
+ * Creates a new support ticket in a global 'tickets' collection.
+ * The ticket number is now generated using a timestamp for uniqueness,
+ * avoiding a read operation before write.
+ */
 export async function createSupportTicket(
     data: Omit<Ticket, 'id' | 'ticketNumber' | 'status' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
     const ticketsRef = collection(db, 'tickets');
 
-    // Generate a new ticket number
-    const q = query(ticketsRef, orderBy('createdAt', 'desc'), limit(1));
-    const querySnapshot = await getDocs(q);
-    let lastTicketNumber = 1000;
-    if (!querySnapshot.empty) {
-        const lastTicket = querySnapshot.docs[0].data();
-        lastTicketNumber = parseInt(lastTicket.ticketNumber.replace('T', ''), 10);
-    }
-    const newTicketNumber = `T${lastTicketNumber + 1}`;
+    // Generate a new ticket number based on timestamp for uniqueness and simplicity.
+    // This avoids needing list permissions on the collection for all users.
+    const timestamp = Date.now();
+    const newTicketNumber = `T-${String(timestamp).slice(-6)}`;
 
     const newTicket: Omit<Ticket, 'id'> = {
         ...data,
