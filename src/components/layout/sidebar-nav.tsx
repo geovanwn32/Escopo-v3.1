@@ -33,7 +33,11 @@ import {
   Archive,
   Calendar,
   LifeBuoy,
+  Shield,
 } from "lucide-react"
+import { useAuth } from "@/lib/auth"
+
+const ADMIN_UID = 'h2nff6rF7yVbICGz2mZ1aCgNqj73';
 
 const menuGroups = [
   {
@@ -78,6 +82,7 @@ const menuGroups = [
       { href: "/relatorios", icon: <BarChart3 className="h-5 w-5 flex-shrink-0" />, label: "Relatórios" },
       { href: "/minha-empresa", icon: <Building2 className="h-5 w-5 flex-shrink-0" />, label: "Minha Empresa" },
       { href: "/configuracoes", icon: <Settings className="h-5 w-5 flex-shrink-0" />, label: "Configurações" },
+      { href: "/admin", icon: <Shield className="h-5 w-5 flex-shrink-0" />, label: "Admin", adminOnly: true },
     ],
   },
 ];
@@ -118,7 +123,7 @@ const LogoIcon = () => {
 
 export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any, onHelpClick: () => void }) {
   const { open } = useSidebar();
-  const pathname = usePathname();
+  const { user } = useAuth();
 
   return (
     <Sidebar>
@@ -128,12 +133,15 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
             {open ? <Logo /> : <LogoIcon />}
           </div>
           <div className="mt-8 flex flex-col gap-2">
-            {menuGroups.map((group, groupIdx) => (
+            {menuGroups.map((group) => (
               <div key={group.section} className="px-2">
                 {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
-                {group.items.map((link) => (
-                  <SidebarLink key={link.label} link={link} />
-                ))}
+                {group.items.map((link) => {
+                  if (link.adminOnly && user?.uid !== ADMIN_UID) {
+                    return null;
+                  }
+                  return <SidebarLink key={link.label} link={link} />
+                })}
                  {group.section === 'Sistema' && (
                     <SidebarLink
                       link={{

@@ -104,7 +104,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           userId={user.uid}
         />
       )}
-      <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
+      <HelpModal 
+        isOpen={isHelpModalOpen} 
+        onClose={() => setIsHelpModalOpen(false)}
+        activeCompany={activeCompany}
+      />
     </SidebarProvider>
   );
 }
