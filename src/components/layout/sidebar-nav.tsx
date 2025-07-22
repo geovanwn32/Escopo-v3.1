@@ -136,11 +136,11 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
                   <SidebarLink key={link.href} link={link} />
                 ))}
                  {group.section === 'Sistema' && (
-                    <button
-                        className="flex items-center justify-start gap-2 group/sidebar py-2 w-full text-left"
+                    <div
                         onClick={onHelpClick}
+                        className="flex items-center justify-start gap-2 group/sidebar py-2 cursor-pointer"
                     >
-                        <LifeBuoy className="h-5 w-5 flex-shrink-0" />
+                        <LifeBuoy className="h-5 w-5 flex-shrink-0 text-neutral-700 dark:text-neutral-200" />
                         <motion.span
                             animate={{
                                 display: open ? "inline-block" : "none",
@@ -150,7 +150,7 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
                         >
                             Ajuda
                         </motion.span>
-                    </button>
+                    </div>
                  )}
               </div>
             ))}
