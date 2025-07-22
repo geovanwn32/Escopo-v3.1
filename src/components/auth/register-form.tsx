@@ -60,7 +60,7 @@ export function RegisterForm() {
   }
 
   return (
-    <BackgroundCircles variant="primary">
+    <BackgroundCircles variant="secondary">
         <div className="w-full max-w-md space-y-8 z-10">
             <div className="text-center">
                 <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">

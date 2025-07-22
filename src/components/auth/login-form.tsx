@@ -62,7 +62,7 @@ export function LoginForm() {
   }
 
   return (
-    <BackgroundCircles variant="senary">
+    <BackgroundCircles variant="primary">
       <div className="w-full max-w-md space-y-8 z-10">
         <div className="text-center">
             <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
