@@ -1,35 +1,31 @@
+
 "use client"
 
 import { useToast } from "@/hooks/use-toast"
-import {
-  Toast,
-  ToastClose,
-  ToastDescription,
-  ToastProvider,
-  ToastTitle,
-  ToastViewport,
-} from "@/components/ui/toast"
+import { AnimatePresence } from "framer-motion";
+import { Notification } from "./notification";
+import { ToastProvider, ToastViewport } from "./toast";
 
 export function Toaster() {
   const { toasts } = useToast()
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
-        return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
-            </div>
-            {action}
-            <ToastClose />
-          </Toast>
-        )
-      })}
-      <ToastViewport />
+        <ToastViewport>
+            <AnimatePresence>
+                {toasts.map(function ({ id, title, description, action, ...props }) {
+                    return (
+                    <Notification
+                        key={id}
+                        id={id}
+                        title={title}
+                        description={description}
+                        {...props}
+                    />
+                    )
+                })}
+            </AnimatePresence>
+      </ToastViewport>
     </ToastProvider>
   )
 }
