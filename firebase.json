@@ -12,7 +12,8 @@
     }
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "database": "(default)"
   },
   "storage": {
     "rules": "storage.rules"
