@@ -37,7 +37,7 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 
-const ADMIN_UID = 'h2nff6rF7yVbICGz2mZ1aCgNqj73';
+const ADMIN_COMPANY_CNPJ = '00000000000000';
 
 const menuGroups = [
   {
@@ -123,7 +123,8 @@ const LogoIcon = () => {
 
 export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any, onHelpClick: () => void }) {
   const { open } = useSidebar();
-  const { user } = useAuth();
+
+  const isAdminCompany = activeCompany?.cnpj === ADMIN_COMPANY_CNPJ;
 
   return (
     <Sidebar>
@@ -137,7 +138,7 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
               <div key={group.section} className="px-2">
                 {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
                 {group.items.map((link) => {
-                  if (link.adminOnly && user?.uid !== ADMIN_UID) {
+                  if (link.adminOnly && !isAdminCompany) {
                     return null;
                   }
                   return <SidebarLink key={link.label} link={link} />
@@ -147,7 +148,7 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
                       link={{
                         label: 'Ajuda',
                         onClick: onHelpClick,
-                        icon: <LifeBuoy className="h-5 w-5 flex-shrink-0 text-neutral-700 dark:text-neutral-200" />,
+                        icon: <LifeBuoy className="h-5 w-5 flex-shrink-0" />,
                       }}
                     />
                  )}

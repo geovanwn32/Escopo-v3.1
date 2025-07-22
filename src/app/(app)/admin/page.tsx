@@ -16,22 +16,46 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useRouter } from 'next/navigation';
+import type { Company } from '@/types/company';
 
-const ADMIN_UID = 'h2nff6rF7yVbICGz2mZ1aCgNqj73'; // UID do admin para acesso
+const ADMIN_COMPANY_CNPJ = '00000000000000';
 
 export default function AdminPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) return;
-    if (user.uid !== ADMIN_UID) {
-      toast({ variant: 'destructive', title: 'Acesso Negado' });
-      router.push('/dashboard');
-      return;
+    if (typeof window !== 'undefined') {
+        const companyId = sessionStorage.getItem('activeCompanyId');
+        if (user && companyId) {
+            const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+            if (companyDataString) {
+                const companyData = JSON.parse(companyDataString);
+                setActiveCompany(companyData);
+                if (companyData.cnpj !== ADMIN_COMPANY_CNPJ) {
+                    toast({ variant: 'destructive', title: 'Acesso Negado' });
+                    router.push('/dashboard');
+                    return;
+                }
+            } else {
+                 router.push('/dashboard');
+                 return;
+            }
+        } else {
+            router.push('/dashboard');
+            return;
+        }
+    }
+  }, [user, router, toast]);
+
+  useEffect(() => {
+    if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
+        setLoading(false);
+        return;
     }
 
     const ticketsRef = collection(db, `tickets`);
@@ -58,7 +82,7 @@ export default function AdminPage() {
     });
 
     return () => unsubscribe();
-  }, [user, toast, router]);
+  }, [activeCompany, toast]);
 
   const updateStatus = async (ticketId: string, status: TicketStatus) => {
     const ticketRef = doc(db, 'tickets', ticketId);
@@ -88,7 +112,7 @@ export default function AdminPage() {
     }
   }
 
-  if (!user || user.uid !== ADMIN_UID) {
+  if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 

@@ -24,12 +24,12 @@ import { Badge } from '../ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const ADMIN_UID = 'h2nff6rF7yVbICGz2mZ1aCgNqj73';
+const ADMIN_COMPANY_CNPJ = '00000000000000';
 
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
-  activeCompany: { id: string; nomeFantasia: string } | null;
+  activeCompany: { id: string; nomeFantasia: string; cnpj: string; } | null;
 }
 
 const ticketSchema = z.object({
@@ -55,13 +55,10 @@ function TicketList({ forAdmin }: { forAdmin: boolean }) {
         const ticketsRef = collection(db, 'tickets');
         let q;
 
-        if (forAdmin && user.uid === ADMIN_UID) {
+        if (forAdmin) {
             q = query(ticketsRef, orderBy('createdAt', 'desc'));
-        } else if (!forAdmin) {
-            q = query(ticketsRef, where('requesterUid', '==', user.uid), orderBy('createdAt', 'desc'));
         } else {
-            setLoading(false);
-            return;
+            q = query(ticketsRef, where('requesterUid', '==', user.uid), orderBy('createdAt', 'desc'));
         }
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -146,7 +143,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const [loading, setLoading] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
 
-  const isAdmin = user?.uid === ADMIN_UID;
+  const isAdmin = activeCompany?.cnpj === ADMIN_COMPANY_CNPJ;
 
   const form = useForm<z.infer<typeof ticketSchema>>({
     resolver: zodResolver(ticketSchema),
