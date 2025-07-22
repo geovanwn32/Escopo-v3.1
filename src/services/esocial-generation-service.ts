@@ -120,10 +120,13 @@ export async function generateAndSaveEsocialEvent(
         status: 'pending',
         errorDetails: null,
         payload,
-        period: period,
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
     };
+
+    if (period) {
+        (newEvent as any).period = period;
+    }
 
     await addDoc(eventsRef, newEvent);
 }
