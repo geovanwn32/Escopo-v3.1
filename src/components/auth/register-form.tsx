@@ -15,7 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import Link from 'next/link';
 import { UserPlus, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { BackgroundCircles } from './background-circles';
+import { BackgroundPaths } from './background-paths';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
@@ -60,7 +60,7 @@ export function RegisterForm() {
   }
 
   return (
-    <BackgroundCircles variant="secondary">
+    <BackgroundPaths>
         <div className="w-full max-w-md space-y-8 z-10">
             <div className="text-center">
                 <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
@@ -68,7 +68,7 @@ export function RegisterForm() {
                     <span className="text-white">Escopo</span>
                 </Link>
             </div>
-            <Card className="shadow-lg bg-background/80 backdrop-blur-sm">
+            <Card className="shadow-lg bg-card/80 backdrop-blur-sm">
             <CardHeader>
                 <CardTitle className="text-center text-2xl">Crie sua conta gratuita</CardTitle>
             </CardHeader>
@@ -131,6 +131,6 @@ export function RegisterForm() {
             </CardContent>
             </Card>
         </div>
-    </BackgroundCircles>
+    </BackgroundPaths>
   );
 }
