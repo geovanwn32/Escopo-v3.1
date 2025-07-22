@@ -268,27 +268,37 @@ export default function PessoalPage() {
           <CardContent className="flex flex-col gap-3">
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/folha-de-pagamento">
-                <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
+                <span>
+                    <ClipboardList className="mr-2 h-4 w-4" /> Calcular Folha de Pagamento
+                </span>
               </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-green-100 text-green-800 hover:bg-green-200">
                <Link href="/pessoal/rci">
-                <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
+                <span>
+                    <ClipboardList className="mr-2 h-4 w-4" /> Calcular RCI
+                </span>
                </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
                 <Link href="/pessoal/decimo-terceiro">
-                    <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
+                    <span>
+                        <Gift className="mr-2 h-4 w-4" /> Calcular 13º Salário
+                    </span>
                 </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-orange-100 text-orange-800 hover:bg-orange-200">
                 <Link href="/pessoal/ferias">
-                    <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
+                    <span>
+                        <SendToBack className="mr-2 h-4 w-4" /> Calcular Férias
+                    </span>
                 </Link>
             </Button>
             <Button asChild className="w-full justify-start" variant="destructive">
               <Link href="/pessoal/rescisao">
-                <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
+                <span>
+                    <UserMinus className="mr-2 h-4 w-4" /> Calcular Rescisão
+                </span>
               </Link>
             </Button>
           </CardContent>
@@ -301,7 +311,9 @@ export default function PessoalPage() {
           <CardContent className="flex flex-col gap-3">
             <Button asChild className="w-full justify-start">
               <Link href="/pessoal/resumo-folha">
-                <BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha
+                <span>
+                    <BookCheck className="mr-2 h-4 w-4" /> Resumo da Folha
+                </span>
               </Link>
             </Button>
           </CardContent>
