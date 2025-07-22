@@ -1,0 +1,21 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Regras para a coleção de usuários
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regras para a coleção de tickets de suporte
+    match /tickets/{ticketId} {
+      // Qualquer usuário autenticado pode criar um ticket
+      allow create: if request.auth != null;
+      
+      // Apenas o admin (UID específico) pode ler, atualizar ou excluir tickets
+      allow read, update, delete: if request.auth != null && request.auth.uid == 'h2nff6rF7yVbICGz2mZ1aCgNqj73';
+    }
+  }
+}
