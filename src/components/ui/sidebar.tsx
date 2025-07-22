@@ -8,10 +8,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-interface Links {
+interface LinkItem {
   label: string;
-  href: string;
+  href?: string;
   icon: React.JSX.Element | React.ReactNode;
+  onClick?: () => void;
 }
 
 interface SidebarContextProps {
@@ -161,33 +162,49 @@ export const SidebarLink = ({
   className,
   ...props
 }: {
-  link: Links;
+  link: LinkItem;
   className?: string;
   props?: LinkProps;
 }) => {
   const { open, animate } = useSidebar();
   const pathname = usePathname();
-  const isActive = pathname === link.href;
+  const isActive = link.href && pathname === link.href;
+
+  const content = (
+      <>
+          {link.icon}
+          <motion.span
+              animate={{
+                  display: animate ? (open ? "inline-block" : "none") : "inline-block",
+                  opacity: animate ? (open ? 1 : 0) : 1,
+              }}
+              className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+          >
+              {link.label}
+          </motion.span>
+      </>
+  );
+
+  const commonClasses = cn(
+      "flex items-center justify-start gap-2 group/sidebar py-2 w-full",
+      className
+  );
+
+  if (link.onClick) {
+      return (
+          <button onClick={link.onClick} className={commonClasses} {...props}>
+              {content}
+          </button>
+      );
+  }
 
   return (
     <Link
-      href={link.href}
-      className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2",
-        className
-      )}
+      href={link.href || "#"}
+      className={commonClasses}
       {...props}
     >
-      {link.icon}
-      <motion.span
-        animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
-        }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
-      >
-        {link.label}
-      </motion.span>
+      {content}
     </Link>
   );
 };

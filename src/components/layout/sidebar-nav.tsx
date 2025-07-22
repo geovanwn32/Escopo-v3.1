@@ -34,7 +34,6 @@ import {
   Calendar,
   LifeBuoy,
 } from "lucide-react"
-import { Button } from "../ui/button"
 
 const menuGroups = [
   {
@@ -133,24 +132,16 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
               <div key={group.section} className="px-2">
                 {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
                 {group.items.map((link) => (
-                  <SidebarLink key={link.href} link={link} />
+                  <SidebarLink key={link.label} link={link} />
                 ))}
                  {group.section === 'Sistema' && (
-                    <div
-                        onClick={onHelpClick}
-                        className="flex items-center justify-start gap-2 group/sidebar py-2 cursor-pointer"
-                    >
-                        <LifeBuoy className="h-5 w-5 flex-shrink-0 text-neutral-700 dark:text-neutral-200" />
-                        <motion.span
-                            animate={{
-                                display: open ? "inline-block" : "none",
-                                opacity: open ? 1 : 0,
-                            }}
-                            className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
-                        >
-                            Ajuda
-                        </motion.span>
-                    </div>
+                    <SidebarLink
+                      link={{
+                        label: 'Ajuda',
+                        onClick: onHelpClick,
+                        icon: <LifeBuoy className="h-5 w-5 flex-shrink-0 text-neutral-700 dark:text-neutral-200" />,
+                      }}
+                    />
                  )}
               </div>
             ))}
