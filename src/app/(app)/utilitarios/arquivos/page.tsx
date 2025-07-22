@@ -251,7 +251,7 @@ export default function ArquivosPage() {
         <CardContent>
              <div 
                 className={cn(
-                    "border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center transition-colors",
+                    "border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center transition-colors",
                     isDragging && "border-primary bg-primary/10",
                     !activeCompany && "cursor-not-allowed opacity-50"
                 )}
@@ -261,10 +261,12 @@ export default function ArquivosPage() {
                 onDrop={handleDrop}
                 onClick={() => activeCompany && fileInputRef.current?.click()}
              >
-                <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <UploadCloud className="h-10 w-10"/>
-                    <p className="font-semibold">Arraste seus arquivos aqui</p>
-                    <p className="text-sm">ou clique para selecionar</p>
+                <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                    <UploadCloud className="h-12 w-12"/>
+                    <div>
+                      <p className="font-semibold text-foreground">Arraste seus arquivos aqui</p>
+                      <p className="text-sm">ou clique para selecionar</p>
+                    </div>
                 </div>
              </div>
 
