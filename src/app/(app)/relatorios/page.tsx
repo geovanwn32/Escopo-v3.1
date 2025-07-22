@@ -60,8 +60,10 @@ export default function RelatoriosPage() {
                         <CardFooter>
                             <Button className="w-full" asChild>
                                 <Link href={card.href}>
+                                  <span>
                                     <FileText className="mr-2 h-4 w-4" />
                                     {card.buttonText}
+                                  </span>
                                 </Link>
                             </Button>
                         </CardFooter>
