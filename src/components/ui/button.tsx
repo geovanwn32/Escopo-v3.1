@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,14 +12,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/50",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -52,7 +49,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         {...props}
       >
-         {props.children}
+        <span className="relative z-10">{props.children}</span>
          {neon && variant === 'default' && (
             <span className="absolute h-px w-2/3 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-in-out -bottom-px inset-x-0 mx-auto bg-gradient-to-r from-transparent via-primary to-transparent" />
          )}
