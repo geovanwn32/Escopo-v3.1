@@ -2,25 +2,25 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Placeholder function to identify an admin user.
-    // In a production app, this would check a custom claim or a specific document.
+
+    // Helper function to identify the administrator.
+    // Replace 'ADMIN_UID_PLACEHOLDER' with the actual UID of your admin user in Firebase Authentication.
     function isAdmin() {
-      // Replace with your actual admin UID
-      return request.auth.uid == "Jq6sJv3j8aQ7P4m6E3Z9n0vY2wC2"; 
+      // Example UID: 'tIqZ1...'. You can find this in the Firebase Console under Authentication.
+      return request.auth.uid == "ADMIN_UID_PLACEHOLDER";
     }
 
-    // Rules for user-specific data
-    match /users/{userId}/{document=**} {
+    // Secure user-specific data. A user can only access their own documents.
+    match /users/{userId}/{documents=**} {
       allow read, write: if request.auth.uid == userId;
     }
-    
-    // Rules for the global tickets collection
-    match /tickets/{ticketId} {
-      // Any authenticated user can create a ticket.
-      allow create: if request.auth != null;
 
-      // Users can read/update their own tickets. The admin can read/update any ticket.
+    // Rules for the global tickets collection.
+    match /tickets/{ticketId} {
+      // Any authenticated user can create a support ticket.
+      allow create: if request.auth != null;
+      
+      // A user can read or update their own tickets. The admin can read/update all tickets.
       allow read, update: if request.auth.uid == resource.data.requesterUid || isAdmin();
       
       // Only the admin can delete tickets.
