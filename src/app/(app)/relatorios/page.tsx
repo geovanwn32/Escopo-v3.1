@@ -1,3 +1,4 @@
+
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, ShoppingCart, Users, Package, FileText } from "lucide-react";
@@ -60,10 +61,7 @@ export default function RelatoriosPage() {
                         <CardFooter>
                             <Button className="w-full" asChild>
                                 <Link href={card.href}>
-                                  <span>
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    {card.buttonText}
-                                  </span>
+                                  <span><FileText className="mr-2 h-4 w-4" />{card.buttonText}</span>
                                 </Link>
                             </Button>
                         </CardFooter>
