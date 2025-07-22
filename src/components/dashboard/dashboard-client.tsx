@@ -22,13 +22,14 @@ import {
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts"
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth"
-import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, startOfDay, endOfDay } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
 import { Badge } from "../ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { ptBR } from "date-fns/locale"
+import { startOfDay } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "../utilitarios/event-form-modal"
 
