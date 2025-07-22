@@ -35,8 +35,8 @@ import { generateTrctPdf } from '@/services/trct-service';
 
 function TerminationPageWrapper() {
     const searchParams = useSearchParams();
-    const terminationId = searchParams.get('id');
     const router = useRouter();
+    const terminationId = searchParams.get('id');
 
     return <TerminationPage terminationId={terminationId} router={router} />;
 }
