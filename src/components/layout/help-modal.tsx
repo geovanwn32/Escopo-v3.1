@@ -37,6 +37,11 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
 
   const form = useForm<z.infer<typeof ticketSchema>>({
     resolver: zodResolver(ticketSchema),
+    defaultValues: {
+      requesterName: '',
+      problemLocation: '',
+      description: '',
+    },
   });
 
   const onSubmit = async (values: z.infer<typeof ticketSchema>) => {
