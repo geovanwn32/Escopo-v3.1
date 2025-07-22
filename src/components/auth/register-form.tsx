@@ -10,11 +10,12 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
 import { UserPlus, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { BackgroundCircles } from './background-circles';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
@@ -59,75 +60,77 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="w-full h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-            <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
-                <BookCheck className="h-8 w-8" />
-                <span>Escopo</span>
-            </Link>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">Crie sua conta gratuita</h2>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                Já possui uma conta?{' '}
-                <Link href="/login" className="font-medium text-primary hover:underline">
-                    Acesse aqui
+    <BackgroundCircles variant="primary">
+        <div className="w-full max-w-md space-y-8 z-10">
+            <div className="text-center">
+                <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
+                    <BookCheck className="h-8 w-8" />
+                    <span className="text-white">Escopo</span>
                 </Link>
-            </p>
+            </div>
+            <Card className="shadow-lg bg-background/80 backdrop-blur-sm">
+            <CardHeader>
+                <CardTitle className="text-center text-2xl">Crie sua conta gratuita</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+                <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                            <Input placeholder="seu@email.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Senha</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Input 
+                                type={showPassword ? 'text' : 'password'} 
+                                placeholder="Mínimo 6 caracteres" 
+                                {...field}
+                                className="pr-10"
+                            />
+                            <button 
+                                type="button" 
+                                onClick={() => setShowPassword(!showPassword)} 
+                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground"
+                                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                            >
+                                {showPassword ? <EyeOff className="h-5 w-5"/> : <Eye className="h-5 w-5"/>}
+                            </button>
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                    Criar Conta
+                    </Button>
+                    <div className="text-center text-sm text-muted-foreground">
+                        Já possui uma conta?{' '}
+                        <Link href="/login" className="font-medium text-primary hover:underline">
+                            Acesse aqui
+                        </Link>
+                    </div>
+                </form>
+                </Form>
+            </CardContent>
+            </Card>
         </div>
-        <Card className="shadow-lg">
-          <CardContent className="p-8">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="seu@email.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Senha</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                           <Input 
-                            type={showPassword ? 'text' : 'password'} 
-                            placeholder="Mínimo 6 caracteres" 
-                            {...field}
-                            className="pr-10"
-                           />
-                           <button 
-                            type="button" 
-                            onClick={() => setShowPassword(!showPassword)} 
-                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground"
-                            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                          >
-                            {showPassword ? <EyeOff className="h-5 w-5"/> : <Eye className="h-5 w-5"/>}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Criar Conta
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </BackgroundCircles>
   );
 }
