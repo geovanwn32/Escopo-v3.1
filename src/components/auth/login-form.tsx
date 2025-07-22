@@ -6,22 +6,27 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import Link from 'next/link';
-import { LogIn, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
+import { LogIn, Loader2, Eye, EyeOff, BookCheck, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BackgroundPaths } from './background-paths';
 
-const formSchema = z.object({
+const loginFormSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
   password: z.string().min(1, { message: 'A senha é obrigatória.' }),
   rememberMe: z.boolean().default(false),
+});
+
+const resetPasswordSchema = z.object({
+    email: z.string().email({ message: 'Por favor, insira um email válido para redefinir a senha.' }),
 });
 
 export function LoginForm() {
@@ -29,9 +34,11 @@ export function LoginForm() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const loginForm = useForm<z.infer<typeof loginFormSchema>>({
+    resolver: zodResolver(loginFormSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -39,7 +46,14 @@ export function LoginForm() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const resetForm = useForm<z.infer<typeof resetPasswordSchema>>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+        email: '',
+    }
+  });
+
+  async function onLoginSubmit(values: z.infer<typeof loginFormSchema>) {
     setLoading(true);
     try {
       await setPersistence(auth, values.rememberMe ? browserLocalPersistence : browserSessionPersistence);
@@ -60,6 +74,27 @@ export function LoginForm() {
       setLoading(false);
     }
   }
+  
+  async function onResetPasswordSubmit(values: z.infer<typeof resetPasswordSchema>) {
+    setIsSendingReset(true);
+    try {
+        await sendPasswordResetEmail(auth, values.email);
+        toast({
+            title: "Email de redefinição enviado!",
+            description: "Verifique sua caixa de entrada (e spam) para redefinir sua senha.",
+        });
+        setIsResetModalOpen(false);
+    } catch(error) {
+        console.error(error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao enviar email",
+            description: "Não foi possível enviar o email de redefinição. Verifique o email e tente novamente."
+        })
+    } finally {
+        setIsSendingReset(false);
+    }
+  }
 
   return (
     <BackgroundPaths>
@@ -75,10 +110,10 @@ export function LoginForm() {
             <CardTitle className="text-center text-2xl">Acesse sua conta</CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Form {...loginForm}>
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-6">
                 <FormField
-                  control={form.control}
+                  control={loginForm.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
@@ -91,7 +126,7 @@ export function LoginForm() {
                   )}
                 />
                 <FormField
-                  control={form.control}
+                  control={loginForm.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
@@ -120,7 +155,7 @@ export function LoginForm() {
                 />
                  <div className="flex items-center justify-between">
                     <FormField
-                    control={form.control}
+                    control={loginForm.control}
                     name="rememberMe"
                     render={({ field }) => (
                         <FormItem className="flex flex-row items-center space-x-3 space-y-0">
@@ -139,9 +174,9 @@ export function LoginForm() {
                     )}
                     />
                     <div className="text-sm">
-                        <a href="#" className="font-medium text-primary hover:underline">
+                        <Button type="button" variant="link" className="p-0 h-auto font-medium text-primary hover:underline" onClick={() => setIsResetModalOpen(true)}>
                             Esqueceu a senha?
-                        </a>
+                        </Button>
                     </div>
                 </div>
 
@@ -160,6 +195,45 @@ export function LoginForm() {
           </CardContent>
         </Card>
       </div>
+      
+      <Dialog open={isResetModalOpen} onOpenChange={setIsResetModalOpen}>
+        <DialogContent className="sm:max-w-md">
+             <Form {...resetForm}>
+                <form onSubmit={resetForm.handleSubmit(onResetPasswordSubmit)}>
+                    <DialogHeader>
+                        <DialogTitle>Redefinir Senha</DialogTitle>
+                        <DialogDescription>
+                            Digite seu email cadastrado e enviaremos um link para você redefinir sua senha.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                         <FormField
+                            control={resetForm.control}
+                            name="email"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="seu@email.com" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary" disabled={isSendingReset}>Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isSendingReset}>
+                             {isSendingReset ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                            Enviar Link
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
     </BackgroundPaths>
   );
 }
