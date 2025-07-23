@@ -1,0 +1,108 @@
+
+"use client";
+
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2, Save } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { ContaContabil } from '@/types/conta-contabil';
+
+interface ContaContabilFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  userId: string;
+  companyId: string;
+  conta: ContaContabil | null;
+}
+
+const contaSchema = z.object({
+  codigo: z.string().min(1, "Código é obrigatório."),
+  nome: z.string().min(1, "Nome da conta é obrigatório."),
+  tipo: z.enum(['sintetica', 'analitica'], { required_error: "O tipo é obrigatório." }),
+  natureza: z.enum(['ativo', 'passivo', 'patrimonio_liquido', 'receita', 'despesa'], { required_error: "A natureza é obrigatória." }),
+});
+
+type FormData = z.infer<typeof contaSchema>;
+
+export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, conta }: ContaContabilFormModalProps) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const modalKey = conta?.id || 'new-conta';
+  
+  const form = useForm<FormData>({
+    resolver: zodResolver(contaSchema),
+    defaultValues: conta ? {
+        ...conta,
+        natureza: conta.natureza.replace(' ', '_') as FormData['natureza'],
+    } : {
+        codigo: '',
+        nome: '',
+        tipo: 'analitica',
+        natureza: 'despesa',
+    },
+  });
+
+  const mode = conta ? 'edit' : 'create';
+
+  const onSubmit = async (values: FormData) => {
+    setLoading(true);
+    try {
+      const dataToSave = { ...values };
+      
+      if (mode === 'create') {
+        const contasRef = collection(db, `users/${userId}/companies/${companyId}/contasContabeis`);
+        await addDoc(contasRef, dataToSave);
+        toast({ title: "Conta Cadastrada!", description: `A conta ${values.nome} foi adicionada.` });
+      } else if (conta?.id) {
+        const contaRef = doc(db, `users/${userId}/companies/${companyId}/contasContabeis`, conta.id);
+        await setDoc(contaRef, dataToSave, { merge: true });
+        toast({ title: "Conta Atualizada!", description: `Os dados da conta ${values.nome} foram atualizados.` });
+      }
+      onClose();
+    } catch (error) {
+        console.error("Error saving conta:", error);
+        toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar os dados da conta." });
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-xl" key={modalKey}>
+        <DialogHeader>
+          <DialogTitle>{mode === 'create' ? 'Nova Conta Contábil' : 'Editar Conta Contábil'}</DialogTitle>
+          <DialogDescription>Preencha os dados da conta abaixo.</DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Código</FormLabel><FormControl><Input {...field} placeholder="1.01.01.001" /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="nome" render={({ field }) => ( <FormItem><FormLabel>Nome da Conta</FormLabel><FormControl><Input {...field} placeholder="Caixa" /></FormControl><FormMessage /></FormItem> )} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="analitica">Analítica</SelectItem><SelectItem value="sintetica">Sintética</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="natureza" render={({ field }) => ( <FormItem><FormLabel>Natureza</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="ativo">Ativo</SelectItem><SelectItem value="passivo">Passivo</SelectItem><SelectItem value="patrimonio_liquido">Patrimônio Líquido</SelectItem><SelectItem value="receita">Receita</SelectItem><SelectItem value="despesa">Despesa</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+            </div>
+            <DialogFooter className="pt-6">
+              <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" /> : <Save />}
+                {mode === 'create' ? 'Salvar Conta' : 'Salvar Alterações'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
