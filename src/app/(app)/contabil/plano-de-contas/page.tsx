@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft } from "lucide-react";
 import { ContaContabilFormModal } from '@/components/contabil/conta-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 export default function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -108,7 +109,15 @@ export default function PlanoDeContasPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Plano de Contas</h1>
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" asChild>
+                <Link href="/contabil">
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="sr-only">Voltar</span>
+                </Link>
+            </Button>
+            <h1 className="text-2xl font-bold">Plano de Contas</h1>
+        </div>
         <Button onClick={() => handleOpenModal()} disabled={!activeCompany}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Nova Conta
