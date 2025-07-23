@@ -34,6 +34,7 @@ import {
   Calendar,
   LifeBuoy,
   Shield,
+  BookCopy,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 
@@ -46,6 +47,7 @@ const menuGroups = [
       { href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5 flex-shrink-0" />, label: "Dashboard" },
       { href: "/fiscal", icon: <FileStack className="h-5 w-5 flex-shrink-0" />, label: "Módulo Fiscal" },
       { href: "/pessoal", icon: <Users className="h-5 w-5 flex-shrink-0" />, label: "Módulo Pessoal" },
+      { href: "/contabil", icon: <BookCopy className="h-5 w-5 flex-shrink-0" />, label: "Módulo Contábil" },
     ],
   },
   {
@@ -111,11 +113,14 @@ const LogoIcon = () => {
   return (
     <Link
       href="/dashboard"
-      className="font-normal flex items-center justify-center text-sm text-black py-1 relative z-20"
+      className="font-normal flex flex-col items-center justify-center text-sm text-black py-1 relative z-20"
     >
        <div className="h-7 w-7 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
         <BookCheck className="h-5 w-5 text-white" />
       </div>
+      <span className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300 mt-1">
+        Escopo
+      </span>
     </Link>
   );
 };
