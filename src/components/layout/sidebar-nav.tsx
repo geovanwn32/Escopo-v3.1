@@ -95,13 +95,13 @@ const Logo = () => {
       href="/dashboard"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <div className="h-7 w-7 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
-        <BookCheck className="h-5 w-5 text-white" />
+      <div className="h-8 w-8 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
+        <BookCheck className="h-6 w-6 text-white" />
       </div>
       <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="font-bold text-black dark:text-white whitespace-pre text-lg"
+        className="font-bold text-black dark:text-white whitespace-pre text-xl"
       >
         Escopo
       </motion.span>
@@ -115,10 +115,10 @@ const LogoIcon = () => {
       href="/dashboard"
       className="font-normal flex flex-col items-center justify-center text-sm text-black py-1 relative z-20"
     >
-       <div className="h-7 w-7 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
-        <BookCheck className="h-5 w-5 text-white" />
+       <div className="h-8 w-8 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
+        <BookCheck className="h-6 w-6 text-white" />
       </div>
-      <span className="text-[10px] font-bold text-neutral-700 dark:text-neutral-300 mt-1">
+      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 mt-1">
         Escopo
       </span>
     </Link>
