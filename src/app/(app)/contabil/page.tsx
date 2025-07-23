@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight } from "lucide-react";
+import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud } from "lucide-react";
 import Link from "next/link";
 
 const accountingSections = [
@@ -18,6 +18,12 @@ const accountingSections = [
         title: "Lançamentos Manuais",
         description: "Registre os lançamentos contábeis de débito e crédito.",
         icon: ListChecks,
+    },
+    {
+        href: "/contabil/importacao-extrato",
+        title: "Importar Extrato Bancário",
+        description: "Envie extratos (PDF, TXT, Excel) para automatizar lançamentos.",
+        icon: UploadCloud,
     },
     {
         href: "/contabil/conciliacao",
@@ -43,7 +49,7 @@ export default function ContabilPage() {
                     <CardDescription>Selecione uma das opções abaixo para gerenciar a contabilidade da sua empresa.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {accountingSections.map((section) => (
                             <Card key={section.href} className="flex flex-col">
                                 <CardHeader className="flex-row items-start gap-4 space-y-0">
