@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { BookMark } from "lucide-react";
+import { BookMarked } from "lucide-react";
 
 export default function PlanoDeContasPage() {
 
@@ -17,7 +17,7 @@ export default function PlanoDeContasPage() {
         <CardContent>
             <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="p-4 bg-muted rounded-full mb-4">
-                    <BookMark className="h-10 w-10 text-muted-foreground" />
+                    <BookMarked className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <h3 className="text-xl font-semibold">Em Breve</h3>
                 <p className="text-muted-foreground mt-2">
