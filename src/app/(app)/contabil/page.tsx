@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookMark, ListChecks, Banknote, LineChart, ArrowRight } from "lucide-react";
+import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 const accountingSections = [
@@ -11,7 +11,7 @@ const accountingSections = [
         href: "/contabil/plano-de-contas",
         title: "Plano de Contas",
         description: "Gerencie a estrutura de contas contábeis da sua empresa.",
-        icon: BookMark,
+        icon: BookMarked,
     },
     {
         href: "/contabil/lancamentos",
