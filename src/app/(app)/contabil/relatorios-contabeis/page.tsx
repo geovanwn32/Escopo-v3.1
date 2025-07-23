@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { startOfMonth } from "date-fns";
+import { generateTrialBalancePdf } from "@/services/trial-balance-report-service";
 
 type ReportType = 'balancete' | 'dre' | 'balanco';
 
@@ -54,13 +55,30 @@ export default function RelatoriosContabeisPage() {
         }
 
         setIsGenerating(reportType);
-        // Simulate generation
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        toast({
-            title: 'Funcionalidade em Desenvolvimento',
-            description: `A geração do relatório ${reportType.toUpperCase()} ainda não foi implementada.`
-        });
-        setIsGenerating(null);
+        
+        try {
+            switch(reportType) {
+                case 'balancete':
+                    const success = await generateTrialBalancePdf(user.uid, activeCompany, dateRange);
+                    if (!success) {
+                        toast({ title: "Nenhum dado encontrado", description: "Não há lançamentos no período selecionado para gerar o balancete." });
+                    }
+                    break;
+                case 'dre':
+                case 'balanco':
+                     await new Promise(resolve => setTimeout(resolve, 1500));
+                     toast({
+                        title: 'Funcionalidade em Desenvolvimento',
+                        description: `A geração do relatório ${reportType.toUpperCase()} ainda não foi implementada.`
+                    });
+                    break;
+            }
+        } catch (error) {
+            console.error(`Erro ao gerar ${reportType}:`, error);
+            toast({ variant: 'destructive', title: 'Erro ao gerar relatório', description: (error as Error).message });
+        } finally {
+            setIsGenerating(null);
+        }
     };
 
     const reportCards = [
