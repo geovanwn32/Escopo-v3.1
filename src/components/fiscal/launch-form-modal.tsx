@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Produto } from '@/types/produto';
 import { upsertProductsFromLaunch } from '@/services/product-service';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 
 interface XmlFile {
@@ -57,7 +58,7 @@ const productSchema = z.object({
 const launchSchema = z.object({
   fileName: z.string(),
   type: z.string(),
-  status: z.enum(['Normal', 'Cancelado']),
+  status: z.enum(['Normal', 'Cancelado', 'Substituida']),
   date: z.date(),
   chaveNfe: z.string().optional().nullable(),
   numeroNfse: z.string().optional().nullable(),
@@ -266,6 +267,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     }
   };
 
+  const handleStatusChange = (value: Launch['status']) => {
+    setFormData(prev => ({...prev, status: value}));
+  };
+
  const handleNumericInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const numberValue = parseCurrency(value);
@@ -407,12 +412,6 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     return value ?? '';
   };
 
-  const getStatusBadge = () => {
-    const status = formData?.status;
-    if (!status) return null;
-
-    return <Badge variant={status === 'Cancelado' ? 'destructive' : 'default'} className={cn({'bg-green-600 hover:bg-green-700': status === 'Normal' })}>{status}</Badge>
-  }
   
   const renderNfseFields = () => (
     <Accordion type="multiple" defaultValue={['general', 'service', 'prestador', 'tomador']} className="w-full">
@@ -431,7 +430,16 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                 </div>
                  <div className="space-y-2">
                     <Label>Status da Nota Fiscal</Label>
-                    <div className="pt-2">{getStatusBadge()}</div>
+                    <Select value={formData.status} onValueChange={handleStatusChange} disabled={isReadOnly}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Selecione um status..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Normal">Normal</SelectItem>
+                            <SelectItem value="Cancelado">Cancelado</SelectItem>
+                            <SelectItem value="Substituida">Substituída</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
             </AccordionContent>
         </AccordionItem>
@@ -527,7 +535,16 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     </div>
                     <div className="space-y-2">
                         <Label>Status da Nota Fiscal</Label>
-                        <div className="pt-2">{getStatusBadge()}</div>
+                        <Select value={formData.status} onValueChange={handleStatusChange} disabled={isReadOnly}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione um status..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Normal">Normal</SelectItem>
+                                <SelectItem value="Cancelado">Cancelado</SelectItem>
+                                <SelectItem value="Substituida">Substituída</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </AccordionContent>

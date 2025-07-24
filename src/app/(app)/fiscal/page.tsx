@@ -48,7 +48,7 @@ export interface Launch {
     id: string;
     fileName: string;
     type: string;
-    status: 'Normal' | 'Cancelado';
+    status: 'Normal' | 'Cancelado' | 'Substituida';
     date: Date;
     chaveNfe?: string;
     numeroNfse?: string;
@@ -476,6 +476,19 @@ endDate.setHours(23,59,59,999);
     
     return <Badge variant={variantMap[xmlFile.status]} className={cn({'bg-green-600 hover:bg-green-700': xmlFile.status === 'launched' })}>{labelMap[xmlFile.status]}</Badge>
   }
+  
+  const getBadgeForLaunchStatus = (status: Launch['status']) => {
+    switch (status) {
+        case 'Normal':
+            return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
+        case 'Cancelado':
+            return <Badge variant="destructive">{status}</Badge>;
+        case 'Substituida':
+            return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">{status}</Badge>;
+        default:
+            return <Badge variant="secondary">{status}</Badge>;
+    }
+  }
 
 
   return (
@@ -720,9 +733,7 @@ endDate.setHours(23,59,59,999);
                                 </TableCell>
                                 <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.fileName}</TableCell>
                                 <TableCell>
-                                    <Badge variant={launch.status === 'Cancelado' ? 'destructive' : 'default'} className={cn({'bg-green-600 hover:bg-green-700': launch.status === 'Normal' })}>
-                                        {launch.status}
-                                    </Badge>
+                                    {getBadgeForLaunchStatus(launch.status)}
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.valorLiquido || launch.valorTotalNota || 0)}
