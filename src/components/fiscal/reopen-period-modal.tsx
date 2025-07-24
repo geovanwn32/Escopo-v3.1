@@ -1,18 +1,19 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, collection, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound } from 'lucide-react';
+import { Loader2, KeyRound, ListChecks } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Separator } from '../ui/separator';
 
 interface ReopenPeriodModalProps {
   isOpen: boolean;
@@ -31,6 +32,8 @@ const REOPEN_PASSWORD = "3830";
 
 export function ReopenPeriodModal({ isOpen, onClose, userId, companyId }: ReopenPeriodModalProps) {
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const { toast } = useToast();
   
   const form = useForm<FormData>({
@@ -40,6 +43,28 @@ export function ReopenPeriodModal({ isOpen, onClose, userId, companyId }: Reopen
         password: '',
     },
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchClosedPeriods = async () => {
+        setListLoading(true);
+        try {
+            const closuresRef = collection(db, `users/${userId}/companies/${companyId}/fiscalClosures`);
+            const q = query(closuresRef, orderBy('closedAt', 'desc'));
+            const snapshot = await getDocs(q);
+            const periods = snapshot.docs.map(doc => doc.id.split('-').reverse().join('/'));
+            setClosedPeriods(periods);
+        } catch (error) {
+            console.error("Erro ao buscar períodos fechados:", error);
+            toast({ variant: 'destructive', title: 'Erro ao listar períodos.' });
+        } finally {
+            setListLoading(false);
+        }
+    };
+    
+    fetchClosedPeriods();
+  }, [isOpen, userId, companyId, toast]);
 
   const onSubmit = async (values: FormData) => {
     if (values.password !== REOPEN_PASSWORD) {
@@ -73,8 +98,26 @@ export function ReopenPeriodModal({ isOpen, onClose, userId, companyId }: Reopen
             Para reabrir um período e permitir alterações, informe o período e a senha de segurança. Esta ação deve ser usada com cautela.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-2"><ListChecks className="h-4 w-4" /> Períodos Fechados</h4>
+             <div className="border rounded-md p-3 text-sm h-28 overflow-y-auto">
+                {listLoading ? (
+                    <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
+                ) : closedPeriods.length > 0 ? (
+                     <ul className="space-y-1">
+                        {closedPeriods.map(p => <li key={p} className="font-mono">{p}</li>)}
+                    </ul>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">Nenhum período fechado.</div>
+                )}
+            </div>
+        </div>
+
+        <Separator />
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="period"
