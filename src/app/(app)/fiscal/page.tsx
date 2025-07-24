@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -464,7 +464,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    currentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -721,6 +721,7 @@ endDate.setHours(23,59,59,999);
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Parceiro</TableHead>
+                            <TableHead>Chave/Número</TableHead>
                             <TableHead>Arquivo XML</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
@@ -744,6 +745,9 @@ endDate.setHours(23,59,59,999);
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
                                     {getPartnerName(launch)}
+                                </TableCell>
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={launch.chaveNfe || launch.numeroNfse}>
+                                    {launch.chaveNfe || launch.numeroNfse}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.fileName}</TableCell>
                                 <TableCell>
@@ -840,4 +844,3 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
-
