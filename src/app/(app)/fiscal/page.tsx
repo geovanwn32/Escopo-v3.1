@@ -48,6 +48,7 @@ export interface Launch {
     id: string;
     fileName: string;
     type: string;
+    status: 'Normal' | 'Cancelado';
     date: Date;
     chaveNfe?: string;
     numeroNfse?: string;
@@ -362,9 +363,14 @@ export default function FiscalPage() {
     setManualLaunchType(null);
   }
 
-  const handleLaunchSuccess = (launchedKey: string) => {
+  const handleLaunchSuccess = (launchedKey: string, status: Launch['status']) => {
      if (launchedKey) {
-        setXmlFiles(files => files.map(f => f.key === launchedKey ? { ...f, status: 'launched' } : f));
+        setXmlFiles(files => files.map(f => {
+            if (f.key === launchedKey) {
+                return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
+            }
+            return f;
+        }));
      }
      handleModalClose();
   }
@@ -688,7 +694,8 @@ endDate.setHours(23,59,59,999);
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Parceiro</TableHead>
-                            <TableHead>Chave/Número</TableHead>
+                            <TableHead>Arquivo XML</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
@@ -696,7 +703,7 @@ endDate.setHours(23,59,59,999);
                     <TableBody>
                         {paginatedLaunches.length === 0 ? (
                              <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
+                                <TableCell colSpan={7} className="h-24 text-center">
                                     Nenhum resultado encontrado para os filtros aplicados.
                                 </TableCell>
                             </TableRow>
@@ -711,7 +718,12 @@ endDate.setHours(23,59,59,999);
                                 <TableCell className="max-w-[200px] truncate">
                                     {getPartnerName(launch)}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs">{launch.chaveNfe || launch.numeroNfse}</TableCell>
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.fileName}</TableCell>
+                                <TableCell>
+                                    <Badge variant={launch.status === 'Cancelado' ? 'destructive' : 'default'} className={cn({'bg-green-600 hover:bg-green-700': launch.status === 'Normal' })}>
+                                        {launch.status}
+                                    </Badge>
+                                </TableCell>
                                 <TableCell className="text-right font-medium">
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.valorLiquido || launch.valorTotalNota || 0)}
                                 </TableCell>

@@ -38,7 +38,7 @@ interface LaunchFormModalProps {
   mode: 'create' | 'edit' | 'view';
   userId: string;
   company: Company;
-  onLaunchSuccess: (launchedKey: string) => void;
+  onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
 }
 
 const partySchema = z.object({
@@ -57,6 +57,7 @@ const productSchema = z.object({
 const launchSchema = z.object({
   fileName: z.string(),
   type: z.string(),
+  status: z.enum(['Normal', 'Cancelado']),
   date: z.date(),
   chaveNfe: z.string().optional().nullable(),
   numeroNfse: z.string().optional().nullable(),
@@ -224,11 +225,13 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           initialData = parseXmlAdvanced(xmlFile.content, xmlFile.type);
           initialData.type = xmlFile.type;
           initialData.fileName = xmlFile.file.name;
+          initialData.status = xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal';
         } else if (manualLaunchType) {
           initialData = {
             type: manualLaunchType,
             date: new Date(),
             fileName: 'Lançamento Manual',
+            status: 'Normal',
           };
           // Pre-fill company data for manual launches
           if (manualLaunchType === 'servico') {
@@ -299,6 +302,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
         const dataToSave: any = {
             fileName: formData.fileName || 'Lançamento Manual',
             type: formData.type || 'desconhecido',
+            status: formData.status || 'Normal',
             date: formData.date && isValid(formData.date) ? formData.date : new Date(),
             chaveNfe: getSafeString(formData.chaveNfe),
             numeroNfse: getSafeString(formData.numeroNfse),
@@ -348,7 +352,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     : `O arquivo ${dataToSave.fileName} foi lançado com sucesso.`
             });
             const launchKey = dataToSave.chaveNfe || dataToSave.numeroNfse;
-            onLaunchSuccess(launchKey);
+            onLaunchSuccess(launchKey, dataToSave.status);
         } else if (mode === 'edit' && launch) {
             const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, launch.id);
             delete dataToSave.produtos; // Do not save products inside the launch document
@@ -404,21 +408,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
   };
 
   const getStatusBadge = () => {
-    if (!xmlFile) return null;
-    const { status } = xmlFile;
-    const variantMap: {[key in XmlFile['status']]: "default" | "secondary" | "destructive"} = {
-        pending: 'secondary',
-        launched: 'default',
-        cancelled: 'destructive',
-        error: 'destructive',
-    };
-    const labelMap: {[key in XmlFile['status']]: string} = {
-        pending: 'Pendente',
-        launched: 'Lançado',
-        cancelled: 'Cancelado',
-        error: 'Erro'
-    };
-    return <Badge variant={variantMap[status]} className={cn({'bg-green-600 hover:bg-green-700': status === 'launched' })}>{labelMap[status]}</Badge>
+    const status = formData?.status;
+    if (!status) return null;
+
+    return <Badge variant={status === 'Cancelado' ? 'destructive' : 'default'} className={cn({'bg-green-600 hover:bg-green-700': status === 'Normal' })}>{status}</Badge>
   }
   
   const renderNfseFields = () => (
@@ -436,12 +429,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                         <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
                     </div>
                 </div>
-                 {xmlFile && (
-                    <div className="space-y-2">
-                        <Label>Status da Nota Fiscal</Label>
-                        <div className="pt-2">{getStatusBadge()}</div>
-                    </div>
-                )}
+                 <div className="space-y-2">
+                    <Label>Status da Nota Fiscal</Label>
+                    <div className="pt-2">{getStatusBadge()}</div>
+                </div>
             </AccordionContent>
         </AccordionItem>
         <AccordionItem value="prestador">
@@ -534,12 +525,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                         <Label htmlFor="date">Data de Emissão</Label>
                         <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
                     </div>
-                    {xmlFile && (
-                        <div className="space-y-2">
-                            <Label>Status da Nota Fiscal</Label>
-                            <div className="pt-2">{getStatusBadge()}</div>
-                        </div>
-                    )}
+                    <div className="space-y-2">
+                        <Label>Status da Nota Fiscal</Label>
+                        <div className="pt-2">{getStatusBadge()}</div>
+                    </div>
                 </div>
             </AccordionContent>
         </AccordionItem>
