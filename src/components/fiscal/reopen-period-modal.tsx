@@ -107,7 +107,16 @@ export function ReopenPeriodModal({ isOpen, onClose, userId, companyId }: Reopen
                     <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
                 ) : closedPeriods.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
-                        {closedPeriods.map(p => <Badge key={p} variant="secondary" className="font-mono">{p}</Badge>)}
+                        {closedPeriods.map(p => (
+                            <Badge 
+                                key={p} 
+                                variant="secondary" 
+                                className="font-mono cursor-pointer hover:bg-muted"
+                                onClick={() => form.setValue('period', p)}
+                            >
+                                {p}
+                            </Badge>
+                        ))}
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">Nenhum período fechado.</div>
