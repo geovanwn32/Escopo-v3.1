@@ -9,7 +9,6 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extract-transactions-flow';
-import * as XLSX from 'xlsx';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -28,6 +27,16 @@ const formatCurrency = (value: number) => {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
+};
+
+// Helper function to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
 };
 
 
@@ -85,22 +94,12 @@ export default function ImportacaoExtratoPage() {
         setExtractedTransactions([]);
         
         try {
-            let textContent = '';
-            if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel')) {
-                const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data);
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                textContent = XLSX.utils.sheet_to_csv(worksheet);
-            } else if (file.type === 'application/pdf') {
-                toast({ variant: 'destructive', title: 'PDF não suportado', description: 'A extração de PDF é complexa. Por favor, tente com um arquivo TXT, CSV ou XLSX.' });
-                 setIsProcessing(false);
-                 return;
-            } else {
-                textContent = await file.text();
-            }
+            const fileDataUri = await fileToBase64(file);
 
-            const result = await extractBankTransactions({ textContent });
+            const result = await extractBankTransactions({ 
+                fileDataUri, 
+                mimeType: file.type 
+            });
 
             if (result.transactions && result.transactions.length > 0) {
                 setExtractedTransactions(result.transactions);
@@ -136,7 +135,7 @@ export default function ImportacaoExtratoPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Enviar Extrato</CardTitle>
-                    <CardDescription>Arraste e solte ou selecione o arquivo do seu extrato bancário (TXT, CSV, XLSX).</CardDescription>
+                    <CardDescription>Arraste e solte ou selecione o arquivo do seu extrato bancário (PDF, TXT, CSV, XLSX).</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <input
@@ -144,7 +143,7 @@ export default function ImportacaoExtratoPage() {
                         ref={fileInputRef}
                         onChange={handleFileChange}
                         className="hidden"
-                        accept=".txt,.csv,.xlsx"
+                        accept=".pdf,.txt,.csv,.xlsx"
                     />
                     <div
                         className={cn(
