@@ -24,6 +24,7 @@ import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { generateReceivablesReportPdf } from '@/services/receivables-report-service';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -197,11 +198,24 @@ export default function ContasAReceberPage() {
     XLSX.writeFile(workbook, `contas_a_receber_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   }
   
-  const handleGeneratePdf = () => {
-     toast({
-        title: 'Funcionalidade em Desenvolvimento',
-        description: `A geração de relatórios em PDF será implementada em breve.`
-    });
+  const handleGeneratePdf = async () => {
+     if (!user || !activeCompany) {
+        toast({ variant: 'destructive', title: 'Usuário ou empresa não identificados.' });
+        return;
+    }
+    
+    try {
+        await generateReceivablesReportPdf(user.uid, activeCompany, {
+            from: filterDate?.from,
+            to: filterDate?.to,
+        }, filterStatus || undefined);
+    } catch(error) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao gerar PDF',
+            description: (error as Error).message,
+        });
+    }
   }
 
 
