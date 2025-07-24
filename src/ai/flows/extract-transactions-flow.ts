@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI flow to extract bank statement transactions from text.
@@ -10,8 +11,6 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import * as XLSX from 'xlsx';
-import pdf from 'pdf-parse';
 
 const BankTransactionSchema = z.object({
   date: z.string().describe('The date of the transaction in YYYY-MM-DD format.'),
@@ -22,8 +21,7 @@ const BankTransactionSchema = z.object({
 export type BankTransaction = z.infer<typeof BankTransactionSchema>;
 
 const BankTransactionExtractionInputSchema = z.object({
-  fileDataUri: z.string().describe("A file (PDF, TXT, CSV, XLSX) encoded as a data URI. Expected format: 'data:<mimetype>;base64,<encoded_data>'."),
-  mimeType: z.string().describe("The MIME type of the file, e.g., 'application/pdf' or 'text/csv'."),
+  textContent: z.string().describe("The full text content extracted from a bank statement file (PDF, TXT, CSV, etc.)."),
 });
 export type BankTransactionExtractionInput = z.infer<typeof BankTransactionExtractionInputSchema>;
 
@@ -35,7 +33,7 @@ export type BankTransactionExtractionOutput = z.infer<typeof BankTransactionExtr
 
 const prompt = ai.definePrompt({
     name: 'extractBankTransactionsPrompt',
-    input: {schema: z.object({ textContent: z.string() }) },
+    input: {schema: BankTransactionExtractionInputSchema },
     output: {schema: BankTransactionExtractionOutputSchema},
     prompt: `You are an expert financial analyst specializing in parsing bank statements. Your task is to extract all individual transactions from the provided text content.
 
@@ -62,27 +60,11 @@ const extractBankTransactionsFlow = ai.defineFlow(
   },
   async (input) => {
     
-    const base64Data = input.fileDataUri.split(',')[1];
-    const fileBuffer = Buffer.from(base64Data, 'base64');
-    let textContent = '';
-
-    if (input.mimeType.includes('spreadsheetml') || input.mimeType.includes('ms-excel') || input.mimeType.includes('csv')) {
-        const workbook = XLSX.read(fileBuffer);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        textContent = XLSX.utils.sheet_to_csv(worksheet);
-    } else if (input.mimeType === 'application/pdf') {
-        const data = await pdf(fileBuffer);
-        textContent = data.text;
-    } else { // Assume plain text
-        textContent = fileBuffer.toString('utf-8');
+    if (!input.textContent) {
+        throw new Error("Text content is empty.");
     }
 
-    if (!textContent) {
-        throw new Error("Could not extract text content from the file.");
-    }
-
-    const {output} = await prompt({ textContent });
+    const {output} = await prompt(input);
 
     if (!output) {
       throw new Error("The AI model failed to return an output.");

@@ -1,16 +1,24 @@
 
 "use client";
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, ListChecks, CheckCircle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extract-transactions-flow';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import * as XLSX from 'xlsx';
+import pdf from 'pdf-parse/lib/pdf-parse.js';
+
+
+// This is needed to make pdf-parse work in the browser
+if (typeof window !== 'undefined') {
+  (window as any).pdf = pdf;
+}
 
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -28,17 +36,6 @@ const formatCurrency = (value: number) => {
       currency: 'BRL',
     }).format(value);
 };
-
-// Helper function to convert file to base64
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = error => reject(error);
-    });
-};
-
 
 export default function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
@@ -94,12 +91,26 @@ export default function ImportacaoExtratoPage() {
         setExtractedTransactions([]);
         
         try {
-            const fileDataUri = await fileToBase64(file);
+            let textContent = '';
+            const fileBuffer = await file.arrayBuffer();
+            
+            if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel') || file.name.endsWith('.csv')) {
+                const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                textContent = XLSX.utils.sheet_to_csv(worksheet);
+            } else if (file.type === 'application/pdf') {
+                const data = await pdf(fileBuffer);
+                textContent = data.text;
+            } else { // Assume plain text
+                textContent = await file.text();
+            }
 
-            const result = await extractBankTransactions({ 
-                fileDataUri, 
-                mimeType: file.type 
-            });
+            if (!textContent) {
+                throw new Error("Could not extract text content from the file.");
+            }
+
+            const result = await extractBankTransactions({ textContent });
 
             if (result.transactions && result.transactions.length > 0) {
                 setExtractedTransactions(result.transactions);
@@ -233,4 +244,3 @@ export default function ImportacaoExtratoPage() {
         </div>
     );
 }
-
