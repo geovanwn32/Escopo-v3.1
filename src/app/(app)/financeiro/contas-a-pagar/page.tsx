@@ -98,6 +98,10 @@ export default function ContasAPagarPage() {
     }, {} as Record<FinancialStatus, number>);
   }, [launches]);
 
+  const getPartnerName = (launch: Launch): string => {
+    return launch.emitente?.nome || 'N/A';
+  };
+
    const filteredLaunches = useMemo(() => {
     return launches.filter(launch => {
         const partnerName = getPartnerName(launch).toLowerCase();
@@ -141,10 +145,6 @@ endDate.setHours(23,59,59,999);
       toast({ variant: 'destructive', title: 'Erro ao atualizar status' });
     }
   }
-
-  const getPartnerName = (launch: Launch): string => {
-    return launch.emitente?.nome || 'N/A';
-  };
 
   const getStatusVariant = (status?: FinancialStatus) => {
     switch (status) {
