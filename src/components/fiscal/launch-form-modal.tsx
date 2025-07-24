@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -37,7 +36,7 @@ interface LaunchFormModalProps {
   mode: 'create' | 'edit' | 'view';
   userId: string;
   company: Company;
-  onLaunchSuccess: (fileName: string) => void;
+  onLaunchSuccess: (launchedKey: string) => void;
 }
 
 const partySchema = z.object({
@@ -346,7 +345,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     ? `Lançamento manual de ${dataToSave.type} criado.`
                     : `O arquivo ${dataToSave.fileName} foi lançado com sucesso.`
             });
-            onLaunchSuccess(dataToSave.fileName as string);
+            const launchKey = dataToSave.chaveNfe || dataToSave.numeroNfse;
+            onLaunchSuccess(launchKey);
         } else if (mode === 'edit' && launch) {
             const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, launch.id);
             delete dataToSave.produtos; // Do not save products inside the launch document
