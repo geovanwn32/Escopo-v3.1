@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,13 +19,14 @@ import { Textarea } from '../ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import type { Produto } from '@/types/produto';
 import { upsertProductsFromLaunch } from '@/services/product-service';
+import { cn } from '@/lib/utils';
 
 
 interface XmlFile {
   file: File;
   content: string;
-  status: 'pending' | 'launched' | 'error';
-  type: 'entrada' | 'saida' | 'servico' | 'desconhecido';
+  status: 'pending' | 'launched' | 'error' | 'cancelled';
+  type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
 }
 
 interface LaunchFormModalProps {
@@ -400,6 +402,24 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
     const value = formData[name as keyof typeof formData] as any;
     return value ?? '';
   };
+
+  const getStatusBadge = () => {
+    if (!xmlFile) return null;
+    const { status } = xmlFile;
+    const variantMap: {[key in XmlFile['status']]: "default" | "secondary" | "destructive"} = {
+        pending: 'secondary',
+        launched: 'default',
+        cancelled: 'destructive',
+        error: 'destructive',
+    };
+    const labelMap: {[key in XmlFile['status']]: string} = {
+        pending: 'Pendente',
+        launched: 'Lançado',
+        cancelled: 'Cancelado',
+        error: 'Erro'
+    };
+    return <Badge variant={variantMap[status]} className={cn({'bg-green-600 hover:bg-green-700': status === 'launched' })}>{labelMap[status]}</Badge>
+  }
   
   const renderNfseFields = () => (
     <Accordion type="multiple" defaultValue={['general', 'service', 'prestador', 'tomador']} className="w-full">
@@ -416,6 +436,12 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                         <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
                     </div>
                 </div>
+                 {xmlFile && (
+                    <div className="space-y-2">
+                        <Label>Status da Nota Fiscal</Label>
+                        <div className="pt-2">{getStatusBadge()}</div>
+                    </div>
+                )}
             </AccordionContent>
         </AccordionItem>
         <AccordionItem value="prestador">
@@ -508,6 +534,12 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                         <Label htmlFor="date">Data de Emissão</Label>
                         <Input id="date" name="date" type="date" value={formatDate(formData.date)} onChange={handleDateChange} readOnly={isReadOnly} />
                     </div>
+                    {xmlFile && (
+                        <div className="space-y-2">
+                            <Label>Status da Nota Fiscal</Label>
+                            <div className="pt-2">{getStatusBadge()}</div>
+                        </div>
+                    )}
                 </div>
             </AccordionContent>
         </AccordionItem>
