@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/f
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon, FileText, FileSpreadsheet } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -23,6 +23,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -165,6 +166,43 @@ export default function ContasAReceberPage() {
     if (!status) return 'Pendente';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
+  
+  const handleExportExcel = () => {
+    if (filteredLaunches.length === 0) {
+        toast({ variant: 'destructive', title: 'Nenhum dado para exportar.' });
+        return;
+    }
+
+    const dataToExport = filteredLaunches.map(launch => ({
+        'Data': format(launch.date, 'dd/MM/yyyy'),
+        'Parceiro (Cliente)': getPartnerName(launch),
+        'Nota Fiscal': launch.chaveNfe || launch.numeroNfse,
+        'Valor': launch.valorLiquido || launch.valorTotalNota || 0,
+        'Status': getStatusLabel(launch.financialStatus as FinancialStatus),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Contas a Receber");
+
+    // Formatação de colunas (largura)
+    worksheet['!cols'] = [
+        { wch: 12 }, // Data
+        { wch: 40 }, // Parceiro
+        { wch: 45 }, // Nota Fiscal
+        { wch: 15 }, // Valor
+        { wch: 15 }, // Status
+    ];
+
+    XLSX.writeFile(workbook, `contas_a_receber_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  }
+  
+  const handleGeneratePdf = () => {
+     toast({
+        title: 'Funcionalidade em Desenvolvimento',
+        description: `A geração de relatórios em PDF será implementada em breve.`
+    });
+  }
 
 
   const totalPages = Math.ceil(filteredLaunches.length / itemsPerPage);
@@ -188,9 +226,21 @@ export default function ContasAReceberPage() {
       </div>
 
        <Card>
-        <CardHeader>
-          <CardTitle>Resumo Financeiro a Receber</CardTitle>
-          <CardDescription>Visualize o status atual das suas contas a receber.</CardDescription>
+        <CardHeader className="flex-row justify-between items-start">
+            <div>
+                <CardTitle>Resumo Financeiro a Receber</CardTitle>
+                <CardDescription>Visualize o status atual das suas contas a receber.</CardDescription>
+            </div>
+            <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={filteredLaunches.length === 0}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Gerar PDF
+                </Button>
+                 <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={filteredLaunches.length === 0}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Exportar Excel
+                </Button>
+            </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
              <Card>
