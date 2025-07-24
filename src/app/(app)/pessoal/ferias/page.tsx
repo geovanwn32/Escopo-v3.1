@@ -32,6 +32,14 @@ import { generateVacationNoticePdf } from '@/services/vacation-notice-service';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 
+function FeriasPageWrapper() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const vacationId = searchParams.get('id');
+
+    return <VacationPage vacationId={vacationId} router={router} />;
+}
+
 
 function VacationPage({ vacationId, router }: { vacationId: string | null, router: any }) {
     const [events, setEvents] = useState<VacationResult['events']>([]);
@@ -405,11 +413,4 @@ function VacationPage({ vacationId, router }: { vacationId: string | null, route
     );
 }
 
-// Wrapper to handle searchParams on the server
-export default function FeriasPageWrapper() {
-    const searchParams = useSearchParams();
-    const router = useRouter();
-    const vacationId = searchParams.get('id');
-
-    return <VacationPage vacationId={vacationId} router={router} />;
-}
+export default FeriasPageWrapper;

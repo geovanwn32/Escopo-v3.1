@@ -62,8 +62,8 @@ export interface RciTotals {
 
 function RciPageWrapper() {
     const searchParams = useSearchParams();
-    const rciId = searchParams.get('id');
     const router = useRouter();
+    const rciId = searchParams.get('id');
 
     return <RciPage rciId={rciId} router={router} />;
 }

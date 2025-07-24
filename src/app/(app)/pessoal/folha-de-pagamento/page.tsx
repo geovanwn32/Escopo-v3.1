@@ -63,8 +63,8 @@ export interface PayrollTotals {
 
 function PayrollPageWrapper() {
     const searchParams = useSearchParams();
-    const payrollId = searchParams.get('id');
     const router = useRouter();
+    const payrollId = searchParams.get('id');
 
     return <FolhaDePagamentoPage payrollId={payrollId} router={router} />;
 }
