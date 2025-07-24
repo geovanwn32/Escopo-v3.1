@@ -32,8 +32,8 @@ export default function FluxoDeCaixaPage() {
 
   // Filter states
   const [filterPartner, setFilterPartner] = useState("");
-  const [filterType, setFilterType = useState<"entrada" | "saida" | "">("");
-  const [filterDate, setFilterDate = useState<DateRange | undefined>(undefined);
+  const [filterType, setFilterType] = useState<"entrada" | "saida" | "">("");
+  const [filterDate, setFilterDate] = useState<DateRange | undefined>(undefined);
 
   const { user } = useAuth();
   const { toast } = useToast();
