@@ -120,7 +120,7 @@ export default function FiscalPage() {
   const [filterStartDate, setFilterStartDate] = useState<Date | undefined>();
   const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
-  const launchesItemsPerPage = 5;
+  const launchesItemsPerPage = 10;
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -447,6 +447,13 @@ endDate.setHours(23,59,59,999);
     xmlCurrentPage * xmlItemsPerPage
   );
   
+  // Launches pagination logic
+  const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
+  const paginatedLaunches = filteredLaunches.slice(
+    (launchesCurrentPage - 1) * launchesItemsPerPage,
+    launchesCurrentPage * launchesItemsPerPage
+  );
+
   const getBadgeForXml = (xmlFile: XmlFile) => {
     const variantMap: {[key in XmlFile['status']]: "default" | "secondary" | "destructive"} = {
         pending: 'secondary',
