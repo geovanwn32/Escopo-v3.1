@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, where } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, XCircle, Hourglass } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, XCircle, Hourglass, Wallet, Banknote, AlertTriangle } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -18,6 +18,8 @@ import { format } from 'date-fns';
 import type { Launch } from '@/app/(app)/fiscal/page';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
+
+const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 export default function ContasAReceberPage() {
   const [launches, setLaunches] = useState<Launch[]>([]);
@@ -75,6 +77,14 @@ export default function ContasAReceberPage() {
     }
   }, [user, activeCompany, toast]);
 
+  const financialTotals = useMemo(() => {
+    return launches.reduce((acc, launch) => {
+        const value = launch.valorLiquido || launch.valorTotalNota || 0;
+        const status = launch.financialStatus || 'pendente';
+        acc[status] = (acc[status] || 0) + value;
+        return acc;
+    }, {} as Record<FinancialStatus, number>);
+  }, [launches]);
 
   const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
      if (!user || !activeCompany) return;
@@ -131,6 +141,45 @@ export default function ContasAReceberPage() {
             <h1 className="text-2xl font-bold">Contas a Receber</h1>
         </div>
       </div>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>Resumo Financeiro</CardTitle>
+          <CardDescription>Visualize o status atual das suas contas a receber.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">A Receber</CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">{formatCurrency(financialTotals.pendente || 0)}</div>
+                    <p className="text-xs text-muted-foreground">Total de notas com pagamento pendente.</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Recebido (Últimos 30 dias)</CardTitle>
+                    <Banknote className="h-4 w-4 text-muted-foreground"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{formatCurrency(financialTotals.pago || 0)}</div>
+                    <p className="text-xs text-muted-foreground">Total de notas pagas e confirmadas.</p>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Vencido</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{formatCurrency(financialTotals.vencido || 0)}</div>
+                     <p className="text-xs text-muted-foreground">Total de notas com pagamento atrasado.</p>
+                </CardContent>
+            </Card>
+        </CardContent>
+       </Card>
 
        <Card>
         <CardHeader>
