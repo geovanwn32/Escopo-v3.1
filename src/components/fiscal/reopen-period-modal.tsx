@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, ListChecks } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 
 interface ReopenPeriodModalProps {
   isOpen: boolean;
@@ -105,9 +106,9 @@ export function ReopenPeriodModal({ isOpen, onClose, userId, companyId }: Reopen
                 {listLoading ? (
                     <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
                 ) : closedPeriods.length > 0 ? (
-                     <ul className="space-y-1">
-                        {closedPeriods.map(p => <li key={p} className="font-mono">{p}</li>)}
-                    </ul>
+                    <div className="flex flex-wrap gap-2">
+                        {closedPeriods.map(p => <Badge key={p} variant="secondary" className="font-mono">{p}</Badge>)}
+                    </div>
                 ) : (
                     <div className="flex items-center justify-center h-full text-muted-foreground">Nenhum período fechado.</div>
                 )}
