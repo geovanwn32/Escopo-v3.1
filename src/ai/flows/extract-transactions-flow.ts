@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const BankTransactionSchema = z.object({
+const BankTransactionSchema = z.object({
   date: z.string().describe('The date of the transaction in YYYY-MM-DD format.'),
   description: z.string().describe('The full description of the transaction as it appears on the statement.'),
   amount: z.number().describe('The value of the transaction. Positive for credits/income, negative for debits/expenses.'),
@@ -19,12 +19,12 @@ export const BankTransactionSchema = z.object({
 });
 export type BankTransaction = z.infer<typeof BankTransactionSchema>;
 
-export const BankTransactionExtractionInputSchema = z.object({
+const BankTransactionExtractionInputSchema = z.object({
   textContent: z.string().describe("The full raw text content of a bank statement file (PDF, TXT, etc.)."),
 });
 export type BankTransactionExtractionInput = z.infer<typeof BankTransactionExtractionInputSchema>;
 
-export const BankTransactionExtractionOutputSchema = z.object({
+const BankTransactionExtractionOutputSchema = z.object({
   transactions: z.array(BankTransactionSchema),
 });
 export type BankTransactionExtractionOutput = z.infer<typeof BankTransactionExtractionOutputSchema>;
