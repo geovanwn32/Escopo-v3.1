@@ -35,6 +35,7 @@ import {
   LifeBuoy,
   Shield,
   BookCopy,
+  Landmark,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 
@@ -48,6 +49,7 @@ const menuGroups = [
       { href: "/fiscal", icon: <FileStack className="h-5 w-5 flex-shrink-0" />, label: "Módulo Fiscal" },
       { href: "/pessoal", icon: <Users className="h-5 w-5 flex-shrink-0" />, label: "Módulo Pessoal" },
       { href: "/contabil", icon: <BookCopy className="h-5 w-5 flex-shrink-0" />, label: "Módulo Contábil" },
+      { href: "/financeiro", icon: <Landmark className="h-5 w-5 flex-shrink-0" />, label: "Módulo Financeiro" },
     ],
   },
   {
