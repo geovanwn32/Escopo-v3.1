@@ -55,8 +55,7 @@ export default function ContasAReceberPage() {
     
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
     const qLaunches = query(launchesRef, 
-        where('type', 'in', ['saida', 'servico']),
-        orderBy('date', 'desc')
+        where('type', 'in', ['saida', 'servico'])
     );
     const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
         const data = snapshot.docs.map(doc => ({
@@ -64,6 +63,8 @@ export default function ContasAReceberPage() {
             ...doc.data(),
             date: doc.data().date.toDate(),
         } as Launch));
+        // Sort data by date on the client-side
+        data.sort((a, b) => b.date.getTime() - a.date.getTime());
         setLaunches(data);
         setLoading(false);
     }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos fiscais" }); setLoading(false); });
