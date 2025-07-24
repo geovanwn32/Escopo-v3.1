@@ -2,13 +2,24 @@
 "use client";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { ArrowDownLeftSquare } from "lucide-react";
+import { ArrowDownLeftSquare, ArrowLeft } from "lucide-react";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function ContasAPagarPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Contas a Pagar</h1>
+        <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" asChild>
+                <Link href="/financeiro">
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="sr-only">Voltar</span>
+                </Link>
+            </Button>
+            <h1 className="text-2xl font-bold">Contas a Pagar</h1>
+        </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Módulo em Desenvolvimento</CardTitle>
