@@ -4,13 +4,14 @@
 import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, ListChecks, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extract-transactions-flow';
-import { TransactionReviewModal } from '@/components/contabil/transaction-review-modal';
 import * as XLSX from 'xlsx';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -22,11 +23,18 @@ const formatBytes = (bytes: number, decimals = 2) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+};
+
+
 export default function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [isReviewModalOpen, setReviewModalOpen] = useState(false);
     const [extractedTransactions, setExtractedTransactions] = useState<BankTransaction[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
@@ -41,6 +49,7 @@ export default function ImportacaoExtratoPage() {
                 return;
             }
             setFile(selectedFile);
+            setExtractedTransactions([]); // Clear previous results when new file is selected
         }
     };
 
@@ -73,6 +82,7 @@ export default function ImportacaoExtratoPage() {
         }
 
         setIsProcessing(true);
+        setExtractedTransactions([]);
         
         try {
             let textContent = '';
@@ -83,9 +93,7 @@ export default function ImportacaoExtratoPage() {
                 const worksheet = workbook.Sheets[sheetName];
                 textContent = XLSX.utils.sheet_to_csv(worksheet);
             } else if (file.type === 'application/pdf') {
-                // PDF parsing is complex and would require a library like pdf-parse on the backend.
-                // For this example, we'll notify the user it's not supported in this simulation.
-                 toast({ variant: 'destructive', title: 'PDF não suportado', description: 'A extração de PDF é complexa. Por favor, tente com um arquivo TXT, CSV ou XLSX.' });
+                toast({ variant: 'destructive', title: 'PDF não suportado', description: 'A extração de PDF é complexa. Por favor, tente com um arquivo TXT, CSV ou XLSX.' });
                  setIsProcessing(false);
                  return;
             } else {
@@ -96,7 +104,7 @@ export default function ImportacaoExtratoPage() {
 
             if (result.transactions && result.transactions.length > 0) {
                 setExtractedTransactions(result.transactions);
-                setReviewModalOpen(true);
+                 toast({ title: 'Transações Extraídas!', description: 'Revise os lançamentos abaixo antes de contabilizar.' });
             } else {
                  toast({ title: 'Nenhuma transação encontrada', description: 'A IA não conseguiu extrair transações do arquivo. Verifique o conteúdo e tente novamente.' });
             }
@@ -108,8 +116,12 @@ export default function ImportacaoExtratoPage() {
         }
     };
 
+    const resetState = () => {
+        setFile(null);
+        setExtractedTransactions([]);
+    };
+
     return (
-        <>
         <div className="space-y-6">
             <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" asChild>
@@ -164,7 +176,7 @@ export default function ImportacaoExtratoPage() {
                                         <span className="text-xs text-muted-foreground">{formatBytes(file.size)}</span>
                                     </div>
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setFile(null)}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={resetState}>
                                     <X className="h-4 w-4"/>
                                 </Button>
                             </div>
@@ -178,17 +190,48 @@ export default function ImportacaoExtratoPage() {
                     </Button>
                 </CardFooter>
             </Card>
-        </div>
 
-        <TransactionReviewModal
-            isOpen={isReviewModalOpen}
-            onClose={() => {
-                setReviewModalOpen(false);
-                setExtractedTransactions([]);
-                setFile(null);
-            }}
-            transactions={extractedTransactions}
-        />
-        </>
+            {extractedTransactions.length > 0 && (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Transações Extraídas</CardTitle>
+                        <CardDescription>Revise as transações identificadas pela IA antes de prosseguir.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <div className="border rounded-md max-h-[60vh] overflow-y-auto">
+                            <Table>
+                                <TableHeader className="sticky top-0 bg-background z-10">
+                                <TableRow>
+                                    <TableHead>Data</TableHead>
+                                    <TableHead>Descrição</TableHead>
+                                    <TableHead className="text-right">Valor</TableHead>
+                                </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                {extractedTransactions.map((tx, index) => (
+                                    <TableRow key={index}>
+                                    <TableCell className="font-mono">{tx.date}</TableCell>
+                                    <TableCell>{tx.description}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Badge variant={tx.type === 'credit' ? 'default' : 'destructive'} className="font-mono">
+                                            {formatCurrency(tx.amount)}
+                                        </Badge>
+                                    </TableCell>
+                                    </TableRow>
+                                ))}
+                                </TableBody>
+                            </Table>
+                         </div>
+                    </CardContent>
+                    <CardFooter className="justify-end">
+                        <Button disabled>
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Contabilizar Lançamentos (Em Breve)
+                        </Button>
+                    </CardFooter>
+                </Card>
+            )}
+        </div>
     );
 }
+
