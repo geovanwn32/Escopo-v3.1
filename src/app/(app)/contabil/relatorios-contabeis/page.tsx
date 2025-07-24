@@ -12,10 +12,9 @@ import type { Company } from '@/types/company';
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import { startOfMonth } from "date-fns";
 import { generateTrialBalancePdf } from "@/services/trial-balance-report-service";
 
 type ReportType = 'balancete' | 'dre' | 'balanco';
@@ -80,6 +79,17 @@ export default function RelatoriosContabeisPage() {
             setIsGenerating(null);
         }
     };
+    
+    const setDatePreset = (preset: 'currentMonth' | 'lastMonth') => {
+        const now = new Date();
+        if (preset === 'currentMonth') {
+            setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        } else if (preset === 'lastMonth') {
+            const lastMonth = subMonths(now, 1);
+            setDateRange({ from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) });
+        }
+    };
+
 
     const reportCards = [
         {
@@ -122,44 +132,48 @@ export default function RelatoriosContabeisPage() {
                 <CardContent className="space-y-6">
                     <div>
                         <label className="text-sm font-medium mb-2 block">Período de Apuração</label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    id="date"
-                                    variant={"outline"}
-                                    className={cn(
-                                        "w-full justify-start text-left font-normal md:w-[300px]",
-                                        !dateRange && "text-muted-foreground"
-                                    )}
-                                    disabled={!activeCompany}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {dateRange?.from ? (
-                                        dateRange.to ? (
-                                            <>
-                                            {format(dateRange.from, "dd/MM/yy", { locale: ptBR })} -{" "}
-                                            {format(dateRange.to, "dd/MM/yy", { locale: ptBR })}
-                                            </>
+                         <div className="flex flex-wrap items-center gap-2">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        id="date"
+                                        variant={"outline"}
+                                        className={cn(
+                                            "w-full justify-start text-left font-normal md:w-[300px]",
+                                            !dateRange && "text-muted-foreground"
+                                        )}
+                                        disabled={!activeCompany}
+                                    >
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {dateRange?.from ? (
+                                            dateRange.to ? (
+                                                <>
+                                                {format(dateRange.from, "dd/MM/yy", { locale: ptBR })} -{" "}
+                                                {format(dateRange.to, "dd/MM/yy", { locale: ptBR })}
+                                                </>
+                                            ) : (
+                                                format(dateRange.from, "dd/MM/yy", { locale: ptBR })
+                                            )
                                         ) : (
-                                            format(dateRange.from, "dd/MM/yy", { locale: ptBR })
-                                        )
-                                    ) : (
-                                        <span>Selecione um período</span>
-                                    )}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={dateRange?.from}
-                                    selected={dateRange}
-                                    onSelect={setDateRange}
-                                    numberOfMonths={2}
-                                    locale={ptBR}
-                                />
-                            </PopoverContent>
-                        </Popover>
+                                            <span>Selecione um período</span>
+                                        )}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        initialFocus
+                                        mode="range"
+                                        defaultMonth={dateRange?.from}
+                                        selected={dateRange}
+                                        onSelect={setDateRange}
+                                        numberOfMonths={2}
+                                        locale={ptBR}
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <Button variant="ghost" onClick={() => setDatePreset('currentMonth')}>Mês Atual</Button>
+                            <Button variant="ghost" onClick={() => setDatePreset('lastMonth')}>Mês Anterior</Button>
+                        </div>
                     </div>
 
                     <div className="space-y-4">
