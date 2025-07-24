@@ -6,7 +6,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -30,8 +30,8 @@ interface XmlFile {
     lastModified: number;
   };
   content: string;
-  status: 'pending' | 'launched' | 'error';
-  type: 'entrada' | 'saida' | 'servico' | 'desconhecido';
+  status: 'pending' | 'launched' | 'error' | 'cancelled';
+  type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   error?: string;
 }
 
@@ -195,6 +195,7 @@ export default function FiscalPage() {
             const normalizedActiveCnpj = activeCompany?.cnpj?.replace(/\D/g, '');
 
             let type: XmlFile['type'] = 'desconhecido';
+            let status: XmlFile['status'] = 'pending';
             
             const getCnpjCpfFromNode = (node: Element | null): string | null => {
                 if (!node) return null;
@@ -207,8 +208,12 @@ export default function FiscalPage() {
 
             const isNFe = xmlDoc.querySelector('infNFe');
             const isNFSe = xmlDoc.querySelector('CompNfse, NFSe');
+            const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
 
-            if (isNFe) {
+            if (isCancelled) {
+              type = 'cancelamento';
+              status = 'cancelled';
+            } else if (isNFe) {
                 const emitCnpj = getCnpjCpfFromNode(isNFe.querySelector('emit'));
                 const destCnpj = getCnpjCpfFromNode(isNFe.querySelector('dest'));
 
@@ -238,7 +243,7 @@ export default function FiscalPage() {
                   size: file.size,
                   lastModified: file.lastModified,
               };
-              return { file: fileData, content: fileContent, status: 'pending', type } as XmlFile;
+              return { file: fileData, content: fileContent, status, type } as XmlFile;
             } else {
               toast({
                 variant: "destructive",
@@ -488,6 +493,7 @@ endDate.setHours(23,59,59,999);
                         <SelectItem value="entrada">Entrada</SelectItem>
                         <SelectItem value="saida">Saída</SelectItem>
                         <SelectItem value="servico">Serviço</SelectItem>
+                        <SelectItem value="cancelamento">Cancelamento</SelectItem>
                     </SelectContent>
                 </Select>
                  <Select value={xmlStatusFilter} onValueChange={setXmlStatusFilter}>
@@ -497,6 +503,7 @@ endDate.setHours(23,59,59,999);
                     <SelectContent>
                         <SelectItem value="pending">Pendente</SelectItem>
                         <SelectItem value="launched">Lançado</SelectItem>
+                        <SelectItem value="cancelled">Cancelado</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button variant="ghost" onClick={clearXmlFilters} className="sm:ml-auto">
@@ -518,21 +525,23 @@ endDate.setHours(23,59,59,999);
                   <TableRow key={xmlFile.file.name}>
                     <TableCell className="font-medium max-w-xs truncate">{xmlFile.file.name}</TableCell>
                      <TableCell>
-                      <Badge variant={xmlFile.type === 'desconhecido' ? 'destructive' : 'secondary'}>
+                      <Badge variant={xmlFile.type === 'desconhecido' || xmlFile.type === 'cancelamento' ? 'destructive' : 'secondary'}>
                         {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {xmlFile.status === 'pending' ? (
                         <Badge variant="secondary">Pendente</Badge>
-                      ) : (
+                      ) : xmlFile.status === 'launched' ? (
                         <Badge variant="default" className="bg-green-600">Lançado</Badge>
+                      ) : (
+                        <Badge variant="destructive">Cancelada</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                        <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status === 'launched' || xmlFile.type === 'desconhecido'}>
-                            {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
-                            {xmlFile.status === 'pending' ? 'Lançar' : 'Lançado'}
+                        <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status !== 'pending'}>
+                            {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : xmlFile.status === 'launched' ? <Check className="mr-2 h-4 w-4" /> : <FileXIcon className="mr-2 h-4 w-4" />}
+                            {xmlFile.status === 'pending' ? 'Lançar' : xmlFile.status === 'launched' ? 'Lançado' : 'Cancelado'}
                         </Button>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -759,3 +768,4 @@ endDate.setHours(23,59,59,999);
   );
 
     
+
