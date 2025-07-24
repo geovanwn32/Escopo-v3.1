@@ -707,6 +707,7 @@ endDate.setHours(23,59,59,999);
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Parceiro</TableHead>
+                            <TableHead>Chave/Número</TableHead>
                             <TableHead>Arquivo XML</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
@@ -716,7 +717,7 @@ endDate.setHours(23,59,59,999);
                     <TableBody>
                         {paginatedLaunches.length === 0 ? (
                              <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center">
+                                <TableCell colSpan={8} className="h-24 text-center">
                                     Nenhum resultado encontrado para os filtros aplicados.
                                 </TableCell>
                             </TableRow>
@@ -731,6 +732,7 @@ endDate.setHours(23,59,59,999);
                                 <TableCell className="max-w-[200px] truncate">
                                     {getPartnerName(launch)}
                                 </TableCell>
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.chaveNfe || launch.numeroNfse}</TableCell>
                                 <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.fileName}</TableCell>
                                 <TableCell>
                                     {getBadgeForLaunchStatus(launch.status)}
