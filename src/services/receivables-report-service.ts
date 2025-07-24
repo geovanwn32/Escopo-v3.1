@@ -48,10 +48,8 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     // --- FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
     
-    // Base query
     let q = query(launchesRef, where('type', 'in', ['saida', 'servico']), orderBy('date', 'desc'));
 
-    // Date range filter
     if (dateRange.from) {
         q = query(q, where('date', '>=', Timestamp.fromDate(dateRange.from)));
     }
@@ -61,7 +59,6 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
         q = query(q, where('date', '<=', Timestamp.fromDate(endDate)));
     }
     
-    // Status filter - applied client-side because Firestore doesn't allow inequality on one field and `in` on another
     const snapshot = await getDocs(q);
     let receivables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
     
@@ -72,7 +69,6 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     if (receivables.length === 0) {
         throw new Error("Nenhum lançamento encontrado para os filtros selecionados.");
     }
-    
 
     // --- PDF GENERATION ---
     doc.setFontSize(16);
@@ -81,7 +77,12 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     y += 8;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Período: ${formatDate(dateRange.from)} a ${formatDate(dateRange.to)}`, pageWidth / 2, y, { align: 'center' });
+    
+    let periodText = 'Período: ';
+    if (dateRange.from) periodText += formatDate(dateRange.from);
+    if (dateRange.from && dateRange.to) periodText += ' a ';
+    if (dateRange.to) periodText += formatDate(dateRange.to);
+    doc.text(periodText, pageWidth / 2, y, { align: 'center' });
     y += 5;
     doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
