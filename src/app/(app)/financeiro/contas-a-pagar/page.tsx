@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/f
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -16,6 +16,13 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import type { Launch } from '@/app/(app)/fiscal/page';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
+import { ptBR } from 'date-fns/locale';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -25,6 +32,11 @@ export default function ContasAPagarPage() {
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+
+  // Filter states
+  const [filterPartner, setFilterPartner] = useState("");
+  const [filterStatus, setFilterStatus] = useState<FinancialStatus | "">("");
+  const [filterDate, setFilterDate] = useState<DateRange | undefined>(undefined);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -86,6 +98,38 @@ export default function ContasAPagarPage() {
     }, {} as Record<FinancialStatus, number>);
   }, [launches]);
 
+   const filteredLaunches = useMemo(() => {
+    return launches.filter(launch => {
+        const partnerName = getPartnerName(launch).toLowerCase();
+        const partnerMatch = filterPartner ? partnerName.includes(filterPartner.toLowerCase()) : true;
+
+        const statusMatch = filterStatus ? (launch.financialStatus || 'pendente') === filterStatus : true;
+        
+        let dateMatch = true;
+        if (filterDate?.from) {
+            const launchDate = new Date(launch.date);
+            launchDate.setHours(0,0,0,0);
+            const startDate = new Date(filterDate.from);
+            startDate.setHours(0,0,0,0);
+            dateMatch = launchDate >= startDate;
+        }
+        if (filterDate?.to && dateMatch) {
+            const launchDate = new Date(launch.date);
+            launchDate.setHours(23,59,59,999);
+            const endDate = new Date(filterDate.to);
+endDate.setHours(23,59,59,999);
+            dateMatch = launchDate <= endDate;
+        }
+
+        return partnerMatch && statusMatch && dateMatch;
+    });
+  }, [launches, filterPartner, filterStatus, filterDate]);
+
+  const clearFilters = () => {
+    setFilterPartner("");
+    setFilterStatus("");
+    setFilterDate(undefined);
+  }
 
   const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
      if (!user || !activeCompany) return;
@@ -115,9 +159,8 @@ export default function ContasAPagarPage() {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-
-  const totalPages = Math.ceil(launches.length / itemsPerPage);
-  const paginatedLaunches = launches.slice(
+  const totalPages = Math.ceil(filteredLaunches.length / itemsPerPage);
+  const paginatedLaunches = filteredLaunches.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -181,6 +224,55 @@ export default function ContasAPagarPage() {
           <CardDescription>Visualize as notas fiscais de compra (entradas) pendentes de pagamento.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                 <div className="relative w-full sm:max-w-xs">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filtrar por fornecedor..."
+                        value={filterPartner}
+                        onChange={(e) => setFilterPartner(e.target.value)}
+                        className="pl-8"
+                    />
+                </div>
+                 <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="pendente">Pendente</SelectItem>
+                        <SelectItem value="pago">Pago</SelectItem>
+                        <SelectItem value="vencido">Vencido</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className="w-full sm:w-[280px] justify-start text-left font-normal"
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {filterDate?.from && filterDate.to ? (
+                                <>
+                                {format(filterDate.from, "dd/MM/yy")} - {format(filterDate.to, "dd/MM/yy")}
+                                </>
+                            ) : <span>Filtrar por Data</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                        mode="range"
+                        selected={filterDate}
+                        onSelect={setFilterDate}
+                        locale={ptBR}
+                        numberOfMonths={2}
+                        />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                </Button>
+            </div>
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
