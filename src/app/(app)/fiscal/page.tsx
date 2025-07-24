@@ -6,7 +6,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
 
 interface XmlFile {
   file: {
@@ -33,7 +34,6 @@ interface XmlFile {
   content: string;
   status: 'pending' | 'launched' | 'error' | 'cancelled';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
-  error?: string;
   key?: string; // NFe key or NFS-e unique identifier
 }
 
@@ -102,9 +102,11 @@ function reviver(key: string, value: any) {
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
   const [launches, setLaunches] = useState<Launch[]>([]);
-  const [loadingLaunches, setLoadingLaunches] = useState(true);
+  const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isClosingModalOpen, setClosingModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
@@ -154,37 +156,41 @@ export default function FiscalPage() {
 
   useEffect(() => {
     if (!activeCompany || !user) {
-        setLoadingLaunches(false);
+        setLoadingData(false);
         setLaunches([]);
+        setClosedPeriods([]);
         return;
     };
 
-    setLoadingLaunches(true);
+    setLoadingData(true);
+    let activeListeners = 2;
+    const onDone = () => {
+        activeListeners--;
+        if (activeListeners === 0) setLoadingData(false);
+    }
+    
+    // Listener for launches
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-    const q = query(launchesRef, orderBy('date', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const launchesData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                date: (data.date as Timestamp).toDate(),
-            } as Launch
-        });
+    const qLaunches = query(launchesRef, orderBy('date', 'desc'));
+    const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
+        const launchesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch));
         setLaunches(launchesData);
-        setLoadingLaunches(false);
-    }, (error) => {
-        console.error("Error fetching launches: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar lançamentos",
-            description: "Não foi possível carregar os lançamentos recentes."
-        });
-        setLoadingLaunches(false);
-    });
+        onDone();
+    }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos" }); onDone(); });
 
-    return () => unsubscribe();
+    // Listener for fiscal closures
+    const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
+    const unsubscribeClosures = onSnapshot(closuresRef, (snapshot) => {
+        const periods = snapshot.docs.map(doc => doc.id); // doc.id is 'YYYY-MM'
+        setClosedPeriods(periods);
+        onDone();
+    }, (error) => { console.error("Error fetching closures: ", error); toast({ variant: "destructive", title: "Erro ao buscar períodos fechados" }); onDone(); });
+
+
+    return () => {
+        unsubscribeLaunches();
+        unsubscribeClosures();
+    };
   }, [activeCompany, user, toast]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -490,6 +496,10 @@ endDate.setHours(23,59,59,999);
     }
   }
 
+  const isLaunchLocked = (launch: Launch): boolean => {
+    const launchPeriod = format(launch.date, 'yyyy-MM');
+    return closedPeriods.includes(launchPeriod);
+  }
 
   return (
     <div className="space-y-6">
@@ -513,6 +523,9 @@ endDate.setHours(23,59,59,999);
           <Button onClick={() => handleManualLaunch('servico')} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
+          </Button>
+          <Button className="bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={() => setClosingModalOpen(true)}>
+            <Lock className="mr-2 h-4 w-4" /> Realizar Fechamento Fiscal
           </Button>
         </CardContent>
       </Card>
@@ -688,7 +701,7 @@ endDate.setHours(23,59,59,999);
                     Limpar Filtros
                 </Button>
             </div>
-            {loadingLaunches ? (
+            {loadingData ? (
                  <div className="flex justify-center items-center py-20">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                  </div>
@@ -722,7 +735,7 @@ endDate.setHours(23,59,59,999);
                                 </TableCell>
                             </TableRow>
                         ) : paginatedLaunches.map(launch => (
-                            <TableRow key={launch.id}>
+                            <TableRow key={launch.id} className={cn(isLaunchLocked(launch) && 'bg-muted/30 hover:bg-muted/50')}>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
                                 <TableCell>
                                     <Badge variant="secondary">
@@ -741,44 +754,48 @@ endDate.setHours(23,59,59,999);
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.valorLiquido || launch.valorTotalNota || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-8 w-8 p-0">
-                                            <span className="sr-only">Open menu</span>
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleViewLaunch(launch)}>
-                                            <Eye className="mr-2 h-4 w-4" />
-                                            Visualizar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleEditLaunch(launch)}>
-                                            <Pencil className="mr-2 h-4 w-4" />
-                                            Alterar
-                                        </DropdownMenuItem>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                     <Trash2 className="mr-2 h-4 w-4" />
-                                                     Excluir
-                                                </DropdownMenuItem>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        Esta ação não pode ser desfeita. O lançamento fiscal será permanentemente removido.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteLaunch(launch)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    {isLaunchLocked(launch) ? (
+                                        <Lock className="h-4 w-4 mx-auto text-muted-foreground" title="Este período está fechado"/>
+                                    ) : (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                                <span className="sr-only">Open menu</span>
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => handleViewLaunch(launch)}>
+                                                <Eye className="mr-2 h-4 w-4" />
+                                                Visualizar
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleEditLaunch(launch)}>
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                Alterar
+                                            </DropdownMenuItem>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Excluir
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta ação não pode ser desfeita. O lançamento fiscal será permanentemente removido.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteLaunch(launch)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -811,6 +828,14 @@ endDate.setHours(23,59,59,999);
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
+        />
+      )}
+      {isClosingModalOpen && user && activeCompany && (
+        <FiscalClosingModal
+            isOpen={isClosingModalOpen}
+            onClose={() => setClosingModalOpen(false)}
+            userId={user.uid}
+            companyId={activeCompany.id}
         />
       )}
     </div>

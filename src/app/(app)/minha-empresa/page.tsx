@@ -12,13 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck, FileText } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Label } from "@/components/ui/label";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
 import type { Company, EstablishmentData } from '@/types/company';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -100,6 +101,7 @@ export default function MinhaEmpresaPage() {
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
     const [establishmentData, setEstablishmentData] = useState<EstablishmentData | null>(null);
     const [isEstablishmentModalOpen, setEstablishmentModalOpen] = useState(false);
+    const [isReopenPeriodModalOpen, setReopenPeriodModalOpen] = useState(false);
 
 
     const form = useForm<CompanyFormData>({
@@ -562,20 +564,7 @@ export default function MinhaEmpresaPage() {
                         </CardContent>
                     </Card>
 
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Dados do eSocial</CardTitle>
-                            <CardDescription>Informações adicionais para geração de eventos do eSocial (S-1005).</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button type="button" variant="outline" onClick={() => setEstablishmentModalOpen(true)}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                Preencher Ficha do Estabelecimento
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                     <Card>
+                    <Card>
                         <CardHeader>
                             <CardTitle>Endereço</CardTitle>
                             <CardDescription>Endereço da sede da empresa.</CardDescription>
@@ -691,6 +680,19 @@ export default function MinhaEmpresaPage() {
                             />
                         </CardContent>
                     </Card>
+                    
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Segurança e Períodos Fiscais</CardTitle>
+                            <CardDescription>Gerencie o fechamento de períodos fiscais para garantir a integridade dos dados.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button type="button" variant="destructive" onClick={() => setReopenPeriodModalOpen(true)}>
+                                <KeyRound className="mr-2 h-4 w-4" />
+                                Reabrir Período Fiscal Fechado
+                            </Button>
+                        </CardContent>
+                    </Card>
 
                      <div className="flex justify-end">
                         <Button type="submit" disabled={isSaving || loadingPage || loadingCnpj || loadingSintegra}>
@@ -711,8 +713,14 @@ export default function MinhaEmpresaPage() {
                 onSave={handleSaveEstablishment}
             />
         )}
+         {user && activeCompanyId && (
+            <ReopenPeriodModal
+                isOpen={isReopenPeriodModalOpen}
+                onClose={() => setReopenPeriodModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompanyId}
+            />
+        )}
     </div>
   );
 }
-
-    
