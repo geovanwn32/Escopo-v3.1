@@ -8,6 +8,10 @@ import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2 } from 'lucide-rea
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extract-transactions-flow';
+import { TransactionReviewModal } from '@/components/contabil/transaction-review-modal';
+import * as XLSX from 'xlsx';
+
 
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
@@ -22,15 +26,18 @@ export default function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isReviewModalOpen, setReviewModalOpen] = useState(false);
+    const [extractedTransactions, setExtractedTransactions] = useState<BankTransaction[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const selectedFile = e.target.files[0];
-            const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
-            if (!allowedTypes.includes(selectedFile.type) && !selectedFile.name.endsWith('.txt')) {
-                toast({ variant: 'destructive', title: 'Tipo de arquivo inválido', description: 'Por favor, selecione um arquivo PDF, Excel (.xlsx) ou TXT.' });
+            const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'];
+            
+            if (!allowedTypes.includes(selectedFile.type) && !selectedFile.name.endsWith('.txt') && !selectedFile.name.endsWith('.csv')) {
+                toast({ variant: 'destructive', title: 'Tipo de arquivo inválido', description: 'Por favor, selecione um arquivo PDF, Excel (.xlsx), CSV ou TXT.' });
                 return;
             }
             setFile(selectedFile);
@@ -66,15 +73,43 @@ export default function ImportacaoExtratoPage() {
         }
 
         setIsProcessing(true);
-        // Placeholder for actual processing logic
-        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        toast({ title: 'Processamento Concluído!', description: `${file.name} foi processado. (Simulação)` });
-        setIsProcessing(false);
-        setFile(null); // Clear file after processing
+        try {
+            let textContent = '';
+            if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel')) {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                textContent = XLSX.utils.sheet_to_csv(worksheet);
+            } else if (file.type === 'application/pdf') {
+                // PDF parsing is complex and would require a library like pdf-parse on the backend.
+                // For this example, we'll notify the user it's not supported in this simulation.
+                 toast({ variant: 'destructive', title: 'PDF não suportado', description: 'A extração de PDF é complexa. Por favor, tente com um arquivo TXT, CSV ou XLSX.' });
+                 setIsProcessing(false);
+                 return;
+            } else {
+                textContent = await file.text();
+            }
+
+            const result = await extractBankTransactions({ textContent });
+
+            if (result.transactions && result.transactions.length > 0) {
+                setExtractedTransactions(result.transactions);
+                setReviewModalOpen(true);
+            } else {
+                 toast({ title: 'Nenhuma transação encontrada', description: 'A IA não conseguiu extrair transações do arquivo. Verifique o conteúdo e tente novamente.' });
+            }
+        } catch (error) {
+            console.error("Error processing file:", error);
+            toast({ variant: 'destructive', title: 'Erro no Processamento', description: 'Não foi possível analisar o arquivo.' });
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
+        <>
         <div className="space-y-6">
             <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" asChild>
@@ -89,7 +124,7 @@ export default function ImportacaoExtratoPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Enviar Extrato</CardTitle>
-                    <CardDescription>Arraste e solte ou selecione o arquivo do seu extrato bancário (PDF, TXT, XLSX).</CardDescription>
+                    <CardDescription>Arraste e solte ou selecione o arquivo do seu extrato bancário (TXT, CSV, XLSX).</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <input
@@ -97,7 +132,7 @@ export default function ImportacaoExtratoPage() {
                         ref={fileInputRef}
                         onChange={handleFileChange}
                         className="hidden"
-                        accept=".pdf,.txt,.xlsx"
+                        accept=".txt,.csv,.xlsx"
                     />
                     <div
                         className={cn(
@@ -144,5 +179,16 @@ export default function ImportacaoExtratoPage() {
                 </CardFooter>
             </Card>
         </div>
+
+        <TransactionReviewModal
+            isOpen={isReviewModalOpen}
+            onClose={() => {
+                setReviewModalOpen(false);
+                setExtractedTransactions([]);
+                setFile(null);
+            }}
+            transactions={extractedTransactions}
+        />
+        </>
     );
 }
