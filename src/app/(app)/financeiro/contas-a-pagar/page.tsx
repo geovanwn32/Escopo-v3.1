@@ -182,13 +182,13 @@ endDate.setHours(23,59,59,999);
   }
   
   const handleGeneratePdf = async () => {
-     if (!user || !activeCompany || !filterDate?.from || !filterDate?.to) {
-        toast({ variant: 'destructive', title: 'Período inválido', description: 'Por favor, selecione um período de início e fim para gerar o relatório.' });
+     if (!user || !activeCompany) {
+        toast({ variant: 'destructive', title: 'Usuário ou empresa não identificados.' });
         return;
     }
     
     try {
-        const success = await generatePurchasesReportPdf(user.uid, activeCompany, filterDate);
+        const success = await generatePurchasesReportPdf(user.uid, activeCompany, { from: filterDate?.from, to: filterDate?.to });
         if(!success) {
             toast({ title: "Nenhuma compra encontrada", description: "Não há dados para gerar um relatório no período selecionado." });
         }

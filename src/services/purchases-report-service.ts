@@ -41,25 +41,27 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     const pageWidth = doc.internal.pageSize.width;
     let y = 15;
     
-    if (!dateRange.from || !dateRange.to) {
-        throw new Error("Período de datas inválido.");
-    }
-    
-    const startDate = Timestamp.fromDate(dateRange.from);
-    const endDate = Timestamp.fromDate(new Date(dateRange.to.setHours(23, 59, 59, 999)));
-
     // --- FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-    const q = query(launchesRef,
-        where('date', '>=', startDate),
-        where('date', '<=', endDate),
-        orderBy('date', 'desc')
-    );
+    
+    let q = query(launchesRef, where('type', '==', 'entrada'));
+
+    if (dateRange.from) {
+      q = query(q, where('date', '>=', Timestamp.fromDate(dateRange.from)));
+    }
+    if (dateRange.to) {
+      const endDate = new Date(dateRange.to);
+      endDate.setHours(23, 59, 59, 999);
+      q = query(q, where('date', '<=', Timestamp.fromDate(endDate)));
+    }
 
     const snapshot = await getDocs(q);
+    
+    // Sort client-side
     const purchases = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Launch))
-        .filter(launch => launch.type === 'entrada');
+        .sort((a,b) => ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
+
 
     if (purchases.length === 0) {
         return false;
@@ -72,7 +74,13 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     y += 8;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Período: ${formatDate(dateRange.from)} a ${formatDate(dateRange.to)}`, pageWidth / 2, y, { align: 'center' });
+    
+    let periodText = 'Período: Todos os lançamentos';
+    if(dateRange.from && dateRange.to) {
+        periodText = `Período: ${formatDate(dateRange.from)} a ${formatDate(dateRange.to)}`;
+    }
+    
+    doc.text(periodText, pageWidth / 2, y, { align: 'center' });
     y += 5;
     doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
