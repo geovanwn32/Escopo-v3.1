@@ -12,14 +12,6 @@ import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extrac
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
-import pdf from 'pdf-parse/lib/pdf-parse.js';
-
-
-// This is needed to make pdf-parse work in the browser
-if (typeof window !== 'undefined') {
-  (window as any).pdf = pdf;
-}
-
 
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
@@ -100,6 +92,10 @@ export default function ImportacaoExtratoPage() {
                 const worksheet = workbook.Sheets[sheetName];
                 textContent = XLSX.utils.sheet_to_csv(worksheet);
             } else if (file.type === 'application/pdf') {
+                const pdf = (await import('pdf-parse/lib/pdf-parse.js')).default;
+                if (typeof window !== 'undefined') {
+                  (window as any).pdf = pdf;
+                }
                 const data = await pdf(fileBuffer);
                 textContent = data.text;
             } else { // Assume plain text
