@@ -21,6 +21,7 @@ import type { Produto } from '@/types/produto';
 import { upsertProductsFromLaunch } from '@/services/product-service';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { upsertPartnerFromLaunch } from '@/services/partner-service';
 
 
 interface XmlFile {
@@ -342,10 +343,23 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
         
         await launchSchema.parseAsync(dataToSave);
         
+        // Upsert products if present
         if (formData.produtos && formData.produtos.length > 0) {
             await upsertProductsFromLaunch(userId, company.id, formData.produtos as Produto[]);
         }
 
+        // Upsert partner if it's a sale or service
+        if (dataToSave.type === 'saida' || dataToSave.type === 'servico') {
+            const partnerData = dataToSave.type === 'saida' ? dataToSave.destinatario : dataToSave.tomador;
+            if (partnerData?.cnpj && partnerData?.nome) {
+                await upsertPartnerFromLaunch(userId, company.id, {
+                    cpfCnpj: partnerData.cnpj,
+                    razaoSocial: partnerData.nome,
+                    type: 'cliente',
+                });
+            }
+        }
+        
         if (mode === 'create') {
             const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
             delete dataToSave.produtos; // Do not save products inside the launch document
