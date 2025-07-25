@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/f
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon, FileSpreadsheet, FileText } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -23,6 +23,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import { generatePurchasesReportPdf } from '@/services/purchases-report-service';
+
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -159,6 +162,45 @@ endDate.setHours(23,59,59,999);
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
+  const handleExportExcel = () => {
+    if (filteredLaunches.length === 0) {
+        toast({ variant: 'destructive', title: 'Nenhum dado para exportar.' });
+        return;
+    }
+    const dataToExport = filteredLaunches.map(launch => ({
+        'Data': format(launch.date, 'dd/MM/yyyy'),
+        'Parceiro (Fornecedor)': getPartnerName(launch),
+        'Nota Fiscal': launch.chaveNfe || launch.numeroNfse,
+        'Valor': launch.valorTotalNota || 0,
+        'Status': getStatusLabel(launch.financialStatus as FinancialStatus),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Contas a Pagar");
+    worksheet['!cols'] = [ { wch: 12 }, { wch: 40 }, { wch: 45 }, { wch: 15 }, { wch: 15 } ];
+    XLSX.writeFile(workbook, `contas_a_pagar_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  }
+  
+  const handleGeneratePdf = async () => {
+     if (!user || !activeCompany || !filterDate?.from || !filterDate?.to) {
+        toast({ variant: 'destructive', title: 'Período inválido', description: 'Por favor, selecione um período de início e fim para gerar o relatório.' });
+        return;
+    }
+    
+    try {
+        const success = await generatePurchasesReportPdf(user.uid, activeCompany, filterDate);
+        if(!success) {
+            toast({ title: "Nenhuma compra encontrada", description: "Não há dados para gerar um relatório no período selecionado." });
+        }
+    } catch(error) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao gerar PDF',
+            description: (error as Error).message,
+        });
+    }
+  }
+
   const totalPages = Math.ceil(filteredLaunches.length / itemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (currentPage - 1) * itemsPerPage,
@@ -180,9 +222,21 @@ endDate.setHours(23,59,59,999);
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Resumo Financeiro a Pagar</CardTitle>
-          <CardDescription>Visualize o status atual das suas contas a pagar.</CardDescription>
+        <CardHeader className="flex-row justify-between items-start">
+          <div>
+            <CardTitle>Resumo Financeiro a Pagar</CardTitle>
+            <CardDescription>Visualize o status atual das suas contas a pagar.</CardDescription>
+          </div>
+          <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading || filteredLaunches.length === 0}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Gerar PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={loading || filteredLaunches.length === 0}>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Exportar Excel
+              </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
              <Card>
