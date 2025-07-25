@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, where, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ export default function ContasAPagarPage() {
     setLoading(true);
     
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-    const qLaunches = query(launchesRef, where('type', '==', 'entrada'), orderBy('date', 'desc'));
+    const qLaunches = query(launchesRef, where('type', '==', 'entrada'));
 
     const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
         const data = snapshot.docs.map(doc => ({
@@ -79,6 +79,8 @@ export default function ContasAPagarPage() {
             ...doc.data(),
             date: doc.data().date.toDate(),
         } as Launch));
+        // Sort client-side to avoid composite index requirement
+        data.sort((a, b) => b.date.getTime() - a.date.getTime());
         setLaunches(data);
         setLoading(false);
     }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos fiscais" }); setLoading(false); });
@@ -405,3 +407,4 @@ export default function ContasAPagarPage() {
     </div>
   );
 }
+
