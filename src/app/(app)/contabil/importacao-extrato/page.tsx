@@ -29,7 +29,7 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-export default function ImportacaoExtratoPage() {
+function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -252,4 +252,9 @@ export default function ImportacaoExtratoPage() {
             )}
         </div>
     );
+}
+
+// Wrapper component to handle search params
+export default function ImportacaoExtratoPageWrapper() {
+    return <ImportacaoExtratoPage />;
 }

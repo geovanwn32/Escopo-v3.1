@@ -83,7 +83,11 @@ const formatCurrency = (value: number) => {
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const PIE_CHART_COLORS = ['#dc2626', '#16a34a']; // red-600, green-600
 
-export function DashboardClient() {
+export function DashboardClientWrapper() {
+  return <DashboardClient />;
+}
+
+function DashboardClient() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
