@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -19,7 +20,13 @@ import { format } from 'date-fns';
 import { LancamentoFormModal } from '@/components/contabil/lancamento-form-modal';
 import { ContaContabil } from '@/types/conta-contabil';
 
-export default function LancamentosPage() {
+function LancamentosPageWrapper() {
+    const searchParams = useSearchParams();
+    return <LancamentosPage />;
+}
+
+
+function LancamentosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLancamento, setEditingLancamento] = useState<LancamentoContabil | null>(null);
   const [lancamentos, setLancamentos] = useState<LancamentoContabil[]>([]);
@@ -241,3 +248,5 @@ export default function LancamentosPage() {
     </div>
   );
 }
+
+export default LancamentosPageWrapper;
