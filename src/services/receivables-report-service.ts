@@ -40,6 +40,12 @@ const getPartnerName = (launch: Launch): string => {
     }
   };
 
+const getStatusLabel = (status?: 'pendente' | 'pago' | 'vencido'): string => {
+    if (!status) return 'Pendente';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+};
+
+
 export async function generateReceivablesReportPdf(userId: string, company: Company, dateRange: DateRange, status?: string) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -91,20 +97,31 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     y += 10;
     
     let totalValue = 0;
+    let totalPending = 0;
+    let totalPaid = 0;
+    let totalOverdue = 0;
+
     const allTableRows = receivables.map(receivable => {
         const receivableValue = receivable.valorLiquido || receivable.valorTotalNota || 0;
         totalValue += receivableValue;
+        
+        const currentStatus = receivable.financialStatus || 'pendente';
+        if (currentStatus === 'pago') totalPaid += receivableValue;
+        if (currentStatus === 'pendente') totalPending += receivableValue;
+        if (currentStatus === 'vencido') totalOverdue += receivableValue;
+
         return [
             formatDate(receivable.date),
             getPartnerName(receivable),
             receivable.chaveNfe || receivable.numeroNfse || 'N/A',
+            getStatusLabel(currentStatus),
             formatCurrency(receivableValue)
         ];
     });
 
     autoTable(doc, {
         startY: y,
-        head: [['Data', 'Cliente', 'Documento', 'Valor']],
+        head: [['Data', 'Cliente', 'Documento', 'Status', 'Valor']],
         body: allTableRows,
         theme: 'grid',
         headStyles: { fillColor: [51, 145, 255], textColor: 255, fontStyle: 'bold' },
@@ -113,7 +130,8 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
             0: { cellWidth: 25, halign: 'center' },
             1: { cellWidth: 'auto' },
             2: { cellWidth: 50, halign: 'center' },
-            3: { cellWidth: 30, halign: 'right' },
+            3: { cellWidth: 20, halign: 'center'},
+            4: { cellWidth: 30, halign: 'right' },
         }
     });
 
@@ -129,8 +147,10 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 2 },
         body: [
-            [{ content: 'Total de Lançamentos', styles: { fontStyle: 'bold' } }, { content: receivables.length, styles: { halign: 'right' } }],
-            [{ content: 'Valor Total a Receber', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } }],
+            [{ content: 'Total Recebido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalPaid), styles: { halign: 'right' } }],
+            [{ content: 'Total a Receber (Pendente)', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalPending), styles: { halign: 'right' } }],
+            [{ content: 'Total Vencido', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalOverdue), styles: { halign: 'right' } }],
+            [{ content: 'Valor Total dos Lançamentos', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalValue), styles: { halign: 'right', fontStyle: 'bold' } }],
         ],
     });
 
