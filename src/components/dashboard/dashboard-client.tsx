@@ -21,6 +21,7 @@ import {
   Package,
   PieChart,
   Users,
+  Plane,
 } from "lucide-react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
 import { useEffect, useState, useMemo } from "react"
@@ -32,10 +33,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Badge } from "../ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { ptBR } from "date-fns/locale"
-import { startOfDay } from 'date-fns';
+import { startOfDay, format } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "../utilitarios/event-form-modal"
 import { Button } from "../ui/button"
+import type { Vacation } from "@/types/vacation"
 
 interface Launch {
   id: string;
@@ -48,6 +50,15 @@ interface Launch {
   tomador?: { cnpj?: string | null };
   emitente?: { cnpj?: string | null };
   destinatario?: { cnpj?: string | null };
+}
+
+interface CombinedEvent {
+    id: string;
+    type: 'event' | 'vacation';
+    date: Date;
+    title: string;
+    description: string;
+    icon: React.ElementType;
 }
 
 
@@ -81,6 +92,8 @@ export function DashboardClient() {
   const [employeesCount, setEmployeesCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
+  const [vacations, setVacations] = useState<Vacation[]>([]);
+
 
   // Calendar State
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -113,6 +126,7 @@ export function DashboardClient() {
       setEmployeesCount(0);
       setProductsCount(0);
       setEvents([]);
+      setVacations([]);
       return;
     }
 
@@ -122,6 +136,7 @@ export function DashboardClient() {
     const employeesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/employees`), where('ativo', '==', true));
     const productsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/produtos`));
     const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/events`), orderBy('date', 'asc'));
+    const vacationsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/vacations`), where('startDate', '>=', startOfDay(new Date())));
 
     const unsubscribes = [
       onSnapshot(launchesQuery, (snapshot) => {
@@ -136,7 +151,12 @@ export function DashboardClient() {
       onSnapshot(eventsQuery, (snapshot) => {
         const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent));
         setEvents(eventsData);
-      }, (error) => { console.error("Events error:", error); toast({ variant: 'destructive', title: "Erro ao carregar eventos" }); })
+      }, (error) => { console.error("Events error:", error); toast({ variant: 'destructive', title: "Erro ao carregar eventos" }); }),
+      
+      onSnapshot(vacationsQuery, (snapshot) => {
+        const vacationsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp).toDate() } as Vacation));
+        setVacations(vacationsData);
+      }, (error) => { console.error("Vacations error:", error); toast({ variant: 'destructive', title: "Erro ao carregar férias" }); })
     ];
 
     Promise.all(unsubscribes.map(unsub => new Promise(res => setTimeout(res, 0)))).finally(() => setLoading(false));
@@ -190,7 +210,36 @@ export function DashboardClient() {
     { title: "Produtos Cadastrados", amount: productsCount.toString(), icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
   ];
 
-  const upcomingEvents = events.filter(e => e.date >= startOfDay(new Date())).slice(0, 5);
+  const upcomingEvents = useMemo(() => {
+    const today = startOfDay(new Date());
+
+    const manualEvents: CombinedEvent[] = events
+      .filter(e => e.date >= today)
+      .map(e => ({
+        id: e.id!,
+        type: 'event',
+        date: e.date as Date,
+        title: e.title,
+        description: e.description || '',
+        icon: CalendarCheck
+      }));
+      
+    const vacationEvents: CombinedEvent[] = vacations
+      .map(v => ({
+        id: v.id!,
+        type: 'vacation',
+        date: v.startDate as Date,
+        title: `Férias - ${v.employeeName}`,
+        description: `${v.vacationDays} dias de férias`,
+        icon: Plane,
+      }));
+
+    return [...manualEvents, ...vacationEvents]
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .slice(0, 5);
+
+  }, [events, vacations]);
+
 
    const pieChartData = useMemo(() => {
     return [
@@ -285,7 +334,7 @@ export function DashboardClient() {
                     onDayClick={handleDayClick}
                     className="p-0"
                     locale={ptBR}
-                    modifiers={{ scheduled: events.map(e => e.date as Date) }}
+                    modifiers={{ scheduled: upcomingEvents.map(e => e.date as Date) }}
                     modifiersClassNames={{ scheduled: 'bg-primary/20 rounded-full' }}
                     />
                 </CardContent>
@@ -309,12 +358,11 @@ export function DashboardClient() {
                     <div className="space-y-2">
                         {upcomingEvents.map(event => (
                             <div key={event.id} className="flex items-start gap-3 p-2 border-l-4 border-primary bg-primary/5 rounded">
-                                <div className="text-center font-semibold">
-                                    <p className="text-sm">{new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(event.date as Date).toUpperCase()}</p>
-                                    <p className="text-xl">{new Intl.DateTimeFormat('pt-BR', { day: '2-digit' }).format(event.date as Date)}</p>
+                                 <div className="p-2 bg-primary/10 rounded-full">
+                                    <event.icon className="h-5 w-5 text-primary" />
                                 </div>
                                 <div>
-                                    <p className="font-semibold">{event.title}</p>
+                                    <p className="font-semibold">{event.title} <span className="font-normal text-muted-foreground">({format(event.date, 'dd/MM/yyyy')})</span></p>
                                     <p className="text-sm text-muted-foreground">{event.description}</p>
                                 </div>
                             </div>

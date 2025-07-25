@@ -19,6 +19,7 @@ import type { Vacation } from '@/types/vacation';
 import type { Termination } from '@/types/termination';
 import { Timestamp } from 'firebase/firestore';
 import { generateDependentsListPdf } from '@/services/dependents-list-service';
+import { useRouter } from 'next/navigation';
 
 
 type DocumentType = 'contract' | 'vacation' | 'termination' | 'dependents';
@@ -29,6 +30,7 @@ export default function FichasPage() {
     const [documentType, setDocumentType] = useState<DocumentType | null>(null);
     const { user } = useAuth();
     const { toast } = useToast();
+    const router = useRouter();
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -69,7 +71,9 @@ export default function FichasPage() {
                     const querySnapshot = await getDocs(q);
 
                     if (querySnapshot.empty) {
-                        toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "É necessário calcular as férias para este funcionário antes de gerar o aviso." });
+                        toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "Redirecionando para a tela de cálculo para que você possa gerar as férias." });
+                        // Redirect to the vacation calculation page with the employee ID
+                        router.push(`/pessoal/ferias?employeeId=${employee.id}`);
                         return;
                     }
 
@@ -96,7 +100,8 @@ export default function FichasPage() {
                     const termSnap = await getDocs(q);
                     
                     if (termSnap.empty) {
-                        toast({ variant: "destructive", title: "Cálculo de Rescisão não encontrado", description: "É necessário calcular a rescisão para este funcionário antes de gerar o TRCT." });
+                        toast({ variant: "destructive", title: "Cálculo de Rescisão não encontrado", description: "Redirecionando para a tela de cálculo para que você possa gerar a rescisão." });
+                         router.push(`/pessoal/rescisao?employeeId=${employee.id}`);
                         return;
                     }
                     
