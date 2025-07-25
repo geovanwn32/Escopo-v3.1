@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,17 +71,14 @@ export default function ContasAPagarPage() {
     setLoading(true);
     
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-    const qLaunches = query(launchesRef, 
-        where('type', '==', 'entrada')
-    );
+    const qLaunches = query(launchesRef, where('type', '==', 'entrada'), orderBy('date', 'desc'));
+
     const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             date: doc.data().date.toDate(),
         } as Launch));
-        // Sort data by date on the client-side
-        data.sort((a, b) => b.date.getTime() - a.date.getTime());
         setLaunches(data);
         setLoading(false);
     }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos fiscais" }); setLoading(false); });
@@ -124,7 +121,7 @@ export default function ContasAPagarPage() {
             const launchDate = new Date(launch.date);
             launchDate.setHours(23,59,59,999);
             const endDate = new Date(filterDate.to);
-endDate.setHours(23,59,59,999);
+            endDate.setHours(23,59,59,999);
             dateMatch = launchDate <= endDate;
         }
 
@@ -228,7 +225,7 @@ endDate.setHours(23,59,59,999);
             <CardDescription>Visualize o status atual das suas contas a pagar.</CardDescription>
           </div>
           <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading || filteredLaunches.length === 0}>
+              <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading}>
                   <FileText className="mr-2 h-4 w-4" />
                   Gerar PDF
               </Button>
