@@ -29,4 +29,6 @@ export interface Company {
     cep?: string;
     cnaePrincipalCodigo?: string;
     establishment?: EstablishmentData;
+    logoUrl?: string | null;
+    logoPath?: string | null;
 }

@@ -5,21 +5,22 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { doc, getDoc, setDoc, collection, getDocs, query, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db, storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { Label } from "@/components/ui/label";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
 import type { Company, EstablishmentData } from '@/types/company';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
+import Image from "next/image";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -40,8 +41,8 @@ const companySchema = z.object({
   uf: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().email({ message: "Email inválido." }).optional().or(z.literal('')),
-  certificateFile: z.any().optional(),
-  certificatePassword: z.string().optional(),
+  logoUrl: z.string().url().optional().nullable(),
+  logoPath: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
     const { tipoInscricao, inscricao } = data;
     const cleanedInscricao = inscricao.replace(/\D/g, '');
@@ -84,8 +85,8 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         uf: data.uf || "",
         telefone: data.telefone || "",
         email: data.email || "",
-        certificateFile: data.certificateFile || null,
-        certificatePassword: data.certificatePassword || "",
+        logoUrl: data.logoUrl || null,
+        logoPath: data.logoPath || null,
     };
 };
 
@@ -95,9 +96,9 @@ export default function MinhaEmpresaPage() {
     const { user } = useAuth();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
     const [loadingSintegra, setLoadingSintegra] = useState(false);
-    const [isVerifyingCert, setIsVerifyingCert] = useState(false);
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
     const [establishmentData, setEstablishmentData] = useState<EstablishmentData | null>(null);
     const [isEstablishmentModalOpen, setEstablishmentModalOpen] = useState(false);
@@ -110,6 +111,7 @@ export default function MinhaEmpresaPage() {
     });
     
     const tipoInscricao = form.watch('tipoInscricao');
+    const logoUrl = form.watch('logoUrl');
 
     useEffect(() => {
         const companyId = sessionStorage.getItem('activeCompanyId');
@@ -261,10 +263,8 @@ export default function MinhaEmpresaPage() {
         }
         setIsSaving(true);
         try {
-            const { certificateFile, ...restOfData } = data;
-
             const dataToSave: any = {
-                ...restOfData,
+                ...data,
                 cnpj: data.tipoInscricao === 'cnpj' ? data.inscricao.replace(/\D/g, '') : null,
                 cpf: data.tipoInscricao === 'cpf' ? data.inscricao.replace(/\D/g, '') : null,
             };
@@ -292,26 +292,65 @@ export default function MinhaEmpresaPage() {
         }
     }
 
-    const handleVerifyCertificate = async () => {
-        const password = form.getValues("certificatePassword");
-        const fileField = form.control._fields.certificateFile;
-        const file = fileField?._f.value as File | undefined;
-
-        if (!file) {
-            toast({ variant: "destructive", title: "Selecione o arquivo do certificado." });
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !user || !activeCompanyId) {
             return;
         }
-        if (!password) {
-            toast({ variant: "destructive", title: "Informe a senha do certificado." });
+        const file = e.target.files[0];
+        const allowedTypes = ['image/jpeg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            toast({ variant: 'destructive', title: 'Tipo de arquivo inválido', description: 'Por favor, selecione um arquivo JPG ou PNG.' });
             return;
         }
+        
+        setIsUploading(true);
+        try {
+            const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
+            const logoPath = `users/${user.uid}/companies/${activeCompanyId}/logo/${file.name}`;
+            const storageRef = ref(storage, logoPath);
+            
+            await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(storageRef);
 
-        setIsVerifyingCert(true);
-        // Simulate an async verification process
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        toast({ title: "Sucesso!", description: "A senha do certificado é válida (simulação)." });
-        setIsVerifyingCert(false);
+            await updateDoc(companyRef, { logoUrl: downloadURL, logoPath: logoPath });
+            form.setValue('logoUrl', downloadURL);
+            form.setValue('logoPath', logoPath);
+
+            toast({ title: 'Logomarca enviada com sucesso!' });
+        } catch(error) {
+            console.error('Error uploading logo:', error);
+            toast({ variant: 'destructive', title: 'Erro ao enviar logomarca.' });
+        } finally {
+            setIsUploading(false);
+        }
     };
+    
+    const handleDeleteLogo = async () => {
+        if (!user || !activeCompanyId || !form.getValues('logoPath')) return;
+        
+        const logoPath = form.getValues('logoPath');
+        if (!logoPath) return;
+
+        setIsUploading(true);
+        try {
+            const storageRef = ref(storage, logoPath);
+            await deleteObject(storageRef);
+
+            const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
+            await updateDoc(companyRef, { logoUrl: null, logoPath: null });
+            
+            form.setValue('logoUrl', null);
+            form.setValue('logoPath', null);
+            
+            toast({ title: 'Logomarca removida com sucesso!' });
+        } catch (error) {
+            console.error('Error deleting logo:', error);
+            toast({ variant: 'destructive', title: 'Erro ao remover logomarca.' });
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
 
     const handleSaveEstablishment = (data: EstablishmentData) => {
         setEstablishmentData(data);
@@ -510,57 +549,29 @@ export default function MinhaEmpresaPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Certificado Digital (A1)</CardTitle>
-                            <CardDescription>Faça o upload do seu certificado digital (.pfx ou .p12) e informe a senha para habilitar a transmissão de eventos.</CardDescription>
+                            <CardTitle>Logomarca da Empresa</CardTitle>
+                            <CardDescription>Faça o upload da logomarca da sua empresa para personalizar relatórios.</CardDescription>
                         </CardHeader>
-                        <CardContent className="grid gap-4 md:grid-cols-2">
-                             <FormField
-                                control={form.control}
-                                name="certificateFile"
-                                render={({ field: { value, onChange, ...fieldProps } }) => (
-                                <FormItem>
-                                    <FormLabel>Arquivo do Certificado</FormLabel>
-                                    <FormControl>
-                                    <Input
-                                        {...fieldProps}
-                                        type="file"
-                                        accept=".pfx, .p12"
-                                        onChange={(event) =>
-                                        onChange(event.target.files && event.target.files[0])
-                                        }
-                                        className="pt-2"
-                                    />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="certificatePassword"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Senha do Certificado</FormLabel>
-                                    <div className="relative">
-                                        <FormControl>
-                                        <Input type="password" {...field} className="pr-24" />
-                                        </FormControl>
-                                        <Button 
-                                            type="button" 
-                                            variant="secondary" 
-                                            size="sm"
-                                            className="absolute inset-y-0 right-1 my-1 h-8"
-                                            onClick={handleVerifyCertificate}
-                                            disabled={isVerifyingCert}
-                                        >
-                                            {isVerifyingCert ? <Loader2 className="h-4 w-4 animate-spin"/> : <ShieldCheck className="h-4 w-4 mr-1" />}
-                                            Verificar
+                        <CardContent className="grid gap-6 md:grid-cols-2">
+                             <div>
+                                 <FormLabel>Arquivo da Logomarca (PNG, JPG)</FormLabel>
+                                 <div className="flex items-center gap-4 mt-2">
+                                    <Input id="logo-upload" type="file" accept="image/png, image/jpeg" onChange={handleLogoUpload} className="hidden" disabled={isUploading} />
+                                    <Button type="button" onClick={() => document.getElementById('logo-upload')?.click()} disabled={isUploading}>
+                                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Upload className="mr-2 h-4 w-4"/>}
+                                        {logoUrl ? 'Trocar Logomarca' : 'Enviar Logomarca'}
+                                    </Button>
+                                    {logoUrl && (
+                                        <Button type="button" variant="destructive" onClick={handleDeleteLogo} disabled={isUploading}>
+                                             {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
+                                             Remover
                                         </Button>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
-                            />
+                                    )}
+                                 </div>
+                             </div>
+                             <div className="flex items-center justify-center p-4 border rounded-md bg-muted h-32">
+                                {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : logoUrl ? <Image src={logoUrl} alt="Logomarca da empresa" width={120} height={120} className="object-contain h-full" /> : <p className="text-sm text-muted-foreground">Prévia da logomarca</p>}
+                             </div>
                         </CardContent>
                     </Card>
 

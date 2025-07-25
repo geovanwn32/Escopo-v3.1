@@ -34,17 +34,18 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
   let y = 10;
   
   // Header
+  if (company.logoUrl) {
+    doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15);
+  }
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('Termo de Rescisão do Contrato de Trabalho - TRCT', pageWidth / 2, y, { align: 'center' });
-  y += 8;
+  doc.text('Termo de Rescisão do Contrato de Trabalho - TRCT', pageWidth / 2, y + 5, { align: 'center' });
+  y += 15;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
   doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
   y += 5;
-  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
-  y += 10;
   
   // Identification of Employer
   doc.setFontSize(12);
