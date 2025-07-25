@@ -123,20 +123,13 @@ function AliquotaForm({ userId, companyId, aliquota, esfera, onClose }: Omit<Ali
 }
 
 
-export function AliquotaFormModal({ isOpen, onClose, userId, companyId, aliquota, esfera }: AliquotaFormModalProps) {
-  // Use a key to force re-render and re-initialization of the form when the modal opens for a different item.
-  const modalKey = `${aliquota?.id || 'new'}-${esfera}`;
+export function AliquotaFormModal({ isOpen, onClose, ...props }: AliquotaFormModalProps) {
+  if (!isOpen) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl" key={modalKey}>
-        <AliquotaForm 
-            userId={userId} 
-            companyId={companyId} 
-            aliquota={aliquota} 
-            esfera={esfera} 
-            onClose={onClose} 
-        />
+      <DialogContent className="max-w-xl">
+        <AliquotaForm onClose={onClose} {...props} />
       </DialogContent>
     </Dialog>
   );

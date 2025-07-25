@@ -230,7 +230,7 @@ export default function AliquotasPage() {
             </CardFooter>
         )}
       </Card>
-      {user && activeCompany && (
+      {isModalOpen && user && activeCompany && (
          <AliquotaFormModal
             isOpen={isModalOpen}
             onClose={handleCloseModal}
