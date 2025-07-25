@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
-export default function PlanoDeContasPage() {
+function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConta, setEditingConta] = useState<ContaContabil | null>(null);
   const [contas, setContas] = useState<ContaContabil[]>([]);
@@ -233,4 +233,10 @@ export default function PlanoDeContasPage() {
       )}
     </div>
   );
+}
+
+
+// Wrapper component to handle search params
+export default function PlanoDeContasPageWrapper() {
+    return <PlanoDeContasPage />;
 }
