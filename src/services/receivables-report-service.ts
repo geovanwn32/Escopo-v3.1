@@ -69,7 +69,7 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     let receivables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
     
     // Sort by date client-side
-    receivables.sort((a, b) => (b.date as any).toDate().getTime() - (a.date as any).toDate().getTime());
+    receivables.sort((a, b) => ((b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
     
     if (status) {
         receivables = receivables.filter(r => (r.financialStatus || 'pendente') === status);
@@ -97,8 +97,8 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     y += 10;
     
     let totalValue = 0;
-    let totalPending = 0;
     let totalPaid = 0;
+    let totalPending = 0;
     let totalOverdue = 0;
 
     const allTableRows = receivables.map(receivable => {
