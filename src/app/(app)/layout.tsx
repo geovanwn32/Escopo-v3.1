@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Header } from '@/components/layout/header';
 import { useAuth } from '@/lib/auth';
@@ -13,8 +13,10 @@ import { CompanySelectionModal } from '@/components/company-selection-modal';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { HelpModal } from '@/components/layout/help-modal';
+import { cn } from '@/lib/utils';
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+
+function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -23,6 +25,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [activeCompany, setActiveCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const { open } = useSidebar();
 
   useEffect(() => {
     if (!authLoading) {
@@ -73,10 +77,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
       <div className="flex min-h-screen w-full bg-neutral-100 dark:bg-neutral-800">
         <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className={cn(
+          "flex flex-1 flex-col overflow-hidden transition-[padding-left]",
+          open ? "md:pl-[300px]" : "md:pl-[60px]"
+        )}>
           <Header
             activeCompany={activeCompany}
             onSwitchCompany={() => setCompanyModalOpen(true)}
@@ -85,30 +91,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         </div>
-      </div>
-      {user && (
-        <CompanySelectionModal
-          isOpen={isCompanyModalOpen}
-          onClose={() => {
-            if (activeCompany) {
-              setCompanyModalOpen(false);
-            } else {
-              toast({
-                variant: "destructive",
-                title: "Seleção de empresa necessária",
-                description: "Você precisa selecionar uma empresa para continuar.",
-              })
-            }
-          }}
-          onCompanySelect={handleCompanySelect}
-          userId={user.uid}
+        {user && (
+          <CompanySelectionModal
+            isOpen={isCompanyModalOpen}
+            onClose={() => {
+              if (activeCompany) {
+                setCompanyModalOpen(false);
+              } else {
+                toast({
+                  variant: "destructive",
+                  title: "Seleção de empresa necessária",
+                  description: "Você precisa selecionar uma empresa para continuar.",
+                })
+              }
+            }}
+            onCompanySelect={handleCompanySelect}
+            userId={user.uid}
+          />
+        )}
+        <HelpModal 
+          isOpen={isHelpModalOpen} 
+          onClose={() => setIsHelpModalOpen(false)}
+          activeCompany={activeCompany}
         />
-      )}
-      <HelpModal 
-        isOpen={isHelpModalOpen} 
-        onClose={() => setIsHelpModalOpen(false)}
-        activeCompany={activeCompany}
-      />
-    </SidebarProvider>
+      </div>
   );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <SidebarProvider>
+            <AppLayoutContent>{children}</AppLayoutContent>
+        </SidebarProvider>
+    )
 }
