@@ -246,11 +246,11 @@ export default function ContasAReceberPage() {
                 <CardDescription>Visualize o status atual das suas contas a receber.</CardDescription>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={filteredLaunches.length === 0}>
+                <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading || filteredLaunches.length === 0}>
                     <FileText className="mr-2 h-4 w-4" />
                     Gerar PDF
                 </Button>
-                 <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={filteredLaunches.length === 0}>
+                 <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={loading || filteredLaunches.length === 0}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" />
                     Exportar Excel
                 </Button>
