@@ -3,6 +3,7 @@
 
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -11,16 +12,18 @@ import {
 import {
   ArrowDownLeftSquare,
   ArrowUpRightSquare,
+  BarChart2,
   BookOpen,
   CalendarCheck,
   DollarSign,
   FileStack,
   Loader2,
   Package,
+  PieChart,
   Users,
 } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts"
-import { useEffect, useState } from "react"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
+import { useEffect, useState, useMemo } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -32,6 +35,7 @@ import { ptBR } from "date-fns/locale"
 import { startOfDay } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "../utilitarios/event-form-modal"
+import { Button } from "../ui/button"
 
 interface Launch {
   id: string;
@@ -66,6 +70,7 @@ const formatCurrency = (value: number) => {
 }
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const PIE_CHART_COLORS = ['#dc2626', '#16a34a']; // red-600, green-600
 
 export function DashboardClient() {
   const { user } = useAuth();
@@ -76,12 +81,13 @@ export function DashboardClient() {
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
   const [stats, setStats] = useState<StatCard[]>([
-    { title: "Total de Entradas", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
-    { title: "Total de Saídas", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Total de Entradas (Despesas)", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
+    { title: "Total de Saídas (Receitas)", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
     { title: "Funcionários Ativos", amount: "0", icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
     { title: "Produtos Cadastrados", amount: "0", icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
   ]);
   const [chartData, setChartData] = useState<MonthlyData[]>([]);
+  const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
 
   // Calendar State
   const [date, setDate] = useState<Date | undefined>(new Date())
@@ -256,6 +262,16 @@ export function DashboardClient() {
 
   const upcomingEvents = events.filter(e => e.date >= startOfDay(new Date())).slice(0, 5);
 
+   const pieChartData = useMemo(() => {
+    const totalSaidas = chartData.reduce((acc, month) => acc + month.saidas, 0);
+    const totalEntradas = chartData.reduce((acc, month) => acc + month.entradas, 0);
+    return [
+      { name: 'Entradas (Despesas)', value: totalEntradas },
+      { name: 'Saídas (Receitas)', value: totalSaidas },
+    ];
+  }, [chartData]);
+
+
   return (
     <>
     <div className="flex flex-col gap-6">
@@ -281,19 +297,47 @@ export function DashboardClient() {
               <CardHeader>
                 <CardTitle>Resultado Mensal</CardTitle>
                 <CardDescription>Entradas vs. Saídas nos últimos 6 meses.</CardDescription>
+                 <CardAction>
+                    <Button variant="outline" size="icon" onClick={() => setChartType(prev => prev === 'bar' ? 'pie' : 'bar')}>
+                        {chartType === 'bar' ? <PieChart className="h-4 w-4" /> : <BarChart2 className="h-4 w-4" />}
+                    </Button>
+                </CardAction>
               </CardHeader>
               <CardContent className="pl-2">
                 {loading ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={chartData}>
-                    <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
-                    <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
-                    <Legend />
-                    <Bar dataKey="saidas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Saídas (Receitas)" />
-                    <Bar dataKey="entradas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="Entradas (Despesas)" />
-                  </BarChart>
-                </ResponsiveContainer>}
+                (chartType === 'bar' ? (
+                    <ResponsiveContainer width="100%" height={350}>
+                        <BarChart data={chartData}>
+                            <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
+                            <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
+                            <Legend />
+                            <Bar dataKey="saidas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Saídas (Receitas)" />
+                            <Bar dataKey="entradas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Entradas (Despesas)" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <ResponsiveContainer width="100%" height={350}>
+                        <PieChart>
+                            <Pie
+                                data={pieChartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                outerRadius={120}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            >
+                                {pieChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
+                                ))}
+                            </Pie>
+                            <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                ))}
               </CardContent>
             </Card>
         </div>
