@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2 } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
@@ -21,6 +21,7 @@ import type { Company, EstablishmentData } from '@/types/company';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -90,6 +91,15 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
     };
 };
 
+const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 
 export default function MinhaEmpresaPage() {
     const { toast } = useToast();
@@ -103,6 +113,11 @@ export default function MinhaEmpresaPage() {
     const [establishmentData, setEstablishmentData] = useState<EstablishmentData | null>(null);
     const [isEstablishmentModalOpen, setEstablishmentModalOpen] = useState(false);
     const [isReopenPeriodModalOpen, setReopenPeriodModalOpen] = useState(false);
+
+    // Logo upload state
+    const [isDragging, setIsDragging] = useState(false);
+    const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
 
     const form = useForm<CompanyFormData>({
@@ -291,25 +306,46 @@ export default function MinhaEmpresaPage() {
             setIsSaving(false);
         }
     }
+    
+    // --- Logo Upload handlers ---
+    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
 
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0 || !user || !activeCompanyId) {
-            return;
+    const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileSelection(e.dataTransfer.files[0]);
         }
-        const file = e.target.files[0];
+    };
+
+    const handleFileSelection = (file: File) => {
         const allowedTypes = ['image/jpeg', 'image/png'];
         if (!allowedTypes.includes(file.type)) {
             toast({ variant: 'destructive', title: 'Tipo de arquivo inválido', description: 'Por favor, selecione um arquivo JPG ou PNG.' });
             return;
         }
+        setFileToUpload(file);
+    };
+
+    const handleManualFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFileSelection(e.target.files[0]);
+        }
+    };
+
+    const handleLogoUpload = async () => {
+        if (!fileToUpload || !user || !activeCompanyId) return;
         
         setIsUploading(true);
         try {
             const companyRef = doc(db, `users/${user.uid}/companies`, activeCompanyId);
-            const logoPath = `users/${user.uid}/companies/${activeCompanyId}/logo/${file.name}`;
+            const logoPath = `users/${user.uid}/companies/${activeCompanyId}/logo/${fileToUpload.name}`;
             const storageRef = ref(storage, logoPath);
             
-            await uploadBytes(storageRef, file);
+            await uploadBytes(storageRef, fileToUpload);
             const downloadURL = await getDownloadURL(storageRef);
 
             await updateDoc(companyRef, { logoUrl: downloadURL, logoPath: logoPath });
@@ -317,6 +353,7 @@ export default function MinhaEmpresaPage() {
             form.setValue('logoPath', logoPath);
 
             toast({ title: 'Logomarca enviada com sucesso!' });
+            setFileToUpload(null);
         } catch(error) {
             console.error('Error uploading logo:', error);
             toast({ variant: 'destructive', title: 'Erro ao enviar logomarca.' });
@@ -367,6 +404,7 @@ export default function MinhaEmpresaPage() {
 
   return (
     <div className="space-y-6">
+        <input type="file" ref={fileInputRef} onChange={handleManualFileSelect} className="hidden" accept="image/png, image/jpeg" />
         <h1 className="text-2xl font-bold">Configurações da Empresa</h1>
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -552,25 +590,55 @@ export default function MinhaEmpresaPage() {
                             <CardTitle>Logomarca da Empresa</CardTitle>
                             <CardDescription>Faça o upload da logomarca da sua empresa para personalizar relatórios.</CardDescription>
                         </CardHeader>
-                        <CardContent className="grid gap-6 md:grid-cols-2">
-                             <div>
-                                 <FormLabel>Arquivo da Logomarca (PNG, JPG)</FormLabel>
-                                 <div className="flex items-center gap-4 mt-2">
-                                    <Input id="logo-upload" type="file" accept="image/png, image/jpeg" onChange={handleLogoUpload} className="hidden" disabled={isUploading} />
-                                    <Button type="button" onClick={() => document.getElementById('logo-upload')?.click()} disabled={isUploading}>
-                                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Upload className="mr-2 h-4 w-4"/>}
-                                        {logoUrl ? 'Trocar Logomarca' : 'Enviar Logomarca'}
-                                    </Button>
-                                    {logoUrl && (
-                                        <Button type="button" variant="destructive" onClick={handleDeleteLogo} disabled={isUploading}>
-                                             {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
-                                             Remover
+                         <CardContent className="space-y-4">
+                            <div
+                                className={cn(
+                                "border-2 border-dashed border-muted-foreground/30 rounded-lg p-10 text-center transition-colors cursor-pointer",
+                                isDragging && "border-primary bg-primary/10"
+                                )}
+                                onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleFileDrop}
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                                    <UploadCloud className="h-10 w-10" />
+                                    <div>
+                                        <p className="font-semibold text-foreground">Arraste a logomarca aqui</p>
+                                        <p className="text-sm">ou clique para selecionar (PNG, JPG)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {fileToUpload && !isUploading && (
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-medium">Arquivo na Fila:</h4>
+                                    <div className="flex items-center justify-between p-2 border rounded-md bg-muted/50">
+                                        <div className="flex items-center gap-3">
+                                            <FileIcon className="h-5 w-5 text-muted-foreground"/>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium">{fileToUpload.name}</span>
+                                                <span className="text-xs text-muted-foreground">{formatBytes(fileToUpload.size)}</span>
+                                            </div>
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFileToUpload(null)}>
+                                            <X className="h-4 w-4"/>
                                         </Button>
-                                    )}
-                                 </div>
-                             </div>
+                                    </div>
+                                    <Button onClick={handleLogoUpload} disabled={isUploading} className="w-full">
+                                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Upload className="mr-2 h-4 w-4"/>}
+                                        Enviar Arquivo
+                                    </Button>
+                                </div>
+                            )}
+
                              <div className="flex items-center justify-center p-4 border rounded-md bg-muted h-32">
-                                {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : logoUrl ? <Image src={logoUrl} alt="Logomarca da empresa" width={120} height={120} className="object-contain h-full" /> : <p className="text-sm text-muted-foreground">Prévia da logomarca</p>}
+                                {isUploading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : logoUrl ? (
+                                    <div className="relative group">
+                                         <Image src={logoUrl} alt="Logomarca da empresa" width={120} height={120} className="object-contain h-full" />
+                                         <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleDeleteLogo}>
+                                            <Trash2 className="h-4 w-4"/>
+                                        </Button>
+                                    </div>
+                                ) : <p className="text-sm text-muted-foreground">Prévia da logomarca</p>}
                              </div>
                         </CardContent>
                     </Card>

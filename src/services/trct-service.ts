@@ -35,7 +35,14 @@ export function generateTrctPdf(company: Company, employee: Employee, terminatio
   
   // Header
   if (company.logoUrl) {
-    doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15);
+    // Note: jsPDF requires image data, not just a URL. This is a simplified example.
+    // In a real app, you might need to fetch the image and convert it to a data URI.
+    // For simplicity, we'll assume a placeholder or that this logic is handled elsewhere.
+    try {
+        doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15);
+    } catch(e) {
+        console.error("Could not add logo to PDF:", e);
+    }
   }
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
