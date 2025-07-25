@@ -76,17 +76,10 @@ export function DashboardClient() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
-  const [activeCompanyCnpj, setActiveCompanyCnpj] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
-  const [stats, setStats] = useState<StatCard[]>([
-    { title: "Total de Entradas (Despesas)", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
-    { title: "Total de Saídas (Receitas)", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
-    { title: "Funcionários Ativos", amount: "0", icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
-    { title: "Produtos Cadastrados", amount: "0", icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
-  ]);
-  const [chartData, setChartData] = useState<MonthlyData[]>([]);
+  const [productsCount, setProductsCount] = useState(0);
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
 
   // Calendar State
@@ -107,169 +100,104 @@ export function DashboardClient() {
   }
 
   useEffect(() => {
-    if (!user || !activeCompanyId) return;
-
-    const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/events`);
-    const q = query(eventsRef, orderBy('date', 'asc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const eventsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: (doc.data().date as Timestamp).toDate(),
-      } as CalendarEvent));
-      setEvents(eventsData);
-    });
-
-    return () => unsubscribe();
-  }, [user, activeCompanyId]);
-
-
-  useEffect(() => {
     if (typeof window !== 'undefined') {
       const companyId = sessionStorage.getItem('activeCompanyId');
       setActiveCompanyId(companyId);
-      if (companyId) {
-        const companyDataString = sessionStorage.getItem(`company_${companyId}`);
-        if (companyDataString) {
-            const companyData = JSON.parse(companyDataString);
-            setActiveCompanyCnpj(companyData.cnpj?.replace(/\D/g, ''));
-        }
-      }
     }
   }, []);
 
   useEffect(() => {
     if (!user || !activeCompanyId) {
       setLoading(false);
+      setLaunches([]);
+      setEmployeesCount(0);
+      setProductsCount(0);
+      setEvents([]);
       return;
     }
 
     setLoading(true);
 
-    const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/launches`);
-    const launchesQuery = query(launchesRef, orderBy('date', 'desc'));
+    const launchesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/launches`), orderBy('date', 'desc'));
+    const employeesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/employees`), where('ativo', '==', true));
+    const productsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/produtos`));
+    const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/events`), orderBy('date', 'asc'));
 
-    const employeesRef = collection(db, `users/${user.uid}/companies/${activeCompanyId}/employees`);
-    const employeesQuery = query(employeesRef, where('ativo', '==', true));
-
-    const unsubscribeLaunches = onSnapshot(launchesQuery, (snapshot) => {
-      const launchesData: Launch[] = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return { 
-            id: doc.id, 
-            ...data, 
-            date: (data.date as Timestamp).toDate() 
-        } as Launch;
-      });
-      setLaunches(launchesData);
-
-      let totalEntradas = 0;
-      let totalSaidas = 0;
+    const unsubscribes = [
+      onSnapshot(launchesQuery, (snapshot) => {
+        const launchesData: Launch[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch));
+        setLaunches(launchesData);
+      }, (error) => { console.error("Launches error:", error); toast({ variant: 'destructive', title: "Erro ao carregar lançamentos" }); }),
       
-      launchesData.forEach(l => {
-        const value = l.valorLiquido || l.valorTotalNota || 0;
-        const emitenteCnpj = l.emitente?.cnpj?.replace(/\D/g, '');
-        const destinatarioCnpj = l.destinatario?.cnpj?.replace(/\D/g, '');
-        const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
-        const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
-
-        if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
-          totalEntradas += value;
-        }
-
-        if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
-          totalSaidas += value;
-        } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
-          totalSaidas += value;
-        }
-      });
-
-      setStats(prev => [
-          { ...prev[0], amount: formatCurrency(totalEntradas) },
-          { ...prev[1], amount: formatCurrency(totalSaidas) },
-          { ...prev[2], amount: employeesCount.toString() },
-          ...prev.slice(3)
-      ]);
-
-      const monthlyTotals: { [key: string]: { entradas: number, saidas: number } } = {};
-      const today = new Date();
+      onSnapshot(employeesQuery, (snapshot) => setEmployeesCount(snapshot.size), (error) => { console.error("Employees error:", error); toast({ variant: 'destructive', title: "Erro ao carregar funcionários" }); }),
       
-      for (let i = 5; i >= 0; i--) {
+      onSnapshot(productsQuery, (snapshot) => setProductsCount(snapshot.size), (error) => { console.error("Products error:", error); toast({ variant: 'destructive', title: "Erro ao carregar produtos" }); }),
+      
+      onSnapshot(eventsQuery, (snapshot) => {
+        const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent));
+        setEvents(eventsData);
+      }, (error) => { console.error("Events error:", error); toast({ variant: 'destructive', title: "Erro ao carregar eventos" }); })
+    ];
+
+    Promise.all(unsubscribes.map(unsub => new Promise(res => setTimeout(res, 0)))).finally(() => setLoading(false));
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [user, activeCompanyId, toast]);
+
+  const { totalEntradas, totalSaidas, chartData } = useMemo(() => {
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    const monthlyTotals: { [key: string]: { entradas: number, saidas: number } } = {};
+    const today = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         monthlyTotals[key] = { entradas: 0, saidas: 0 };
-      }
-      
-      launchesData.forEach(l => {
-          const launchDate = l.date;
-          const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
-          
-          if (monthlyTotals[key]) {
-            const value = l.valorLiquido || l.valorTotalNota || 0;
-            const emitenteCnpj = l.emitente?.cnpj?.replace(/\D/g, '');
-            const destinatarioCnpj = l.destinatario?.cnpj?.replace(/\D/g, '');
-            const prestadorCnpj = l.prestador?.cnpj?.replace(/\D/g, '');
-            const tomadorCnpj = l.tomador?.cnpj?.replace(/\D/g, '');
+    }
 
-            if (l.type === 'entrada' && destinatarioCnpj === activeCompanyCnpj) {
-              monthlyTotals[key].entradas += value;
+    launches.forEach(l => {
+        const value = l.valorLiquido || l.valorTotalNota || 0;
+        if (l.type === 'entrada') {
+            totalEntradas += value;
+        } else if (l.type === 'saida' || l.type === 'servico') {
+            totalSaidas += value;
+        }
+        
+        const launchDate = l.date;
+        const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
+        if (monthlyTotals[key]) {
+            if (l.type === 'entrada') {
+                monthlyTotals[key].entradas += value;
+            } else if (l.type === 'saida' || l.type === 'servico') {
+                monthlyTotals[key].saidas += value;
             }
-            
-            if (l.type === 'saida' && emitenteCnpj === activeCompanyCnpj) {
-              monthlyTotals[key].saidas += value;
-            } else if (l.type === 'servico' && prestadorCnpj === activeCompanyCnpj) {
-              monthlyTotals[key].saidas += value;
-            }
-          }
-      });
-      
-      const newChartData = Object.keys(monthlyTotals).map(key => {
-          const [year, month] = key.split('-').map(Number);
-          return {
-              month: monthNames[month],
-              ...monthlyTotals[key]
-          };
-      });
-
-      setChartData(newChartData);
-
-      setLoading(false);
-    }, (error) => {
-      console.error("Erro ao buscar lançamentos:", error);
-      toast({ variant: 'destructive', title: "Erro ao carregar lançamentos" });
-      setLoading(false);
+        }
     });
 
-    const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
-        setEmployeesCount(snapshot.size);
-        setStats(prev => [
-          ...prev.slice(0, 2),
-          { ...prev[2], amount: snapshot.size.toString() },
-          ...prev.slice(3)
-      ]);
-    }, (error) => {
-        console.error("Erro ao buscar funcionários:", error);
-        toast({ variant: 'destructive', title: "Erro ao carregar contagem de funcionários" });
+    const newChartData = Object.keys(monthlyTotals).map(key => {
+        const [year, month] = key.split('-').map(Number);
+        return { month: monthNames[month], ...monthlyTotals[key] };
     });
 
+    return { totalEntradas, totalSaidas, chartData: newChartData };
+  }, [launches]);
 
-    return () => {
-        unsubscribeLaunches();
-        unsubscribeEmployees();
-    };
-  }, [user, activeCompanyId, activeCompanyCnpj, toast, employeesCount]);
+  const stats: StatCard[] = [
+    { title: "Total de Entradas (Despesas)", amount: formatCurrency(totalEntradas), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
+    { title: "Total de Saídas (Receitas)", amount: formatCurrency(totalSaidas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Funcionários Ativos", amount: employeesCount.toString(), icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
+    { title: "Produtos Cadastrados", amount: productsCount.toString(), icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
+  ];
 
   const upcomingEvents = events.filter(e => e.date >= startOfDay(new Date())).slice(0, 5);
 
    const pieChartData = useMemo(() => {
-    const totalSaidas = chartData.reduce((acc, month) => acc + month.saidas, 0);
-    const totalEntradas = chartData.reduce((acc, month) => acc + month.entradas, 0);
     return [
       { name: 'Entradas (Despesas)', value: totalEntradas },
       { name: 'Saídas (Receitas)', value: totalSaidas },
     ];
-  }, [chartData]);
+  }, [totalEntradas, totalSaidas]);
 
 
   return (

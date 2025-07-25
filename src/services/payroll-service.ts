@@ -1,5 +1,6 @@
 
 
+
 import type { Employee } from "@/types/employee";
 import type { PayrollEvent } from "@/app/(app)/pessoal/folha-de-pagamento/page";
 
@@ -60,14 +61,10 @@ function calculateINSS(baseInss: number): { valor: number; aliquota: number } {
 function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number; aliquota: number } {
     if (baseIrrf <= 0) return { valor: 0, aliquota: 0 };
     
-    // Deductions for dependents
+    // 1. Calculation with standard deductions (dependents + INSS which is already subtracted from base)
     const totalDependentDeduction = numDependents * irrfDependentDeduction;
     const baseAfterDependents = baseIrrf - totalDependentDeduction;
-
-    // The user can opt for the simplified deduction if it's more beneficial.
-    // We will calculate both and choose the one that results in lower tax.
     
-    // 1. Calculation with standard deductions (INSS already subtracted from base)
     let irrfStandard = 0;
     let rateStandard = 0;
     for (const bracket of irrfBrackets) {
@@ -90,7 +87,7 @@ function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number
         }
     }
 
-    // Choose the lesser of the two tax amounts
+    // Choose the lesser of the two tax amounts, ensuring it's not negative.
     const finalIrrf = Math.max(0, Math.min(irrfStandard, irrfSimplified));
     const finalRate = irrfStandard <= irrfSimplified ? rateStandard : rateSimplified;
 
@@ -98,7 +95,7 @@ function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number
 }
 
 
-export function calculatePayroll(employee: Employee, events: PayrollEvent[]): PayrollCalculationResult {
+export function calculatePayroll(employee: Employee | { salarioBase: number, dependentes: any[] }, events: PayrollEvent[]): PayrollCalculationResult {
     // 1. Calculate the bases by summing up all relevant proventos
     const baseFGTS = events
         .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')

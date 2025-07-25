@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc } fro
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Payroll } from "@/types/payroll";
 import type { Termination } from "@/types/termination";
 import type { Thirteenth } from "@/types/thirteenth";
