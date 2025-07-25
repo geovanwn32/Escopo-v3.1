@@ -22,6 +22,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import { generateCashFlowReportPdf } from '@/services/cash-flow-report-service';
+
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -113,7 +116,7 @@ export default function FluxoDeCaixaPage() {
             const launchDate = new Date(launch.date);
             launchDate.setHours(23,59,59,999);
             const endDate = new Date(filterDate.to);
-            endDate.setHours(23,59,59,999);
+endDate.setHours(23,59,59,999);
             dateMatch = launchDate <= endDate;
         }
 
@@ -157,6 +160,37 @@ export default function FluxoDeCaixaPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (filteredLaunches.length === 0) {
+        toast({ variant: 'destructive', title: 'Nenhum dado para exportar.' });
+        return;
+    }
+
+    const dataToExport = filteredLaunches.map(launch => ({
+        'Data': format(launch.date, 'dd/MM/yyyy'),
+        'Parceiro': getPartnerName(launch),
+        'Tipo': getTypeLabel(launch.type),
+        'Valor': (launch.type === 'entrada' ? -1 : 1) * (launch.valorLiquido || launch.valorTotalNota || 0),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "FluxoDeCaixa");
+
+    worksheet['!cols'] = [ { wch: 12 }, { wch: 40 }, { wch: 20 }, { wch: 15 } ];
+    XLSX.writeFile(workbook, `fluxo_de_caixa_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  }
+  
+  const handleGeneratePdf = () => {
+    if (!activeCompany) return;
+    if (filteredLaunches.length === 0) {
+        toast({ variant: 'destructive', title: 'Nenhum dado para exportar.' });
+        return;
+    }
+    generateCashFlowReportPdf(activeCompany, filteredLaunches, financialTotals, filterDate);
+  }
+
+
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center">
@@ -178,11 +212,11 @@ export default function FluxoDeCaixaPage() {
                 <CardDescription>Visualize as entradas e saídas com base nos filtros aplicados.</CardDescription>
             </div>
              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => {}} disabled>
+                <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading || filteredLaunches.length === 0}>
                     <FileText className="mr-2 h-4 w-4" />
                     Gerar PDF
                 </Button>
-                 <Button variant="outline" size="sm" onClick={() => {}} disabled>
+                 <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={loading || filteredLaunches.length === 0}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" />
                     Exportar Excel
                 </Button>
