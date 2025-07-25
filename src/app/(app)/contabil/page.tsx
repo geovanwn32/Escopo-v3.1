@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud } from "lucide-react";
 import Link from "next/link";
@@ -10,32 +10,32 @@ const accountingSections = [
     {
         href: "/contabil/plano-de-contas",
         title: "Plano de Contas",
-        description: "Gerencie a estrutura de contas contábeis da sua empresa.",
         icon: BookMarked,
+        className: "bg-blue-100 text-blue-800 hover:bg-blue-200"
     },
     {
         href: "/contabil/lancamentos",
         title: "Lançamentos Manuais",
-        description: "Registre os lançamentos contábeis de débito e crédito.",
         icon: ListChecks,
+        className: "bg-green-100 text-green-800 hover:bg-green-200"
     },
     {
         href: "/contabil/importacao-extrato",
         title: "Importar Extrato Bancário",
-        description: "Envie extratos (PDF, TXT, Excel) para automatizar lançamentos.",
         icon: UploadCloud,
+        className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
     },
     {
         href: "/contabil/conciliacao",
         title: "Conciliação Bancária",
-        description: "Reconcilie extratos bancários com seus registros contábeis.",
         icon: Banknote,
+        className: "bg-purple-100 text-purple-800 hover:bg-purple-200"
     },
     {
         href: "/contabil/relatorios-contabeis",
         title: "Relatórios Contábeis",
-        description: "Gere Balancetes, DRE, Balanço Patrimonial e outros relatórios.",
         icon: LineChart,
+        className: "bg-red-100 text-red-800 hover:bg-red-200"
     },
 ];
 
@@ -43,36 +43,41 @@ export default function ContabilPage() {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Módulo Contábil</h1>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Central Contábil</CardTitle>
-                    <CardDescription>Selecione uma das opções abaixo para gerenciar a contabilidade da sua empresa.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {accountingSections.map((section) => (
-                            <Card key={section.href} className="flex flex-col">
-                                <CardHeader className="flex-row items-start gap-4 space-y-0">
-                                     <div className="p-3 bg-muted rounded-md">
-                                        <section.icon className="h-6 w-6 text-primary" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <CardTitle className="text-lg">{section.title}</CardTitle>
-                                        <CardDescription className="mt-1">{section.description}</CardDescription>
-                                    </div>
-                                </CardHeader>
-                                <CardFooter className="mt-auto">
-                                    <Button asChild className="w-full">
-                                        <Link href={section.href}>
-                                            Acessar Módulo <ArrowRight className="ml-2 h-4 w-4" />
-                                        </Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
+             <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Central Contábil</CardTitle>
+                        <CardDescription>Selecione uma das opções abaixo para gerenciar a contabilidade da sua empresa.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                         {accountingSections.map((section) => (
+                            <Button asChild key={section.href} className={`w-full justify-start ${section.className}`}>
+                                <Link href={section.href}>
+                                    <span><section.icon className="mr-2 h-4 w-4" />{section.title}</span>
+                                </Link>
+                            </Button>
                         ))}
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Atalhos Rápidos</CardTitle>
+                        <CardDescription>Acesse rapidamente as funções mais usadas.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                         <Button asChild className="w-full justify-start">
+                            <Link href="/contabil/lancamentos">
+                                <span><ListChecks className="mr-2 h-4 w-4" />Novo Lançamento</span>
+                            </Link>
+                        </Button>
+                         <Button asChild className="w-full justify-start">
+                            <Link href="/contabil/relatorios-contabeis">
+                                <span><LineChart className="mr-2 h-4 w-4" />Gerar Balancete</span>
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }
