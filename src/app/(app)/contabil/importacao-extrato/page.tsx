@@ -84,23 +84,36 @@ export default function ImportacaoExtratoPage() {
         
         try {
             let textContent = '';
-            const fileBuffer = await file.arrayBuffer();
             
-            if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel') || file.name.endsWith('.csv')) {
-                const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                textContent = XLSX.utils.sheet_to_csv(worksheet);
-            } else if (file.type === 'application/pdf') {
-                const pdf = (await import('pdf-parse/lib/pdf-parse.js')).default;
-                if (typeof window !== 'undefined') {
-                  (window as any).pdf = pdf;
+            if (file.type === 'application/pdf') {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/extract-pdf', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Falha ao extrair texto do PDF.');
                 }
-                const data = await pdf(fileBuffer);
-                textContent = data.text;
-            } else { // Assume plain text
-                textContent = await file.text();
+
+                const result = await response.json();
+                textContent = result.text;
+
+            } else {
+                const fileBuffer = await file.arrayBuffer();
+                if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel') || file.name.endsWith('.csv')) {
+                    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    textContent = XLSX.utils.sheet_to_csv(worksheet);
+                } else { // Assume plain text
+                    textContent = await file.text();
+                }
             }
+
 
             if (!textContent) {
                 throw new Error("Could not extract text content from the file.");
@@ -116,7 +129,7 @@ export default function ImportacaoExtratoPage() {
             }
         } catch (error) {
             console.error("Error processing file:", error);
-            toast({ variant: 'destructive', title: 'Erro no Processamento', description: 'Não foi possível analisar o arquivo.' });
+            toast({ variant: 'destructive', title: 'Erro no Processamento', description: (error as Error).message });
         } finally {
             setIsProcessing(false);
         }
