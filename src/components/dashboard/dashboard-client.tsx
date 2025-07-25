@@ -76,8 +76,8 @@ export function DashboardClient() {
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
   const [stats, setStats] = useState<StatCard[]>([
-    { title: "Total de Entradas", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-green-600", bgColor: "bg-green-100" },
-    { title: "Total de Saídas", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-red-600", bgColor: "bg-red-100" },
+    { title: "Total de Entradas", amount: formatCurrency(0), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
+    { title: "Total de Saídas", amount: formatCurrency(0), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
     { title: "Funcionários Ativos", amount: "0", icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
     { title: "Produtos Cadastrados", amount: "0", icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
   ]);
@@ -290,8 +290,8 @@ export function DashboardClient() {
                     <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
                     <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="entradas" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Entradas" />
-                    <Bar dataKey="saidas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="Saídas" />
+                    <Bar dataKey="saidas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Saídas (Receitas)" />
+                    <Bar dataKey="entradas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} name="Entradas (Despesas)" />
                   </BarChart>
                 </ResponsiveContainer>}
               </CardContent>
