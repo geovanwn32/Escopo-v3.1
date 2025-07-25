@@ -48,7 +48,7 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     // --- FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
     
-    let q = query(launchesRef, where('type', 'in', ['saida', 'servico']), orderBy('date', 'desc'));
+    let q = query(launchesRef, where('type', 'in', ['saida', 'servico']));
 
     if (dateRange.from) {
         q = query(q, where('date', '>=', Timestamp.fromDate(dateRange.from)));
@@ -61,6 +61,9 @@ export async function generateReceivablesReportPdf(userId: string, company: Comp
     
     const snapshot = await getDocs(q);
     let receivables = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
+    
+    // Sort by date client-side
+    receivables.sort((a, b) => (b.date as any).toDate().getTime() - (a.date as any).toDate().getTime());
     
     if (status) {
         receivables = receivables.filter(r => (r.financialStatus || 'pendente') === status);
