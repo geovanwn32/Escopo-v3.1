@@ -416,7 +416,7 @@ export default function ContasAReceberPage() {
                     Anterior
                 </Button>
                 <span className="text-sm text-muted-foreground">Página {currentPage} de {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}>
+                <Button variant="outline" size="sm" onClick={()={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}>
                     Próximo
                     <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -426,3 +426,5 @@ export default function ContasAReceberPage() {
     </div>
   );
 }
+
+    
