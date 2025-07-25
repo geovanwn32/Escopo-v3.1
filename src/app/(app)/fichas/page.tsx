@@ -13,20 +13,23 @@ import { generateContractPdf } from '@/services/contract-service';
 import { useToast } from '@/hooks/use-toast';
 import { generateVacationNoticePdf } from '@/services/vacation-notice-service';
 import { generateTrctPdf } from '@/services/trct-service';
-import { collection, doc, getDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, getDoc, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Vacation } from '@/types/vacation';
-import type { Termination } from '@/types/termination';
 import { Timestamp } from 'firebase/firestore';
 import { generateDependentsListPdf } from '@/services/dependents-list-service';
 import { useRouter } from 'next/navigation';
+import { VacationDateModal } from '@/components/pessoal/vacation-date-modal';
+import { calculateVacation } from '@/services/vacation-service';
 
 
 type DocumentType = 'contract' | 'vacation' | 'termination' | 'dependents';
 
 export default function FichasPage() {
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+    const [isVacationDateModalOpen, setVacationDateModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [documentType, setDocumentType] = useState<DocumentType | null>(null);
     const { user } = useAuth();
     const { toast } = useToast();
@@ -56,41 +59,16 @@ export default function FichasPage() {
         }
 
         setIsEmployeeModalOpen(false);
+        setSelectedEmployee(employee);
 
         try {
             switch (documentType) {
                 case 'contract':
                     generateContractPdf(activeCompany, employee);
                     break;
-                case 'vacation': {
-                    const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
-                    const q = query(
-                        vacationsRef,
-                        where("employeeId", "==", employee.id!)
-                    );
-                    const querySnapshot = await getDocs(q);
-
-                    if (querySnapshot.empty) {
-                        toast({ variant: "destructive", title: "Cálculo de Férias não encontrado", description: "Redirecionando para a tela de cálculo para que você possa gerar as férias." });
-                        // Redirect to the vacation calculation page with the employee ID
-                        router.push(`/pessoal/ferias?employeeId=${employee.id}`);
-                        return;
-                    }
-
-                    // Sort documents by createdAt date descending to find the latest one
-                    const sortedVacations = querySnapshot.docs.sort((a, b) => {
-                        const dateA = (a.data().createdAt as Timestamp)?.toDate() || new Date(0);
-                        const dateB = (b.data().createdAt as Timestamp)?.toDate() || new Date(0);
-                        return dateB.getTime() - dateA.getTime();
-                    });
-
-                    const latestVacationDoc = sortedVacations[0];
-                    const vacationData = latestVacationDoc.data() as Vacation;
-                    vacationData.id = latestVacationDoc.id;
-                    
-                    generateVacationNoticePdf(activeCompany, employee, vacationData);
+                case 'vacation':
+                    setVacationDateModalOpen(true);
                     break;
-                }
                 case 'termination': {
                     const termRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
                     const q = query(
@@ -105,7 +83,6 @@ export default function FichasPage() {
                         return;
                     }
                     
-                    // Sort documents by createdAt date descending to find the latest one
                     const sortedTerminations = termSnap.docs.sort((a, b) => {
                         const dateA = (a.data().createdAt as Timestamp)?.toDate() || new Date(0);
                         const dateB = (b.data().createdAt as Timestamp)?.toDate() || new Date(0);
@@ -125,6 +102,48 @@ export default function FichasPage() {
         } catch (error) {
             console.error(`Erro ao gerar documento ${documentType}:`, error);
             toast({ variant: "destructive", title: `Erro ao gerar ${documentType}`, description: "Verifique o console para mais detalhes."});
+        }
+    };
+    
+    const handleVacationDateSubmit = async (startDate: Date) => {
+        if (!selectedEmployee || !user || !activeCompany) return;
+
+        setVacationDateModalOpen(false);
+
+        try {
+            const result = calculateVacation({
+                employee: selectedEmployee,
+                startDate,
+                vacationDays: 30, // Default to 30, can be made configurable later
+                sellVacation: false,
+                advanceThirteenth: false,
+            });
+
+            const vacationData: Omit<Vacation, 'id' | 'createdAt'> = {
+                employeeId: selectedEmployee.id!,
+                employeeName: selectedEmployee.nomeCompleto,
+                startDate,
+                vacationDays: 30,
+                sellVacation: false,
+                advanceThirteenth: false,
+                result: result,
+                updatedAt: serverTimestamp(),
+            };
+            
+            // Save the new calculation
+            const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
+            await addDoc(vacationsRef, { ...vacationData, createdAt: serverTimestamp() });
+            
+            toast({ title: "Cálculo de férias salvo com sucesso!" });
+
+            // Generate the PDF with the new data
+            generateVacationNoticePdf(activeCompany, selectedEmployee, vacationData as Vacation);
+
+        } catch (error) {
+             console.error("Erro ao calcular e gerar aviso de férias:", error);
+            toast({ variant: "destructive", title: "Erro ao Processar Férias", description: (error as Error).message });
+        } finally {
+            setSelectedEmployee(null); // Reset selected employee
         }
     };
 
@@ -205,6 +224,12 @@ export default function FichasPage() {
             companyId={activeCompany.id}
         />
       )}
+      
+      <VacationDateModal 
+        isOpen={isVacationDateModalOpen}
+        onClose={() => setVacationDateModalOpen(false)}
+        onSubmit={handleVacationDateSubmit}
+      />
     </div>
   );
 }
