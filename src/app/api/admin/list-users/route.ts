@@ -1,12 +1,12 @@
 
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, credential } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { serviceAccount } from '@/lib/firebase-admin-config';
 import type { AppUser } from '@/types/user';
 
-// Helper function to initialize Firebase Admin
+// Helper function to initialize Firebase Admin, ensuring it only runs once
 function initializeAdminApp(): App {
   const adminApps = getApps().filter(app => app.name === 'firebase-admin-app');
   if (adminApps.length > 0) {
@@ -15,11 +15,7 @@ function initializeAdminApp(): App {
 
   try {
     return initializeApp({
-      credential: {
-        projectId: serviceAccount.project_id,
-        clientEmail: serviceAccount.client_email,
-        privateKey: serviceAccount.private_key,
-      },
+      credential: credential.cert(serviceAccount),
     }, 'firebase-admin-app');
   } catch (error: any) {
     console.error("Firebase Admin Initialization Error:", error.message);
