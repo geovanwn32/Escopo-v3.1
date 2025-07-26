@@ -24,6 +24,7 @@ import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
+import Link from "next/link";
 
 interface XmlFile {
   file: {
@@ -245,12 +246,12 @@ export default function FiscalPage() {
             else if (destCnpj === normalizedActiveCnpj) type = 'entrada';
 
         } else if (isNFSe) {
-            const prestadorNode = isNFSe.querySelector('PrestadorServico, prest');
-            const tomadorNode = isNFSe.querySelector('TomadorServico, toma');
+            const prestadorNode = xmlDoc.querySelector('PrestadorServico, prest');
+            const tomadorNode = xmlDoc.querySelector('TomadorServico, toma');
             
             const prestadorCnpj = getCnpjCpfFromNode(prestadorNode);
             const tomadorCnpj = getCnpjCpfFromNode(tomadorNode);
-            const numeroNfse = isNFSe.querySelector('Numero, nNFSe')?.textContent;
+            const numeroNfse = xmlDoc.querySelector('Numero, nNFSe')?.textContent;
             
             key = numeroNfse || undefined;
             if (key && launchedKeys.has(key)) status = 'launched';
@@ -525,8 +526,10 @@ endDate.setHours(23,59,59,999);
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
-           <Button className="bg-purple-100 text-purple-800 hover:bg-purple-200" onClick={() => {}}>
-            <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
+           <Button asChild className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+             <Link href="/fiscal/inventario">
+                <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
+             </Link>
           </Button>
           <Button className="bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={() => setClosingModalOpen(true)}>
             <Lock className="mr-2 h-4 w-4" /> Realizar Fechamento Fiscal
@@ -847,3 +850,4 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
+
