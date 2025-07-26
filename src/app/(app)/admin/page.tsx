@@ -2,11 +2,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,8 +19,18 @@ import type { AppUser } from '@/types/user';
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
 
+interface AdminUserView {
+    uid: string;
+    email?: string;
+    disabled: boolean;
+    creationTime: string;
+    lastSignInTime: string;
+    licenseType: AppUser['licenseType'];
+    trialEndsAt?: { _seconds: number, _nanoseconds: number } | Date;
+}
+
 export default function AdminPage() {
-  const [usersList, setUsersList] = useState<AppUser[]>([]);
+  const [usersList, setUsersList] = useState<AdminUserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
@@ -50,55 +60,56 @@ export default function AdminPage() {
     }
   }, [user, router, toast]);
 
+    const fetchUsers = async () => {
+        if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        try {
+            const response = await fetch('/api/admin/list-users');
+            if (!response.ok) {
+                throw new Error('Falha ao buscar usuários');
+            }
+            const data = await response.json();
+            setUsersList(data);
+        } catch (error) {
+            console.error("Error fetching users: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar usuários" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
   useEffect(() => {
-    if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
-        setLoading(false);
-        return;
-    }
-
-    const usersRef = collection(db, `users`);
-    const q = query(usersRef); // Fetch all users
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        let usersData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            // Safely convert timestamp to date
-            const trialEndsAtDate = data.trialEndsAt instanceof Timestamp 
-                ? data.trialEndsAt.toDate() 
-                : data.trialEndsAt;
-
-            return {
-                ...data,
-                uid: doc.id,
-                trialEndsAt: trialEndsAtDate,
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(0), // Ensure createdAt is a Date
-            } as AppUser;
-        });
-
-        // Sort on the client-side
-        usersData = usersData.sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime());
-
-        setUsersList(usersData);
-        setLoading(false);
-    }, (error) => {
-        console.error("Error fetching users: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar usuários",
-        });
-        setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [activeCompany, toast]);
+    fetchUsers();
+  }, [activeCompany]);
   
   const updateUserLicense = async (userId: string, licenseType: AppUser['licenseType']) => {
     const userRef = doc(db, 'users', userId);
     try {
         await updateDoc(userRef, { licenseType });
         toast({ title: `Licença do usuário atualizada para ${licenseType}!` });
+        setUsersList(prev => prev.map(u => u.uid === userId ? { ...u, licenseType } : u));
     } catch(error) {
         toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
+    }
+  }
+  
+  const toggleUserStatus = async (userId: string, isDisabled: boolean) => {
+    try {
+        const response = await fetch('/api/admin/list-users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: userId, disabled: !isDisabled }),
+        });
+        if (!response.ok) {
+            throw new Error('Falha ao atualizar status do usuário');
+        }
+        toast({ title: `Status do usuário atualizado!` });
+        setUsersList(prev => prev.map(u => u.uid === userId ? { ...u, disabled: !isDisabled } : u));
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.' });
     }
   }
 
@@ -122,13 +133,24 @@ export default function AdminPage() {
     }
   }
 
+  const formatUserDate = (dateString: string) => {
+      if (!dateString) return 'N/A';
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
+  };
+
   if (loading || !activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Painel de Administração - Usuários</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Painel de Administração - Usuários</h1>
+        <Button onClick={fetchUsers} variant="outline" size="sm" disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar Lista
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle>Gerenciamento de Usuários e Licenças</CardTitle>
@@ -144,7 +166,9 @@ export default function AdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Email</TableHead>
-                  <TableHead>Fim da Avaliação</TableHead>
+                  <TableHead>Data de Criação</TableHead>
+                  <TableHead>Último Login</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Tipo de Licença</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -153,7 +177,13 @@ export default function AdminPage() {
                 {usersList.map((appUser) => (
                   <TableRow key={appUser.uid}>
                     <TableCell className="font-medium">{appUser.email}</TableCell>
-                    <TableCell>{appUser.trialEndsAt instanceof Date ? format(appUser.trialEndsAt, 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                    <TableCell>{formatUserDate(appUser.creationTime)}</TableCell>
+                    <TableCell>{formatUserDate(appUser.lastSignInTime)}</TableCell>
+                    <TableCell>
+                        <Badge variant={appUser.disabled ? 'destructive' : 'success'}>
+                            {appUser.disabled ? 'Desativado' : 'Ativo'}
+                        </Badge>
+                    </TableCell>
                     <TableCell>
                         <Badge variant={getLicenseVariant(appUser.licenseType)}>
                             {getLicenseLabel(appUser.licenseType)}
@@ -168,6 +198,17 @@ export default function AdminPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {appUser.disabled ? (
+                                <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)}>
+                                    <UserCheck className="mr-2 h-4 w-4 text-green-500" />
+                                    <span>Reativar Usuário</span>
+                                </DropdownMenuItem>
+                            ) : (
+                                 <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)} className="text-destructive">
+                                    <UserX className="mr-2 h-4 w-4" />
+                                    <span>Desativar Usuário</span>
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuSub>
                                 <DropdownMenuSubTrigger>
                                     <ShieldCheck className="mr-2 h-4 w-4" />
