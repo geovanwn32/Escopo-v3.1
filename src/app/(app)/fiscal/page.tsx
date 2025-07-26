@@ -7,7 +7,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -464,7 +464,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    currentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -524,6 +524,9 @@ endDate.setHours(23,59,59,999);
           <Button onClick={() => handleManualLaunch('servico')} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
+          </Button>
+           <Button className="bg-purple-100 text-purple-800 hover:bg-purple-200" onClick={() => {}}>
+            <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
           </Button>
           <Button className="bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={() => setClosingModalOpen(true)}>
             <Lock className="mr-2 h-4 w-4" /> Realizar Fechamento Fiscal
