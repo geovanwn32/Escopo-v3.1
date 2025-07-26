@@ -1,26 +1,18 @@
 
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
+import { initializeAdminApp } from '@/lib/firebase-admin-config';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AppUser } from '@/types/user';
 
-function initializeAdminApp(): App {
-  if (getApps().length > 0) {
-    return getApps()[0];
-  }
-
-  // When deployed to Firebase App Hosting, the GOOGLE_APPLICATION_CREDENTIALS
-  // environment variable is automatically set. The applicationDefault() helper
-  // uses this environment variable to get service account credentials.
-  return initializeApp({
-    credential: applicationDefault(),
-  });
-}
-
 export async function GET() {
+  const adminApp = initializeAdminApp();
+  if (!adminApp) {
+      // If initialization fails (e.g., in local dev without credentials), return an empty list.
+      return NextResponse.json([], { status: 200 });
+  }
+  
   try {
-    const adminApp = initializeAdminApp();
     const authAdmin = getAuth(adminApp);
     const dbAdmin = getFirestore(adminApp);
 
@@ -60,10 +52,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const adminApp = initializeAdminApp();
+    if (!adminApp) {
+        return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
+    }
+
     try {
-        const adminApp = initializeAdminApp();
         const authAdmin = getAuth(adminApp);
-        
         const { uid, disabled } = await request.json();
 
         if (!uid) {
