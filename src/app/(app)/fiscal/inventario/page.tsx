@@ -10,12 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { UploadCloud, File, Trash2, Filter, Calculator, FileDown, Loader2, ListFilter, RotateCcw } from "lucide-react";
+import { UploadCloud, File as FileIcon, Trash2, Filter, Calculator, FileDown, Loader2, ListFilter, RotateCcw, ArrowLeft } from "lucide-react";
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import Link from 'next/link';
 
 
 interface Product {
@@ -186,7 +187,15 @@ export default function InventarioPage() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold">Processador de Inventário por XML</h1>
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" asChild>
+                    <Link href="/fiscal">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span className="sr-only">Voltar</span>
+                    </Link>
+                </Button>
+                <h1 className="text-2xl font-bold">Processador de Inventário por XML</h1>
+            </div>
 
             <Card>
                 <CardHeader><CardTitle>1. Importar Arquivos</CardTitle></CardHeader>
