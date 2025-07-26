@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { initializeApp, getApps, App, credential } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { serviceAccount } from '@/lib/firebase-admin-config';
 import type { AppUser } from '@/types/user';
 
 function initializeAdminApp(): App {
@@ -12,21 +11,26 @@ function initializeAdminApp(): App {
     return existingApp;
   }
 
-  // Ensure all required fields are present
-  const requiredFields: (keyof typeof serviceAccount)[] = ['project_id', 'private_key', 'client_email'];
-  const missingFields = requiredFields.filter(field => !serviceAccount[field]);
+  // A abordagem mais robusta para produção (Firebase App Hosting, Cloud Run, etc.)
+  // é usar uma variável de ambiente com a chave de serviço codificada em base64.
+  const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
 
-  if (missingFields.length > 0) {
-    // This will happen in dev environments without the env vars.
-    // It's not a fatal error for the app to run, but this API endpoint will not work.
-    console.warn(`Firebase Admin SDK not initialized. Missing fields: ${missingFields.join(', ')}`);
-    // Throw an error that we can catch and return a user-friendly message.
-    throw new Error('Firebase Admin credentials are not configured on the server.');
+  if (!serviceAccountBase64) {
+    throw new Error('As credenciais do Firebase Admin não estão configuradas. Defina a variável de ambiente FIREBASE_SERVICE_ACCOUNT_BASE64.');
   }
+  
+  try {
+    const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf8');
+    const serviceAccount = JSON.parse(serviceAccountJson);
 
-  return initializeApp({
-    credential: credential.cert(serviceAccount),
-  }, 'firebase-admin-app');
+    return initializeApp({
+        credential: credential.cert(serviceAccount),
+    }, 'firebase-admin-app');
+
+  } catch (e: any) {
+    console.error("Falha ao analisar as credenciais do Firebase Admin. Verifique se o base64 está correto.", e.message);
+    throw new Error("Credenciais do Firebase Admin mal formatadas.");
+  }
 }
 
 
@@ -62,7 +66,7 @@ export async function GET() {
 
     return NextResponse.json(combinedUsers, { status: 200 });
   } catch (error: any) {
-    console.error('Error listing users:', error);
+    console.error('Erro ao listar usuários:', error);
     return NextResponse.json({ message: 'Erro ao listar usuários no servidor.', error: error.message }, { status: 500 });
   }
 }
