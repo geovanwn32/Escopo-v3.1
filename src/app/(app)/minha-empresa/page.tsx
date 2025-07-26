@@ -44,9 +44,10 @@ const companySchema = z.object({
   email: z.string().email({ message: "Email inválido." }).optional().or(z.literal('')),
   logoUrl: z.string().url().optional().nullable(),
   logoPath: z.string().optional().nullable(),
+  licenseType: z.enum(['basica', 'profissional', 'premium']).default('basica'),
 }).superRefine((data, ctx) => {
     const { tipoInscricao, inscricao } = data;
-    const cleanedInscricao = inscricao.replace(/\D/g, '');
+    const cleanedInscricao = inscricao ? inscricao.replace(/\D/g, '') : '';
 
     if (tipoInscricao === 'cnpj' && cleanedInscricao.length !== 14) {
         ctx.addIssue({
@@ -88,6 +89,7 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         email: data.email || "",
         logoUrl: data.logoUrl || null,
         logoPath: data.logoPath || null,
+        licenseType: data.licenseType || 'basica',
     };
 };
 
@@ -531,7 +533,29 @@ export default function MinhaEmpresaPage() {
                                     </FormItem>
                                 )}
                             />
-                             <FormField
+                            <FormField
+                                control={form.control}
+                                name="licenseType"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Tipo de Licença</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione a licença" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="basica">Básica</SelectItem>
+                                                <SelectItem value="profissional">Profissional</SelectItem>
+                                                <SelectItem value="premium">Premium</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
                                 control={form.control}
                                 name="cnaePrincipalCodigo"
                                 render={({ field }) => (
@@ -805,4 +829,3 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
-

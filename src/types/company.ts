@@ -31,4 +31,5 @@ export interface Company {
     establishment?: EstablishmentData;
     logoUrl?: string | null;
     logoPath?: string | null;
+    licenseType?: 'basica' | 'profissional' | 'premium';
 }
