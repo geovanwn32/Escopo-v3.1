@@ -44,30 +44,35 @@ export default function AdminPage() {
         const companyId = sessionStorage.getItem('activeCompanyId');
         if (user && companyId) {
             const companyDataString = sessionStorage.getItem(`company_${companyId}`);
-            
+            let isAdmin = false;
+
             // Super admin check
             if (user.email === SUPER_ADMIN_EMAIL) {
-                setHasAdminAccess(true);
-                return;
+                isAdmin = true;
             }
 
             if (companyDataString) {
                 const companyData = JSON.parse(companyDataString);
                 setActiveCompany(companyData);
                 if (companyData.cnpj === ADMIN_COMPANY_CNPJ) {
-                    setHasAdminAccess(true);
-                } else {
-                    setHasAdminAccess(false);
-                    toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
-                    router.push('/dashboard');
+                    isAdmin = true;
                 }
-            } else {
-                 router.push('/dashboard');
+            }
+
+            setHasAdminAccess(isAdmin);
+            if (!isAdmin) {
+                toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
+                router.push('/dashboard');
             }
         } else if (!user) {
             router.push('/login');
-        } else {
-             router.push('/dashboard');
+        } else if (!companyId) {
+            // If user is logged in but has no company selected, check if they are super admin
+            if (user.email === SUPER_ADMIN_EMAIL) {
+                setHasAdminAccess(true);
+            } else {
+                router.push('/dashboard');
+            }
         }
     }
   }, [user, router, toast]);
@@ -81,13 +86,15 @@ export default function AdminPage() {
         try {
             const response = await fetch('/api/admin/list-users');
             if (!response.ok) {
-                throw new Error('Falha ao buscar usuários');
+                const errorData = await response.json();
+                console.error("Error response from API: ", errorData);
+                throw new Error(errorData.message || 'Falha ao buscar usuários');
             }
             const data = await response.json();
             setUsersList(data);
         } catch (error) {
             console.error("Error fetching users: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar usuários" });
+            toast({ variant: "destructive", title: "Erro ao buscar usuários", description: (error as Error).message });
         } finally {
             setLoading(false);
         }
@@ -154,8 +161,12 @@ export default function AdminPage() {
       return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
   };
 
-  if (loading || !hasAdminAccess) {
+  if (loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+  
+  if (!hasAdminAccess) {
+      return <div className="flex h-screen items-center justify-center"><p>Acesso negado.</p></div>;
   }
 
   return (
