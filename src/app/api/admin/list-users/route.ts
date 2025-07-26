@@ -1,18 +1,48 @@
 
 import { NextResponse } from 'next/server';
-import { initializeAdminApp } from '@/lib/firebase-admin-config';
+import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AppUser } from '@/types/user';
 
-export async function GET() {
-  const adminApp = initializeAdminApp();
-  if (!adminApp) {
-      // If initialization fails (e.g., in local dev without credentials), return an empty list.
-      return NextResponse.json([], { status: 200 });
+// Helper function to initialize the Admin App, ensuring it's a singleton.
+function initializeAdminApp(): App | null {
+  // If apps are already initialized, return the existing one.
+  if (getApps().length > 0) {
+    return getApps()[0];
   }
-  
+
   try {
+    // This is the primary method for production (Firebase App Hosting)
+    // It uses the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+    return initializeApp({
+      credential: applicationDefault(),
+    });
+  } catch (e) {
+    console.warn(
+        "Could not initialize Firebase Admin SDK using applicationDefault(). This is normal for local development. " +
+        "Admin features will be disabled. Error: ", (e as Error).message
+    );
+    // In a local development environment where GOOGLE_APPLICATION_CREDENTIALS is not set,
+    // this will fail. We return null to indicate that the admin app is not available.
+    return null;
+  }
+}
+
+
+export async function GET() {
+  try {
+    const adminApp = initializeAdminApp();
+
+    // If the admin app failed to initialize (e.g., missing credentials in local dev),
+    // return a specific error response immediately.
+    if (!adminApp) {
+        return NextResponse.json(
+            { message: 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.' },
+            { status: 503 } // Service Unavailable
+        );
+    }
+  
     const authAdmin = getAuth(adminApp);
     const dbAdmin = getFirestore(adminApp);
 
@@ -52,12 +82,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-    const adminApp = initializeAdminApp();
-    if (!adminApp) {
-        return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
-    }
-
     try {
+        const adminApp = initializeAdminApp();
+        if (!adminApp) {
+             return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
+        }
+    
         const authAdmin = getAuth(adminApp);
         const { uid, disabled } = await request.json();
 
