@@ -42,15 +42,15 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
         const companyId = sessionStorage.getItem('activeCompanyId');
+        let isAdmin = false;
+        
+        // Super admin check
+        if (user?.email === SUPER_ADMIN_EMAIL) {
+            isAdmin = true;
+        }
+
         if (user && companyId) {
             const companyDataString = sessionStorage.getItem(`company_${companyId}`);
-            let isAdmin = false;
-
-            // Super admin check
-            if (user.email === SUPER_ADMIN_EMAIL) {
-                isAdmin = true;
-            }
-
             if (companyDataString) {
                 const companyData = JSON.parse(companyDataString);
                 setActiveCompany(companyData);
@@ -58,21 +58,18 @@ export default function AdminPage() {
                     isAdmin = true;
                 }
             }
+        }
 
-            setHasAdminAccess(isAdmin);
-            if (!isAdmin) {
-                toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
-                router.push('/dashboard');
-            }
-        } else if (!user) {
-            router.push('/login');
-        } else if (!companyId) {
-            // If user is logged in but has no company selected, check if they are super admin
-            if (user.email === SUPER_ADMIN_EMAIL) {
-                setHasAdminAccess(true);
-            } else {
-                router.push('/dashboard');
-            }
+        setHasAdminAccess(isAdmin);
+
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        if (!isAdmin) {
+            toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
+            router.push('/dashboard');
         }
     }
   }, [user, router, toast]);
@@ -86,7 +83,7 @@ export default function AdminPage() {
         try {
             const response = await fetch('/api/admin/list-users');
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json().catch(() => ({ message: 'Falha ao buscar usuários. A resposta do servidor não é um JSON válido.' }));
                 console.error("Error response from API: ", errorData);
                 throw new Error(errorData.message || 'Falha ao buscar usuários');
             }

@@ -6,22 +6,15 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { serviceAccount } from '@/lib/firebase-admin-config';
 import type { AppUser } from '@/types/user';
 
-// Helper function to initialize Firebase Admin, ensuring it only runs once
 function initializeAdminApp(): App {
-  const adminApps = getApps().filter(app => app.name === 'firebase-admin-app');
-  if (adminApps.length > 0) {
-    return adminApps[0];
+  const existingApp = getApps().find((app) => app.name === 'firebase-admin-app');
+  if (existingApp) {
+    return existingApp;
   }
 
-  try {
-    return initializeApp({
-      credential: credential.cert(serviceAccount),
-    }, 'firebase-admin-app');
-  } catch (error: any) {
-    console.error("Firebase Admin Initialization Error:", error.message);
-    // This will help diagnose credential issues
-    throw new Error("Failed to initialize Firebase Admin. Please check your service account credentials.");
-  }
+  return initializeApp({
+    credential: credential.cert(serviceAccount),
+  }, 'firebase-admin-app');
 }
 
 
@@ -53,13 +46,12 @@ export async function GET() {
       };
     });
 
-    // Sort by creation time descending
     combinedUsers.sort((a, b) => new Date(b.creationTime).getTime() - new Date(a.creationTime).getTime());
 
     return NextResponse.json(combinedUsers, { status: 200 });
   } catch (error: any) {
     console.error('Error listing users:', error);
-    return NextResponse.json({ message: 'Erro ao listar usuários.', error: error.message }, { status: 500 });
+    return NextResponse.json({ message: 'Erro ao listar usuários no servidor.', error: error.message }, { status: 500 });
   }
 }
 
