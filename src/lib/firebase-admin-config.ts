@@ -13,9 +13,7 @@
 // See: https://firebase.google.com/docs/app-hosting/configure#set-secrets
 // The recommended way is to set GOOGLE_APPLICATION_CREDENTIALS as a secret.
 
-export const serviceAccount = process.env.GOOGLE_APPLICATION_CREDENTIALS 
-  ? JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS)
-  : {
+export const serviceAccount = {
       "type": "service_account",
       "project_id": process.env.FIREBASE_PROJECT_ID || "codigo-2v-ed997",
       "private_key_id": process.env.FIREBASE_PRIVATE_KEY_ID || "",

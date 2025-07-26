@@ -9,21 +9,9 @@ import type { AppUser } from '@/types/user';
 // Initialize Firebase Admin
 let adminApp: App;
 if (!getApps().length) {
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        // Production environment with service account file
-        adminApp = initializeApp({
-            credential: cert(serviceAccount)
-        });
-    } else {
-        // Local development environment
-        adminApp = initializeApp({
-            credential: {
-                projectId: serviceAccount.project_id,
-                clientEmail: serviceAccount.client_email,
-                privateKey: serviceAccount.private_key,
-            },
-        });
-    }
+    adminApp = initializeApp({
+        credential: cert(serviceAccount)
+    });
 } else {
   adminApp = getApps()[0];
 }
