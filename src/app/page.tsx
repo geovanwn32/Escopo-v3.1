@@ -77,7 +77,7 @@ export default function Home() {
                   Comece agora
                 </Link>
               </Button>
-              <Button asChild variant="ghost">
+              <Button asChild variant="outline">
                 <Link href="/login">Fazer Login <span aria-hidden="true">→</span></Link>
               </Button>
             </div>
