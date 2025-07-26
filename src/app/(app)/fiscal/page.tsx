@@ -532,7 +532,7 @@ endDate.setHours(23,59,59,999);
              </Link>
           </Button>
           <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200">
-             <Link href="/fiscal/inventario">
+             <Link href="/fiscal/calculo-inventario">
                 <Calculator className="mr-2 h-4 w-4" /> Calcular Inventário
              </Link>
           </Button>
@@ -855,5 +855,6 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
+
 
 
