@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { serviceAccount } from '@/lib/firebase-admin-config';
@@ -9,13 +9,21 @@ import type { AppUser } from '@/types/user';
 // Initialize Firebase Admin
 let adminApp: App;
 if (!getApps().length) {
-  adminApp = initializeApp({
-    credential: {
-      projectId: serviceAccount.project_id,
-      clientEmail: serviceAccount.client_email,
-      privateKey: serviceAccount.private_key,
-    },
-  });
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        // Production environment with service account file
+        adminApp = initializeApp({
+            credential: cert(serviceAccount)
+        });
+    } else {
+        // Local development environment
+        adminApp = initializeApp({
+            credential: {
+                projectId: serviceAccount.project_id,
+                clientEmail: serviceAccount.client_email,
+                privateKey: serviceAccount.private_key,
+            },
+        });
+    }
 } else {
   adminApp = getApps()[0];
 }
