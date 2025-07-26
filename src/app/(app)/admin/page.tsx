@@ -67,7 +67,7 @@ export default function AdminPage() {
           return;
         }
 
-        if (!isAdmin) {
+        if (!isAdmin && user?.email !== SUPER_ADMIN_EMAIL) {
             toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
             router.push('/dashboard');
         }

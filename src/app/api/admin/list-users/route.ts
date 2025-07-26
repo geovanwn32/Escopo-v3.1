@@ -5,23 +5,18 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AppUser } from '@/types/user';
 
-// Helper function to initialize the Firebase Admin App
 function initializeAdminApp(): App {
-  // Check if the app is already initialized
-  if (getApps().length) {
+  if (getApps().length > 0) {
     return getApps()[0];
   }
 
-  // If not initialized, initialize it.
-  // In a Firebase/Google Cloud environment (like App Hosting),
-  // this will automatically use the runtime's service account credentials.
-  // For local development, it will look for the GOOGLE_APPLICATION_CREDENTIALS
-  // environment variable pointing to a service account JSON file.
+  // When deployed to Firebase App Hosting, the GOOGLE_APPLICATION_CREDENTIALS
+  // environment variable is automatically set. The applicationDefault() helper
+  // uses this environment variable to get service account credentials.
   return initializeApp({
     credential: applicationDefault(),
   });
 }
-
 
 export async function GET() {
   try {
@@ -55,10 +50,10 @@ export async function GET() {
 
     return NextResponse.json(combinedUsers, { status: 200 });
   } catch (error: any) {
-    console.error('Erro ao listar usuários:', error);
+    console.error('Error listing users:', error);
     // Provide a more specific error message if possible
-    const errorMessage = error.code === 'app/invalid-credential'
-        ? 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor.'
+    const errorMessage = error.code === 'app/invalid-credential' || error.code === 'auth/insufficient-permission'
+        ? 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.'
         : 'Erro interno ao processar a solicitação de usuários.';
     return NextResponse.json({ message: errorMessage, error: error.message }, { status: 500 });
   }
