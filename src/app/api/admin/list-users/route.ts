@@ -12,6 +12,18 @@ function initializeAdminApp(): App {
     return existingApp;
   }
 
+  // Ensure all required fields are present
+  const requiredFields: (keyof typeof serviceAccount)[] = ['project_id', 'private_key', 'client_email'];
+  const missingFields = requiredFields.filter(field => !serviceAccount[field]);
+
+  if (missingFields.length > 0) {
+    // This will happen in dev environments without the env vars.
+    // It's not a fatal error for the app to run, but this API endpoint will not work.
+    console.warn(`Firebase Admin SDK not initialized. Missing fields: ${missingFields.join(', ')}`);
+    // Throw an error that we can catch and return a user-friendly message.
+    throw new Error('Firebase Admin credentials are not configured on the server.');
+  }
+
   return initializeApp({
     credential: credential.cert(serviceAccount),
   }, 'firebase-admin-app');
