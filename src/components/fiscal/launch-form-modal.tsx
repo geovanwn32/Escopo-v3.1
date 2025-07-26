@@ -95,7 +95,6 @@ const querySelectorText = (element: Element | Document | null, selectors: string
   return '';
 };
 
-
 function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
@@ -106,57 +105,59 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     }
 
     const data: Partial<FormData> = {};
-    
-    // Function to get party data (name, cnpj) from a specific node
-    const getNodeData = (node: Element | null) => {
+
+    const getNodeData = (node: Element | null, nameSelectors: string[], cnpjSelectors: string[]) => {
         if (!node) return { nome: null, cnpj: null };
         return {
-            nome: querySelectorText(node, ['RazaoSocial', 'xNome', 'Nome']),
-            cnpj: querySelectorText(node, ['Cnpj', 'CNPJ'])
+            nome: querySelectorText(node, nameSelectors),
+            cnpj: querySelectorText(node, cnpjSelectors)
         };
     };
 
-    // --- General Data ---
-    const dateStr = querySelectorText(xmlDoc, ['DataEmissao', 'dCompet', 'dtEmissao', 'dhEmi']);
-    data.date = dateStr ? new Date(dateStr) : new Date();
+    const isNFe = xmlDoc.querySelector('infNFe');
+    const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
+    const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta, CompNfse');
 
-    if (type === 'servico') {
-        // --- NFS-e Parsing ---
-        const prestadorNode = xmlDoc.querySelector('PrestadorServico, prest');
-        const tomadorNode = xmlDoc.querySelector('TomadorServico, toma');
-        
-        data.prestador = getNodeData(prestadorNode);
-        data.tomador = getNodeData(tomadorNode);
+    if (type === 'servico' && (isNfsePadrao || isNfseAbrasf)) {
+        // --- NFS-e Parsing (Handles multiple formats) ---
+        const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
+        if (!nfseNode) return {};
 
-        data.numeroNfse = querySelectorText(xmlDoc, ['Numero', 'nNFSe']);
-        data.discriminacao = querySelectorText(xmlDoc, ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl']);
-        data.itemLc116 = querySelectorText(xmlDoc, ['ItemListaServico', 'cServico']);
-        data.valorServicos = parseFloat(querySelectorText(xmlDoc, ['ValorServicos', 'vServ']) || '0');
-        data.valorPis = parseFloat(querySelectorText(xmlDoc, ['ValorPis', 'vPIS']) || '0');
-        data.valorCofins = parseFloat(querySelectorText(xmlDoc, ['ValorCofins', 'vCOFINS']) || '0');
-        data.valorIr = parseFloat(querySelectorText(xmlDoc, ['ValorIr', 'vIR']) || '0');
-        data.valorInss = parseFloat(querySelectorText(xmlDoc, ['ValorInss', 'vINSS']) || '0');
-        data.valorCsll = parseFloat(querySelectorText(xmlDoc, ['ValorCsll', 'vCSLL']) || '0');
-        data.valorLiquido = parseFloat(querySelectorText(xmlDoc, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
+        data.date = new Date(querySelectorText(nfseNode, ['DataEmissao', 'dCompet', 'dtEmissao']));
+        data.numeroNfse = querySelectorText(nfseNode, ['Numero', 'nNFSe']);
+        data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ']) || '0');
+        data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
+        data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl']);
+        data.itemLc116 = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
         
-    } else {
+        // Impostos
+        data.valorPis = parseFloat(querySelectorText(nfseNode, ['ValorPis', 'vPIS']) || '0');
+        data.valorCofins = parseFloat(querySelectorText(nfseNode, ['ValorCofins', 'vCOFINS']) || '0');
+        data.valorIr = parseFloat(querySelectorText(nfseNode, ['ValorIr', 'vIR']) || '0');
+        data.valorInss = parseFloat(querySelectorText(nfseNode, ['ValorInss', 'vINSS']) || '0');
+        data.valorCsll = parseFloat(querySelectorText(nfseNode, ['ValorCsll', 'vCSLL']) || '0');
+
+        // Partes (Prestador e Tomador)
+        const prestadorNode = nfseNode.querySelector('PrestadorServico, Prestador, prest');
+        const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
+
+        data.prestador = getNodeData(prestadorNode, ['RazaoSocial', 'Nome'], ['Cnpj', 'CNPJ']);
+        data.tomador = getNodeData(tomadorNode, ['RazaoSocial', 'Nome'], ['CpfCnpj > Cnpj', 'CpfCnpj > Cpf', 'CNPJ', 'CPF']);
+        
+    } else if (isNFe) {
         // --- NF-e Parsing ---
         const emitNode = xmlDoc.querySelector('emit');
         const destNode = xmlDoc.querySelector('dest');
         
-        data.emitente = getNodeData(emitNode);
-        data.destinatario = getNodeData(destNode);
-
+        data.emitente = getNodeData(emitNode, ['xNome'], ['CNPJ']);
+        data.destinatario = getNodeData(destNode, ['xNome'], ['CNPJ', 'CPF']);
+        
         const infNFeNode = xmlDoc.querySelector('infNFe');
-        let chave = '';
-        if (infNFeNode) {
-          chave = infNFeNode.getAttribute('Id') || '';
-        }
-        if (!chave) {
-            chave = querySelectorText(xmlDoc, ['chNFe']);
-        }
+        let chave = infNFeNode ? infNFeNode.getAttribute('Id') || '' : '';
+        if (!chave) chave = querySelectorText(xmlDoc, ['chNFe']);
         data.chaveNfe = chave.replace(/\D/g, '');
-
+        
+        data.date = new Date(querySelectorText(infNFeNode, ['dhEmi', 'dEmi']));
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
 
@@ -164,7 +165,6 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.produtos = Array.from(xmlDoc.querySelectorAll('det')).map(det => {
             const prodNode = det.querySelector('prod');
             if (!prodNode) return {};
-
             return {
                 codigo: querySelectorText(prodNode, ['cProd']),
                 descricao: querySelectorText(prodNode, ['xProd']),
@@ -172,11 +172,12 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                 cfop: querySelectorText(prodNode, ['CFOP']),
                 valorUnitario: parseFloat(querySelectorText(prodNode, ['vUnCom']) || '0'),
             };
-        }).filter(p => p.codigo); // Filter out empty product objects
+        }).filter(p => p.codigo);
     }
-
+    
     return data;
 }
+
 
 
 
