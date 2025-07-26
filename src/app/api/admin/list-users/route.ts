@@ -31,18 +31,18 @@ function initializeAdminApp(): App | null {
 
 
 export async function GET() {
-  try {
-    const adminApp = initializeAdminApp();
-
-    // If the admin app failed to initialize (e.g., missing credentials in local dev),
-    // return a specific error response immediately.
-    if (!adminApp) {
-        return NextResponse.json(
-            { message: 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.' },
-            { status: 503 } // Service Unavailable
-        );
-    }
+  const adminApp = initializeAdminApp();
   
+  // If the admin app failed to initialize (e.g., missing credentials in local dev),
+  // return a specific error response immediately.
+  if (!adminApp) {
+      return NextResponse.json(
+          { message: 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.' },
+          { status: 503 } // Service Unavailable
+      );
+  }
+
+  try {
     const authAdmin = getAuth(adminApp);
     const dbAdmin = getFirestore(adminApp);
 
@@ -82,12 +82,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-    try {
-        const adminApp = initializeAdminApp();
-        if (!adminApp) {
-             return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
-        }
+    const adminApp = initializeAdminApp();
+    if (!adminApp) {
+        return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
+    }
     
+    try {
         const authAdmin = getAuth(adminApp);
         const { uid, disabled } = await request.json();
 

@@ -6,7 +6,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck, AlertCircle } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [adminApiUnavailable, setAdminApiUnavailable] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -80,9 +81,15 @@ export default function AdminPage() {
             return;
         }
         setLoading(true);
+        setAdminApiUnavailable(false);
         try {
             const response = await fetch('/api/admin/list-users');
             if (!response.ok) {
+                if (response.status === 503) {
+                    setAdminApiUnavailable(true);
+                    setUsersList([]);
+                    throw new Error("O serviço de administração não está disponível neste ambiente.");
+                }
                 const errorData = await response.json().catch(() => ({ message: 'Falha ao buscar usuários. A resposta do servidor não é um JSON válido.' }));
                 console.error("Error response from API: ", errorData);
                 throw new Error(errorData.message || 'Falha ao buscar usuários');
@@ -91,7 +98,9 @@ export default function AdminPage() {
             setUsersList(data);
         } catch (error) {
             console.error("Error fetching users: ", error);
-            toast({ variant: "destructive", title: "Erro ao buscar usuários", description: (error as Error).message });
+            if (!adminApiUnavailable) { // Don't show toast for expected unavailability
+                 toast({ variant: "destructive", title: "Erro ao buscar usuários", description: (error as Error).message });
+            }
         } finally {
             setLoading(false);
         }
@@ -184,6 +193,12 @@ export default function AdminPage() {
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : adminApiUnavailable ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mb-4 text-amber-500" />
+                <h3 className="text-xl font-semibold text-foreground">Serviço de Admin Indisponível</h3>
+                <p className="mt-2 max-w-md">O serviço de administração não pode ser acessado neste ambiente (ex: desenvolvimento local). Esta funcionalidade está disponível apenas no ambiente de produção.</p>
             </div>
           ) : (
             <Table>
