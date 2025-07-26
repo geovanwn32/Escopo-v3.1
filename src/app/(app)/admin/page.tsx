@@ -112,6 +112,7 @@ export default function AdminPage() {
     } else {
         setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAdminAccess]);
   
   const updateUserLicense = async (userId: string, licenseType: AppUser['licenseType']) => {

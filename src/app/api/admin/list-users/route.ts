@@ -1,43 +1,14 @@
 
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
+import { adminApp } from '@/lib/firebase-admin-config';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AppUser } from '@/types/user';
 
-// Helper function to initialize the Admin App, ensuring it's a singleton.
-function initializeAdminApp(): App | null {
-  // If apps are already initialized, return the existing one.
-  if (getApps().length > 0) {
-    return getApps()[0];
-  }
-
-  try {
-    // This is the primary method for production (Firebase App Hosting)
-    // It uses the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-    return initializeApp({
-      credential: applicationDefault(),
-    });
-  } catch (e) {
-    console.warn(
-        "Could not initialize Firebase Admin SDK using applicationDefault(). This is normal for local development. " +
-        "Admin features will be disabled. Error: ", (e as Error).message
-    );
-    // In a local development environment where GOOGLE_APPLICATION_CREDENTIALS is not set,
-    // this will fail. We return null to indicate that the admin app is not available.
-    return null;
-  }
-}
-
-
 export async function GET() {
-  const adminApp = initializeAdminApp();
-  
-  // If the admin app failed to initialize (e.g., missing credentials in local dev),
-  // return a specific error response immediately.
   if (!adminApp) {
       return NextResponse.json(
-          { message: 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.' },
+          { message: 'O serviço de administração não está disponível neste ambiente.' },
           { status: 503 } // Service Unavailable
       );
   }
@@ -73,16 +44,12 @@ export async function GET() {
     return NextResponse.json(combinedUsers, { status: 200 });
   } catch (error: any) {
     console.error('Error listing users:', error);
-    // Provide a more specific error message if possible
-    const errorMessage = error.code === 'app/invalid-credential' || error.code === 'auth/insufficient-permission'
-        ? 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor ou não têm permissão.'
-        : 'Erro interno ao processar a solicitação de usuários.';
+    const errorMessage = 'Erro interno ao processar a solicitação de usuários.';
     return NextResponse.json({ message: errorMessage, error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
-    const adminApp = initializeAdminApp();
     if (!adminApp) {
         return NextResponse.json({ message: 'A API de Admin não está configurada neste ambiente.' }, { status: 503 });
     }
