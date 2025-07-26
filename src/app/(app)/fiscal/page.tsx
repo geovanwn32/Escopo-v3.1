@@ -7,7 +7,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -531,6 +531,11 @@ endDate.setHours(23,59,59,999);
                 <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
              </Link>
           </Button>
+          <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200">
+             <Link href="/fiscal/inventario">
+                <Calculator className="mr-2 h-4 w-4" /> Calcular Inventário
+             </Link>
+          </Button>
           <Button className="bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={() => setClosingModalOpen(true)}>
             <Lock className="mr-2 h-4 w-4" /> Realizar Fechamento Fiscal
           </Button>
@@ -850,4 +855,5 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
+
 
