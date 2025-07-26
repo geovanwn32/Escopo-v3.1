@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,15 +57,21 @@ export default function AdminPage() {
     }
 
     const usersRef = collection(db, `users`);
-    const q = query(usersRef, orderBy('createdAt', 'desc'));
+    // Ensure createdAt exists before ordering to prevent errors with partially written documents.
+    const q = query(usersRef, where('createdAt', '!=', null), orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const usersData = snapshot.docs.map(doc => {
             const data = doc.data();
+            // Safely convert timestamp to date
+            const trialEndsAtDate = data.trialEndsAt instanceof Timestamp 
+                ? data.trialEndsAt.toDate() 
+                : data.trialEndsAt;
+
             return {
                 ...data,
                 uid: doc.id,
-                trialEndsAt: data.trialEndsAt?.toDate(),
+                trialEndsAt: trialEndsAtDate,
             } as AppUser;
         });
         setUsersList(usersData);
@@ -143,7 +149,7 @@ export default function AdminPage() {
                 {usersList.map((appUser) => (
                   <TableRow key={appUser.uid}>
                     <TableCell className="font-medium">{appUser.email}</TableCell>
-                    <TableCell>{appUser.trialEndsAt ? format(appUser.trialEndsAt as Date, 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                    <TableCell>{appUser.trialEndsAt instanceof Date ? format(appUser.trialEndsAt, 'dd/MM/yyyy') : 'N/A'}</TableCell>
                     <TableCell>
                         <Badge variant={getLicenseVariant(appUser.licenseType)}>
                             {getLicenseLabel(appUser.licenseType)}
