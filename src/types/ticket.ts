@@ -1,3 +1,4 @@
+
 import type { FieldValue } from "firebase/firestore";
 
 export type TicketStatus = 'open' | 'in_progress' | 'closed';

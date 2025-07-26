@@ -7,4 +7,5 @@ export interface AppUser {
   createdAt: FieldValue;
   trialStartedAt: FieldValue;
   trialEndsAt: FieldValue | Date;
+  licenseType?: 'trial' | 'basica' | 'profissional' | 'premium';
 }

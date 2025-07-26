@@ -6,22 +6,21 @@ import { collection, onSnapshot, query, orderBy, doc, updateDoc } from 'firebase
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
-import type { Ticket, TicketStatus } from '@/types/ticket';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import type { Company } from '@/types/company';
+import type { AppUser } from '@/types/user';
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
 
 export default function AdminPage() {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [usersList, setUsersList] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const { user } = useAuth();
@@ -57,57 +56,59 @@ export default function AdminPage() {
         return;
     }
 
-    const ticketsRef = collection(db, `tickets`);
-    const q = query(ticketsRef, orderBy('createdAt', 'desc'));
+    const usersRef = collection(db, `users`);
+    const q = query(usersRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const ticketsData = snapshot.docs.map(doc => {
+        const usersData = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: doc.id,
                 ...data,
-                createdAt: data.createdAt?.toDate(),
-            } as Ticket;
+                uid: doc.id,
+                trialEndsAt: data.trialEndsAt?.toDate(),
+            } as AppUser;
         });
-        setTickets(ticketsData);
+        setUsersList(usersData);
         setLoading(false);
     }, (error) => {
-        console.error("Error fetching tickets: ", error);
+        console.error("Error fetching users: ", error);
         toast({
             variant: "destructive",
-            title: "Erro ao buscar chamados",
+            title: "Erro ao buscar usuários",
         });
         setLoading(false);
     });
 
     return () => unsubscribe();
   }, [activeCompany, toast]);
-
-  const updateStatus = async (ticketId: string, status: TicketStatus) => {
-    const ticketRef = doc(db, 'tickets', ticketId);
+  
+  const updateUserLicense = async (userId: string, licenseType: AppUser['licenseType']) => {
+    const userRef = doc(db, 'users', userId);
     try {
-        await updateDoc(ticketRef, { status, updatedAt: new Date() });
-        toast({ title: 'Status do chamado atualizado!' });
+        await updateDoc(userRef, { licenseType });
+        toast({ title: `Licença do usuário atualizada para ${licenseType}!` });
     } catch(error) {
-        toast({ variant: 'destructive', title: 'Erro ao atualizar status.' });
+        toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
     }
   }
 
-  const getStatusVariant = (status: TicketStatus) => {
-    switch (status) {
-        case 'open': return 'destructive';
-        case 'in_progress': return 'default';
-        case 'closed': return 'secondary';
+  const getLicenseVariant = (license?: AppUser['licenseType']): "secondary" | "default" | "success" | "outline" | "destructive" => {
+    switch(license) {
+        case 'basica': return 'secondary';
+        case 'profissional': return 'default';
+        case 'premium': return 'success';
+        case 'trial':
         default: return 'outline';
     }
   }
 
-  const getStatusLabel = (status: TicketStatus) => {
-    switch (status) {
-        case 'open': return 'Aberto';
-        case 'in_progress': return 'Em Progresso';
-        case 'closed': return 'Fechado';
-        default: return status;
+  const getLicenseLabel = (license?: AppUser['licenseType']) => {
+     switch(license) {
+        case 'basica': return 'Básica';
+        case 'profissional': return 'Profissional';
+        case 'premium': return 'Premium';
+        case 'trial':
+        default: return 'Avaliação';
     }
   }
 
@@ -117,11 +118,11 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Painel de Administração - Chamados</h1>
+      <h1 className="text-2xl font-bold">Painel de Administração - Usuários</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Chamados de Suporte</CardTitle>
-          <CardDescription>Gerencie os tickets de suporte abertos pelos usuários.</CardDescription>
+          <CardTitle>Gerenciamento de Usuários e Licenças</CardTitle>
+          <CardDescription>Visualize e gerencie os usuários cadastrados no sistema.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -132,26 +133,20 @@ export default function AdminPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ticket</TableHead>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Solicitante</TableHead>
-                  <TableHead>Local do Problema</TableHead>
-                  <TableHead>Aberto Há</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Fim da Avaliação</TableHead>
+                  <TableHead>Tipo de Licença</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-mono font-semibold">{ticket.ticketNumber}</TableCell>
-                    <TableCell>{ticket.requesterCompanyName}</TableCell>
-                    <TableCell>{ticket.requesterName}</TableCell>
-                    <TableCell className="max-w-xs truncate">{ticket.problemLocation}</TableCell>
-                    <TableCell>{formatDistanceToNow(new Date(ticket.createdAt as Date), { addSuffix: true, locale: ptBR })}</TableCell>
+                {usersList.map((appUser) => (
+                  <TableRow key={appUser.uid}>
+                    <TableCell className="font-medium">{appUser.email}</TableCell>
+                    <TableCell>{appUser.trialEndsAt ? format(appUser.trialEndsAt as Date, 'dd/MM/yyyy') : 'N/A'}</TableCell>
                     <TableCell>
-                        <Badge variant={getStatusVariant(ticket.status)}>
-                            {getStatusLabel(ticket.status)}
+                        <Badge variant={getLicenseVariant(appUser.licenseType)}>
+                            {getLicenseLabel(appUser.licenseType)}
                         </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -163,18 +158,26 @@ export default function AdminPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => updateStatus(ticket.id!, 'in_progress')}>
-                                <RefreshCw className="mr-2 h-4 w-4 text-blue-500" />
-                                Marcar como "Em Progresso"
-                            </DropdownMenuItem>
-                             <DropdownMenuItem onClick={() => updateStatus(ticket.id!, 'closed')}>
-                                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                                Marcar como "Fechado"
-                            </DropdownMenuItem>
-                             <DropdownMenuItem onClick={() => updateStatus(ticket.id!, 'open')}>
-                                <XCircle className="mr-2 h-4 w-4 text-red-500" />
-                                Reabrir Chamado
-                            </DropdownMenuItem>
+                            <DropdownMenuSub>
+                                <DropdownMenuSubTrigger>
+                                    <ShieldCheck className="mr-2 h-4 w-4" />
+                                    <span>Alterar Licença</span>
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent>
+                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'trial')}>
+                                        <XCircle className="mr-2 h-4 w-4 text-muted-foreground" /> Avaliação
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}>
+                                        <CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'profissional')}>
+                                        <Star className="mr-2 h-4 w-4 text-yellow-500" /> Profissional
+                                    </DropdownMenuItem>
+                                     <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'premium')}>
+                                        <Sparkles className="mr-2 h-4 w-4 text-blue-500" /> Premium
+                                    </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                            </DropdownMenuSub>
                           </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
