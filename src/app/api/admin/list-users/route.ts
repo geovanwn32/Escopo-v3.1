@@ -1,36 +1,25 @@
 
 import { NextResponse } from 'next/server';
-import { initializeApp, getApps, App, credential } from 'firebase-admin/app';
+import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { AppUser } from '@/types/user';
 
+// Helper function to initialize the Firebase Admin App
 function initializeAdminApp(): App {
-  const existingApp = getApps().find((app) => app.name === 'firebase-admin-app');
-  if (existingApp) {
-    return existingApp;
+  // Check if the app is already initialized
+  if (getApps().length) {
+    return getApps()[0];
   }
 
-  // A abordagem mais robusta para produção (Firebase App Hosting, Cloud Run, etc.)
-  // é usar uma variável de ambiente com a chave de serviço codificada em base64.
-  const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-
-  if (!serviceAccountBase64) {
-    throw new Error('As credenciais do Firebase Admin não estão configuradas. Defina a variável de ambiente FIREBASE_SERVICE_ACCOUNT_BASE64.');
-  }
-  
-  try {
-    const serviceAccountJson = Buffer.from(serviceAccountBase64, 'base64').toString('utf8');
-    const serviceAccount = JSON.parse(serviceAccountJson);
-
-    return initializeApp({
-        credential: credential.cert(serviceAccount),
-    }, 'firebase-admin-app');
-
-  } catch (e: any) {
-    console.error("Falha ao analisar as credenciais do Firebase Admin. Verifique se o base64 está correto.", e.message);
-    throw new Error("Credenciais do Firebase Admin mal formatadas.");
-  }
+  // If not initialized, initialize it.
+  // In a Firebase/Google Cloud environment (like App Hosting),
+  // this will automatically use the runtime's service account credentials.
+  // For local development, it will look for the GOOGLE_APPLICATION_CREDENTIALS
+  // environment variable pointing to a service account JSON file.
+  return initializeApp({
+    credential: applicationDefault(),
+  });
 }
 
 
@@ -67,7 +56,11 @@ export async function GET() {
     return NextResponse.json(combinedUsers, { status: 200 });
   } catch (error: any) {
     console.error('Erro ao listar usuários:', error);
-    return NextResponse.json({ message: 'Erro ao listar usuários no servidor.', error: error.message }, { status: 500 });
+    // Provide a more specific error message if possible
+    const errorMessage = error.code === 'app/invalid-credential'
+        ? 'As credenciais do Firebase Admin não estão configuradas corretamente no servidor.'
+        : 'Erro interno ao processar a solicitação de usuários.';
+    return NextResponse.json({ message: errorMessage, error: error.message }, { status: 500 });
   }
 }
 
