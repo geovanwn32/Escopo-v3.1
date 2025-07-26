@@ -18,6 +18,7 @@ import type { Company } from '@/types/company';
 import type { AppUser } from '@/types/user';
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
+const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
 
 interface AdminUserView {
     uid: string;
@@ -33,6 +34,7 @@ export default function AdminPage() {
   const [usersList, setUsersList] = useState<AdminUserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -42,10 +44,20 @@ export default function AdminPage() {
         const companyId = sessionStorage.getItem('activeCompanyId');
         if (user && companyId) {
             const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+            
+            // Super admin check
+            if (user.email === SUPER_ADMIN_EMAIL) {
+                setHasAdminAccess(true);
+                return;
+            }
+
             if (companyDataString) {
                 const companyData = JSON.parse(companyDataString);
                 setActiveCompany(companyData);
-                if (companyData.cnpj !== ADMIN_COMPANY_CNPJ) {
+                if (companyData.cnpj === ADMIN_COMPANY_CNPJ) {
+                    setHasAdminAccess(true);
+                } else {
+                    setHasAdminAccess(false);
                     toast({ variant: 'destructive', title: 'Acesso Negado', description: 'Esta área é restrita a administradores.' });
                     router.push('/dashboard');
                 }
@@ -61,7 +73,7 @@ export default function AdminPage() {
   }, [user, router, toast]);
 
     const fetchUsers = async () => {
-        if (!activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
+        if (!hasAdminAccess) {
             setLoading(false);
             return;
         }
@@ -82,8 +94,12 @@ export default function AdminPage() {
     };
 
   useEffect(() => {
-    fetchUsers();
-  }, [activeCompany]);
+    if(hasAdminAccess) {
+        fetchUsers();
+    } else {
+        setLoading(false);
+    }
+  }, [hasAdminAccess]);
   
   const updateUserLicense = async (userId: string, licenseType: AppUser['licenseType']) => {
     const userRef = doc(db, 'users', userId);
@@ -138,7 +154,7 @@ export default function AdminPage() {
       return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
   };
 
-  if (loading || !activeCompany || activeCompany.cnpj !== ADMIN_COMPANY_CNPJ) {
+  if (loading || !hasAdminAccess) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
@@ -192,7 +208,7 @@ export default function AdminPage() {
                     <TableCell className="text-right">
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={appUser.email === SUPER_ADMIN_EMAIL}>
                                 <span className="sr-only">Menu</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
