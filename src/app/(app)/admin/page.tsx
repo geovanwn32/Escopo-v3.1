@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,11 +57,10 @@ export default function AdminPage() {
     }
 
     const usersRef = collection(db, `users`);
-    // Ensure createdAt exists before ordering to prevent errors with partially written documents.
-    const q = query(usersRef, where('createdAt', '!=', null), orderBy('createdAt', 'desc'));
+    const q = query(usersRef); // Fetch all users
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-        const usersData = snapshot.docs.map(doc => {
+        let usersData = snapshot.docs.map(doc => {
             const data = doc.data();
             // Safely convert timestamp to date
             const trialEndsAtDate = data.trialEndsAt instanceof Timestamp 
@@ -72,8 +71,13 @@ export default function AdminPage() {
                 ...data,
                 uid: doc.id,
                 trialEndsAt: trialEndsAtDate,
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(0), // Ensure createdAt is a Date
             } as AppUser;
         });
+
+        // Sort on the client-side
+        usersData = usersData.sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime());
+
         setUsersList(usersData);
         setLoading(false);
     }, (error) => {
