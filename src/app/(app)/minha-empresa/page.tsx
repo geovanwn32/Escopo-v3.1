@@ -140,12 +140,14 @@ export default function MinhaEmpresaPage() {
 
                 if (companySnap.exists()) {
                     const data = companySnap.data();
-                    const inscricaoValue = data.cnpj || data.inscricao;
+                    const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
                     let formattedInscricao = inscricaoValue || "";
-                    if (data.tipoInscricao === 'cnpj' || (!data.tipoInscricao && inscricaoValue?.length > 11)) {
-                         formattedInscricao = inscricaoValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-                    } else if (data.tipoInscricao === 'cpf') {
-                         formattedInscricao = inscricaoValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                    if (inscricaoValue) {
+                         if (data.tipoInscricao === 'cnpj' || (!data.tipoInscricao && inscricaoValue?.length > 11)) {
+                             formattedInscricao = inscricaoValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+                        } else if (data.tipoInscricao === 'cpf') {
+                             formattedInscricao = inscricaoValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                        }
                     }
                     
                     const safeData = ensureSafeData({ ...data, inscricao: formattedInscricao });
@@ -803,3 +805,4 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
+
