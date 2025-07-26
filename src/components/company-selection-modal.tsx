@@ -59,7 +59,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
     if (!searchTerm) return companies;
     return companies.filter(company =>
       company.nomeFantasia.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      company.cnpj.includes(searchTerm.replace(/\D/g, ''))
+      (company.cnpj && company.cnpj.includes(searchTerm.replace(/\D/g, '')))
     );
   }, [companies, searchTerm]);
 
@@ -99,7 +99,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
     form.reset({
         nomeFantasia: company.nomeFantasia,
         razaoSocial: company.razaoSocial,
-        cnpj: company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5"),
+        cnpj: company.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5"),
     });
     setIsCreating(true);
   }
@@ -180,7 +180,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
                                     </div>
                                     <Building2 className="w-8 h-8 text-muted-foreground mb-3" />
                                     <p className="font-semibold text-card-foreground truncate">{company.nomeFantasia}</p>
-                                    <p className="text-sm text-muted-foreground font-mono">{company.cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")}</p>
+                                    <p className="text-sm text-muted-foreground font-mono">{company.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") || 'CNPJ não informado'}</p>
                                 </div>
                                 <Button className="w-full mt-4" variant="secondary" onClick={() => onCompanySelect(company)}>
                                   <CheckCircle className="mr-2 h-4 w-4"/>
