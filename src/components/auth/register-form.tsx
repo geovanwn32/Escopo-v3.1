@@ -6,8 +6,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import Link from 'next/link';
 import { UserPlus, Loader2, Eye, EyeOff, BookCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { BackgroundPaths } from './background-paths';
+import { addDays } from 'date-fns';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Por favor, insira um email válido.' }),
@@ -39,7 +41,19 @@ export function RegisterForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      // Create a user document in Firestore
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        createdAt: serverTimestamp(),
+        trialStartedAt: serverTimestamp(),
+        trialEndsAt: addDays(new Date(), 7),
+      });
+
       toast({
         title: 'Conta criada com sucesso!',
         description: 'Você será redirecionado para o login.',

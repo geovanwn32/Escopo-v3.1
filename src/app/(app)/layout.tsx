@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { HelpModal } from '@/components/layout/help-modal';
 import { cn } from '@/lib/utils';
+import type { AppUser } from '@/types/user';
 
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
@@ -24,37 +25,48 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [isCompanyModalOpen, setCompanyModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [activeCompany, setActiveCompany] = useState<any>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const { open } = useSidebar();
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.replace('/login');
-      } else {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+
+    const loadAppData = async () => {
+        // Fetch user data from Firestore
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            setAppUser(userSnap.data() as AppUser);
+        }
+
+        // Fetch company data from session
         const companyId = sessionStorage.getItem('activeCompanyId');
         if (companyId) {
           const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
-          getDoc(companyRef).then(docSnap => {
-            if (docSnap.exists()) {
-              const companyData = { id: docSnap.id, ...docSnap.data() };
-              setActiveCompany(companyData);
-              // Store company data in session storage for other components to access
-              sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
-              setLoading(false);
-            } else {
-              sessionStorage.removeItem('activeCompanyId');
-              setCompanyModalOpen(true);
-              setLoading(false);
-            }
-          });
+          const docSnap = await getDoc(companyRef);
+          if (docSnap.exists()) {
+            const companyData = { id: docSnap.id, ...docSnap.data() };
+            setActiveCompany(companyData);
+            sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
+          } else {
+            sessionStorage.removeItem('activeCompanyId');
+            setCompanyModalOpen(true);
+          }
         } else {
           setCompanyModalOpen(true);
-          setLoading(false);
         }
-      }
+        setLoading(false);
     }
+    
+    loadAppData();
+
   }, [user, authLoading, router]);
 
   const handleCompanySelect = (company: any) => {
