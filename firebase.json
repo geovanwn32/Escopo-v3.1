@@ -17,5 +17,9 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "lib/functions",
+    "runtime": "nodejs20"
   }
 }

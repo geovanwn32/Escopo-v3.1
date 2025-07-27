@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import type { Company } from '@/types/company';
 import type { AppUser } from '@/types/user';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
 const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
@@ -83,23 +84,18 @@ export default function AdminPage() {
         setLoading(true);
         setAdminApiUnavailable(false);
         try {
-            const response = await fetch('/api/admin/list-users');
-            if (!response.ok) {
-                if (response.status === 503) {
-                    setAdminApiUnavailable(true);
-                    setUsersList([]);
-                    throw new Error("O serviço de administração não está disponível neste ambiente.");
-                }
-                const errorData = await response.json().catch(() => ({ message: 'Falha ao buscar usuários. A resposta do servidor não é um JSON válido.' }));
-                console.error("Error response from API: ", errorData);
-                throw new Error(errorData.message || 'Falha ao buscar usuários');
-            }
-            const data = await response.json();
+            const functions = getFunctions();
+            const listUsersFunction = httpsCallable(functions, 'listUsers');
+            const result = await listUsersFunction();
+            const data = result.data as AdminUserView[];
             setUsersList(data);
-        } catch (error) {
-            console.error("Error fetching users: ", error);
-            if (!adminApiUnavailable) { // Don't show toast for expected unavailability
-                 toast({ variant: "destructive", title: "Erro ao buscar usuários", description: (error as Error).message });
+        } catch (error: any) {
+            console.error("Error fetching users via callable function: ", error);
+            if (error.code === 'functions/unavailable' || error.code === 'permission-denied') {
+                setAdminApiUnavailable(true);
+                setUsersList([]);
+            } else {
+                 toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
             }
         } finally {
             setLoading(false);
@@ -128,18 +124,14 @@ export default function AdminPage() {
   
   const toggleUserStatus = async (userId: string, isDisabled: boolean) => {
     try {
-        const response = await fetch('/api/admin/list-users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: userId, disabled: !isDisabled }),
-        });
-        if (!response.ok) {
-            throw new Error('Falha ao atualizar status do usuário');
-        }
+        const functions = getFunctions();
+        const setUserStatusFunction = httpsCallable(functions, 'setUserStatus');
+        await setUserStatusFunction({ uid: userId, disabled: !isDisabled });
+        
         toast({ title: `Status do usuário atualizado!` });
         setUsersList(prev => prev.map(u => u.uid === userId ? { ...u, disabled: !isDisabled } : u));
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.', description: error.message });
     }
   }
 
@@ -199,7 +191,7 @@ export default function AdminPage() {
             <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
                 <AlertCircle className="h-12 w-12 mb-4 text-amber-500" />
                 <h3 className="text-xl font-semibold text-foreground">Serviço de Admin Indisponível</h3>
-                <p className="mt-2 max-w-md">O serviço de administração não pode ser acessado neste ambiente (ex: desenvolvimento local). Esta funcionalidade está disponível apenas no ambiente de produção.</p>
+                <p className="mt-2 max-w-md">O serviço de administração pode estar indisponível neste ambiente (ex: desenvolvimento local) ou você não tem permissão para acessá-lo.</p>
             </div>
           ) : (
             <Table>
