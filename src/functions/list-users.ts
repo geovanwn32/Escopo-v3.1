@@ -86,7 +86,11 @@ export const listUsers = onCall(async (request) => {
         return combinedUsers;
     } catch (error) {
         logger.error("Error listing users:", error);
-        throw new HttpsError('internal', 'Erro interno ao processar a solicitação de usuários.');
+        // Log a more detailed error to help diagnose permission issues.
+        if (error instanceof Error) {
+            throw new HttpsError('internal', `Erro interno ao processar a solicitação de usuários: ${error.message}`);
+        }
+        throw new HttpsError('internal', 'Ocorreu um erro desconhecido ao processar a solicitação de usuários.');
     }
 });
 
