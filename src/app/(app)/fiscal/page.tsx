@@ -7,7 +7,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -470,8 +470,8 @@ endDate.setHours(23,59,59,999);
   
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
-    (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -544,6 +544,11 @@ endDate.setHours(23,59,59,999);
           </Button>
           <Button className="bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={() => setClosingModalOpen(true)}>
             <Lock className="mr-2 h-4 w-4" /> Realizar Fechamento Fiscal
+          </Button>
+           <Button asChild className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200">
+             <Link href="/fiscal/orcamento">
+                <FileSignature className="mr-2 h-4 w-4" /> Gerar Orçamento
+             </Link>
           </Button>
         </CardContent>
       </Card>
