@@ -1,0 +1,222 @@
+
+"use client";
+
+import { useState, useEffect } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2 } from "lucide-react";
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/hooks/use-toast';
+import type { Company } from '@/types/company';
+import type { Partner } from '@/types/partner';
+import type { Produto } from '@/types/produto';
+import type { Servico } from '@/types/servico';
+import Link from 'next/link';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { generateQuotePdf } from '@/services/quote-service';
+
+const quoteItemSchema = z.object({
+  type: z.enum(['produto', 'servico']),
+  id: z.string().min(1, "Selecione um item"),
+  description: z.string(),
+  quantity: z.coerce.number().min(1, "Quantidade deve ser pelo menos 1"),
+  unitPrice: z.coerce.number(),
+  total: z.coerce.number(),
+});
+
+const quoteSchema = z.object({
+  partnerId: z.string().min(1, "Selecione um cliente"),
+  items: z.array(quoteItemSchema).min(1, "Adicione pelo menos um item ao orçamento."),
+});
+
+type FormData = z.infer<typeof quoteSchema>;
+export type QuoteFormData = FormData;
+
+export default function OrcamentoPage() {
+    const [partners, setPartners] = useState<Partner[]>([]);
+    const [products, setProducts] = useState<Produto[]>([]);
+    const [services, setServices] = useState<Servico[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+
+    const { user } = useAuth();
+    const { toast } = useToast();
+
+    const form = useForm<FormData>({
+        resolver: zodResolver(quoteSchema),
+        defaultValues: {
+            partnerId: '',
+            items: [],
+        },
+    });
+
+    const { fields, append, remove, update } = useFieldArray({
+        control: form.control,
+        name: "items"
+    });
+
+    const watchItems = form.watch('items');
+    const totalQuote = watchItems.reduce((acc, item) => acc + item.total, 0);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+                if (companyDataString) setActiveCompany(JSON.parse(companyDataString));
+            } else {
+                setLoading(false);
+            }
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (!user || !activeCompany) {
+            setLoading(false);
+            setPartners([]);
+            setProducts([]);
+            setServices([]);
+            return;
+        }
+
+        setLoading(true);
+        const partnersRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/partners`);
+        const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
+        const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
+
+        const unsubPartners = onSnapshot(query(partnersRef, orderBy('razaoSocial')), snap => setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner))));
+        const unsubProducts = onSnapshot(query(productsRef, orderBy('descricao')), snap => setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Produto))));
+        const unsubServices = onSnapshot(query(servicesRef, orderBy('descricao')), snap => setServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Servico))));
+
+        setLoading(false);
+        return () => { unsubPartners(); unsubProducts(); unsubServices(); };
+
+    }, [user, activeCompany]);
+
+    const handleItemChange = (index: number, itemId: string, type: 'produto' | 'servico') => {
+        const selectedItem = type === 'produto' 
+            ? products.find(p => p.id === itemId)
+            : services.find(s => s.id === itemId);
+
+        if (selectedItem) {
+            const unitPrice = type === 'produto' ? (selectedItem as Produto).valorUnitario : (selectedItem as Servico).valorPadrao;
+            const quantity = form.getValues(`items.${index}.quantity`) || 1;
+            update(index, {
+                ...watchItems[index],
+                id: itemId,
+                description: selectedItem.descricao,
+                unitPrice,
+                total: quantity * unitPrice
+            });
+        }
+    };
+    
+    const handleQuantityChange = (index: number, quantity: number) => {
+        const item = form.getValues(`items.${index}`);
+        update(index, { ...item, quantity, total: quantity * (item.unitPrice || 0) });
+    };
+
+    const handleGeneratePdf = (data: FormData) => {
+        if (!activeCompany) {
+            toast({ variant: 'destructive', title: 'Empresa não selecionada' });
+            return;
+        }
+        const selectedPartner = partners.find(p => p.id === data.partnerId);
+        if (!selectedPartner) {
+            toast({ variant: 'destructive', title: 'Cliente não encontrado' });
+            return;
+        }
+        generateQuotePdf(activeCompany, selectedPartner, data);
+    };
+
+    if (loading) {
+        return <div className="flex h-full w-full items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleGeneratePdf)}>
+                <div className="space-y-6">
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="icon" asChild>
+                            <Link href="/fiscal">
+                                <ArrowLeft className="h-4 w-4" />
+                                <span className="sr-only">Voltar</span>
+                            </Link>
+                        </Button>
+                        <h1 className="text-2xl font-bold">Gerador de Orçamento</h1>
+                    </div>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Detalhes do Orçamento</CardTitle>
+                            <CardDescription>Selecione o cliente e adicione os itens para gerar o orçamento em PDF.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="partnerId"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Cliente</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                        <SelectValue placeholder="Selecione um cliente..." />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {partners.filter(p => p.type === 'cliente').map(p => <SelectItem key={p.id} value={p.id!}>{p.razaoSocial}</SelectItem>)}
+                                    </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+
+                            <div className="space-y-4 pt-4">
+                                <FormLabel>Itens do Orçamento</FormLabel>
+                                {fields.map((field, index) => (
+                                    <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md">
+                                        <div className="w-2/12">
+                                            <FormField control={form.control} name={`items.${index}.type`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Tipo</FormLabel><Select onValueChange={(value) => { field.onChange(value); update(index, { ...watchItems[index], type: value as any, id: '', description: '', unitPrice: 0, total: 0 }); }} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select></FormItem> )}/>
+                                        </div>
+                                         <div className="w-5/12">
+                                            <FormField control={form.control} name={`items.${index}.id`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Item</FormLabel><Select onValueChange={(value) => { onChange(value); handleItemChange(index, value, watchItems[index].type); }} {...restField}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent>
+                                            {watchItems[index].type === 'produto' 
+                                                ? products.map(p => <SelectItem key={p.id} value={p.id!}>{p.descricao}</SelectItem>)
+                                                : services.map(s => <SelectItem key={s.id} value={s.id!}>{s.descricao}</SelectItem>)
+                                            }
+                                            </SelectContent></Select></FormItem> )}/>
+                                        </div>
+                                        <div className="w-2/12">
+                                            <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" min="1" onChange={(e) => { onChange(e); handleQuantityChange(index, Number(e.target.value)); }} {...restField} /></FormControl></FormItem> )}/>
+                                        </div>
+                                         <div className="w-2/12">
+                                            <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input value={(watchItems[index].total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} readOnly /></FormItem>
+                                        </div>
+                                        <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
+                                    </div>
+                                ))}
+                                <Button type="button" variant="outline" className="w-full" onClick={() => append({ type: 'produto', id: '', description: '', quantity: 1, unitPrice: 0, total: 0 })}>
+                                    <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item
+                                </Button>
+                            </div>
+                        </CardContent>
+                        <CardFooter className="flex justify-between items-center bg-muted p-4 rounded-b-lg">
+                            <h3 className="text-lg font-bold">Total: {totalQuote.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</h3>
+                            <Button type="submit"><FileText className="mr-2 h-4 w-4"/>Gerar PDF do Orçamento</Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </form>
+        </Form>
+    );
+}
