@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, where, orderBy, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, addDoc, doc, setDoc, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,6 @@ function OrcamentoPage() {
     const router = useRouter();
     const orcamentoId = searchParams.get('id');
 
-    const [partners, setPartners] = useState<Partner[]>([]);
     const [products, setProducts] = useState<Produto[]>([]);
     const [services, setServices] = useState<Servico[]>([]);
     const [loading, setLoading] = useState(true);
@@ -92,7 +91,7 @@ function OrcamentoPage() {
     useEffect(() => {
         if (!user || !activeCompany) {
             setLoading(false);
-            setPartners([]); setProducts([]); setServices([]);
+            setProducts([]); setServices([]);
             return;
         }
 
@@ -104,14 +103,20 @@ function OrcamentoPage() {
                 const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
 
                 const [prodSnap, servSnap] = await Promise.all([
-                    getDocs(query(productsRef, orderBy('descricao'))),
-                    getDocs(query(servicesRef, orderBy('descricao')))
+                    getDocs(query(productsRef)),
+                    getDocs(query(servicesRef))
                 ]);
                 
                 if (!isMounted) return;
 
-                setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Produto)));
-                setServices(servSnap.docs.map(d => ({ id: d.id, ...d.data() } as Servico)));
+                const productsData = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Produto));
+                productsData.sort((a, b) => a.descricao.localeCompare(b.descricao));
+                setProducts(productsData);
+
+                const servicesData = servSnap.docs.map(d => ({ id: d.id, ...d.data() } as Servico));
+                servicesData.sort((a, b) => a.descricao.localeCompare(b.descricao));
+                setServices(servicesData);
+
 
                 if (orcamentoId) {
                     const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, orcamentoId);
@@ -196,7 +201,7 @@ function OrcamentoPage() {
             let docId = currentOrcamentoId;
             if (docId) {
                 const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, docId);
-                await setDoc(orcamentoRef, orcamentoData, { merge: true });
+                await setDoc(orcamentoRef, { ...orcamentoData, updatedAt: serverTimestamp() }, { merge: true });
             } else {
                  const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
                  const docRef = await addDoc(orcamentosRef, { ...orcamentoData, createdAt: serverTimestamp() });
