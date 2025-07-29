@@ -7,14 +7,13 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,6 +24,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
 import Link from "next/link";
+import type { Orcamento } from '@/types/orcamento';
 
 interface XmlFile {
   file: {
@@ -105,6 +105,7 @@ function reviver(key: string, value: any) {
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
@@ -161,12 +162,13 @@ export default function FiscalPage() {
     if (!activeCompany || !user) {
         setLoadingData(false);
         setLaunches([]);
+        setOrcamentos([]);
         setClosedPeriods([]);
         return;
     };
 
     setLoadingData(true);
-    let activeListeners = 2;
+    let activeListeners = 3;
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) setLoadingData(false);
@@ -181,6 +183,16 @@ export default function FiscalPage() {
         onDone();
     }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos" }); onDone(); });
 
+    // Listener for orcamentos
+    const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
+    const qOrcamentos = query(orcamentosRef, orderBy('createdAt', 'desc'));
+    const unsubscribeOrcamentos = onSnapshot(qOrcamentos, (snapshot) => {
+        const orcamentosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as Orcamento));
+        setOrcamentos(orcamentosData);
+        onDone();
+    }, (error) => { console.error("Error fetching orcamentos: ", error); toast({ variant: "destructive", title: "Erro ao buscar orçamentos" }); onDone(); });
+
+
     // Listener for fiscal closures
     const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
     const unsubscribeClosures = onSnapshot(closuresRef, (snapshot) => {
@@ -193,6 +205,7 @@ export default function FiscalPage() {
     return () => {
         unsubscribeLaunches();
         unsubscribeClosures();
+        unsubscribeOrcamentos();
     };
   }, [activeCompany, user, toast]);
 
@@ -508,6 +521,16 @@ endDate.setHours(23,59,59,999);
     const launchPeriod = format(launch.date, 'yyyy-MM');
     return closedPeriods.includes(launchPeriod);
   }
+  
+  const handleDeleteOrcamento = async (id: string) => {
+     if (!user || !activeCompany) return;
+     try {
+         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
+         toast({ title: "Orçamento excluído com sucesso." });
+     } catch (error) {
+        toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
+     }
+  }
 
   return (
     <div className="space-y-6">
@@ -552,122 +575,180 @@ endDate.setHours(23,59,59,999);
           </Button>
         </CardContent>
       </Card>
-
-      {xmlFiles.length > 0 && (
+      
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Arquivos XML Importados</CardTitle>
-            <CardDescription>Gerencie e realize o lançamento dos arquivos XML importados.</CardDescription>
+            <CardTitle>Orçamentos Recentes</CardTitle>
+            <CardDescription>Visualize e gerencie os orçamentos criados.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
-                <div className="relative w-full sm:max-w-xs">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                      placeholder="Filtrar por nome..."
-                      value={xmlNameFilter}
-                      onChange={(e) => setXmlNameFilter(e.target.value)}
-                      className="pl-8"
-                  />
+            {loadingData ? (
+                 <div className="flex justify-center items-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : orcamentos.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <FileSignature className="h-10 w-10 text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-semibold">Nenhum orçamento encontrado</h3>
+                  <p className="text-muted-foreground mt-2">Clique em "Gerar Orçamento" para começar.</p>
                 </div>
-                <Select value={xmlTypeFilter} onValueChange={setXmlTypeFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filtrar por Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="entrada">Entrada</SelectItem>
-                        <SelectItem value="saida">Saída</SelectItem>
-                        <SelectItem value="servico">Serviço</SelectItem>
-                        <SelectItem value="cancelamento">Cancelamento</SelectItem>
-                    </SelectContent>
-                </Select>
-                 <Select value={xmlStatusFilter} onValueChange={setXmlStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filtrar por Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="pending">Pendente</SelectItem>
-                        <SelectItem value="launched">Lançado</SelectItem>
-                        <SelectItem value="cancelled">Cancelado</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Button variant="ghost" onClick={clearXmlFilters} className="sm:ml-auto">
-                    <FilterX className="mr-2 h-4 w-4" />
-                    Limpar Filtros
-                </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome do Arquivo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedXmlFiles.length > 0 ? paginatedXmlFiles.map((xmlFile, index) => (
-                  <TableRow key={`${xmlFile.file.name}-${index}`}>
-                    <TableCell className="font-medium max-w-xs truncate">{xmlFile.file.name}</TableCell>
-                     <TableCell>
-                      <Badge variant={xmlFile.type === 'desconhecido' || xmlFile.type === 'cancelamento' ? 'destructive' : 'secondary'}>
-                        {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                        {getBadgeForXml(xmlFile)}
-                    </TableCell>
-                    <TableCell className="text-right space-x-2">
-                        <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status !== 'pending'}>
-                            {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
-                            Lançar
-                        </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="icon" title="Excluir arquivo da lista">
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta ação não pode ser desfeita. O arquivo XML será removido da lista de importação, mas o lançamento fiscal associado (se houver) não será excluído.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteXmlFile(xmlFile.file.name)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                   <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center">
-                          Nenhum arquivo encontrado para os filtros aplicados.
-                      </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            ) : (
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {orcamentos.slice(0, 5).map(orc => (
+                            <TableRow key={orc.id}>
+                                <TableCell>{format(orc.createdAt as Date, 'dd/MM/yyyy')}</TableCell>
+                                <TableCell>{orc.partnerName}</TableCell>
+                                <TableCell className="text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orc.total)}</TableCell>
+                                 <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteOrcamento(orc.id!)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            )}
           </CardContent>
-           {totalXmlPages > 1 && (
-            <CardFooter className="flex justify-end items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p - 1)} disabled={xmlCurrentPage === 1}>
-                    <ChevronLeft className="h-4 w-4" />
-                    Anterior
-                </Button>
-                <span className="text-sm text-muted-foreground">Página {xmlCurrentPage} de {totalXmlPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p + 1)} disabled={xmlCurrentPage === totalXmlPages}>
-                    Próximo
-                    <ChevronRight className="h-4 w-4" />
-                </Button>
-            </CardFooter>
-           )}
         </Card>
-      )}
+
+        {xmlFiles.length > 0 && (
+            <Card>
+            <CardHeader>
+                <CardTitle>Arquivos XML Importados</CardTitle>
+                <CardDescription>Gerencie e realize o lançamento dos arquivos XML importados.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                    <div className="relative w-full sm:max-w-xs">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filtrar por nome..."
+                        value={xmlNameFilter}
+                        onChange={(e) => setXmlNameFilter(e.target.value)}
+                        className="pl-8"
+                    />
+                    </div>
+                    <Select value={xmlTypeFilter} onValueChange={setXmlTypeFilter}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Filtrar por Tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="entrada">Entrada</SelectItem>
+                            <SelectItem value="saida">Saída</SelectItem>
+                            <SelectItem value="servico">Serviço</SelectItem>
+                            <SelectItem value="cancelamento">Cancelamento</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={xmlStatusFilter} onValueChange={setXmlStatusFilter}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="Filtrar por Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="pending">Pendente</SelectItem>
+                            <SelectItem value="launched">Lançado</SelectItem>
+                            <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button variant="ghost" onClick={clearXmlFilters} className="sm:ml-auto">
+                        <FilterX className="mr-2 h-4 w-4" />
+                        Limpar Filtros
+                    </Button>
+                </div>
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Nome do Arquivo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {paginatedXmlFiles.length > 0 ? paginatedXmlFiles.map((xmlFile, index) => (
+                    <TableRow key={`${xmlFile.file.name}-${index}`}>
+                        <TableCell className="font-medium max-w-xs truncate">{xmlFile.file.name}</TableCell>
+                        <TableCell>
+                        <Badge variant={xmlFile.type === 'desconhecido' || xmlFile.type === 'cancelamento' ? 'destructive' : 'secondary'}>
+                            {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
+                        </Badge>
+                        </TableCell>
+                        <TableCell>
+                            {getBadgeForXml(xmlFile)}
+                        </TableCell>
+                        <TableCell className="text-right space-x-2">
+                            <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status !== 'pending'}>
+                                {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
+                                Lançar
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="icon" title="Excluir arquivo da lista">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. O arquivo XML será removido da lista de importação, mas o lançamento fiscal associado (se houver) não será excluído.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteXmlFile(xmlFile.file.name)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                    </TableRow>
+                    )) : (
+                    <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                            Nenhum arquivo encontrado para os filtros aplicados.
+                        </TableCell>
+                    </TableRow>
+                    )}
+                </TableBody>
+                </Table>
+            </CardContent>
+            {totalXmlPages > 1 && (
+                <CardFooter className="flex justify-end items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p - 1)} disabled={xmlCurrentPage === 1}>
+                        <ChevronLeft className="h-4 w-4" />
+                        Anterior
+                    </Button>
+                    <span className="text-sm text-muted-foreground">Página {xmlCurrentPage} de {totalXmlPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setXmlCurrentPage(p => p + 1)} disabled={xmlCurrentPage === totalXmlPages}>
+                        Próximo
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </CardFooter>
+            )}
+            </Card>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
@@ -866,9 +947,3 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
-
-
-
-
-
-    

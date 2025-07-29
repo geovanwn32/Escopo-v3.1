@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2, Save } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -21,6 +21,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { generateQuotePdf } from '@/services/quote-service';
+import { useSearchParams, useRouter } from 'next/navigation';
+import type { Orcamento, OrcamentoItem } from '@/types/orcamento';
+import { Timestamp } from 'firebase/firestore';
 
 const quoteItemSchema = z.object({
   type: z.enum(['produto', 'servico']),
@@ -39,12 +42,18 @@ const quoteSchema = z.object({
 type FormData = z.infer<typeof quoteSchema>;
 export type QuoteFormData = FormData;
 
-export default function OrcamentoPage() {
+
+function OrcamentoPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const orcamentoId = searchParams.get('id');
+
     const [partners, setPartners] = useState<Partner[]>([]);
     const [products, setProducts] = useState<Produto[]>([]);
     const [services, setServices] = useState<Servico[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [currentOrcamentoId, setCurrentOrcamentoId] = useState<string | null>(orcamentoId);
 
     const { user } = useAuth();
     const { toast } = useToast();
@@ -80,25 +89,53 @@ export default function OrcamentoPage() {
     useEffect(() => {
         if (!user || !activeCompany) {
             setLoading(false);
-            setPartners([]);
-            setProducts([]);
-            setServices([]);
+            setPartners([]); setProducts([]); setServices([]);
             return;
         }
 
-        setLoading(true);
-        const partnersRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/partners`);
-        const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
-        const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
+        let isMounted = true;
+        const loadInitialData = async () => {
+            setLoading(true);
+            try {
+                const partnersRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/partners`);
+                const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
+                const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
 
-        const unsubPartners = onSnapshot(query(partnersRef, orderBy('razaoSocial')), snap => setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() } as Partner))));
-        const unsubProducts = onSnapshot(query(productsRef, orderBy('descricao')), snap => setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Produto))));
-        const unsubServices = onSnapshot(query(servicesRef, orderBy('descricao')), snap => setServices(snap.docs.map(d => ({ id: d.id, ...d.data() } as Servico))));
+                const [pSnap, prodSnap, servSnap] = await Promise.all([
+                    getDocs(query(partnersRef, orderBy('razaoSocial'))),
+                    getDocs(query(productsRef, orderBy('descricao'))),
+                    getDocs(query(servicesRef, orderBy('descricao')))
+                ]);
+                
+                if (!isMounted) return;
 
-        setLoading(false);
-        return () => { unsubPartners(); unsubProducts(); unsubServices(); };
+                setPartners(pSnap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)));
+                setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Produto)));
+                setServices(servSnap.docs.map(d => ({ id: d.id, ...d.data() } as Servico)));
 
-    }, [user, activeCompany]);
+                if (orcamentoId) {
+                    const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, orcamentoId);
+                    const orcamentoSnap = await getDoc(orcamentoRef);
+                    if (orcamentoSnap.exists()) {
+                        const data = orcamentoSnap.data() as Orcamento;
+                        form.reset({
+                            partnerId: data.partnerId,
+                            items: data.items,
+                        });
+                    }
+                }
+            } catch (error) {
+                toast({ variant: 'destructive', title: 'Erro ao carregar dados' });
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        }
+        
+        loadInitialData();
+        return () => { isMounted = false; };
+
+    }, [user, activeCompany, orcamentoId, form, toast]);
+
 
     const handleItemChange = (index: number, itemId: string, type: 'produto' | 'servico') => {
         const selectedItem = type === 'produto' 
@@ -122,19 +159,46 @@ export default function OrcamentoPage() {
         const item = form.getValues(`items.${index}`);
         update(index, { ...item, quantity, total: quantity * (item.unitPrice || 0) });
     };
+    
+    const handleSaveAndGeneratePdf = async (data: FormData) => {
+        if (!user || !activeCompany) {
+            toast({ variant: 'destructive', title: 'Usuário ou empresa não identificada.' });
+            return;
+        }
+        setLoading(true);
+        try {
+            const selectedPartner = partners.find(p => p.id === data.partnerId);
+            if (!selectedPartner) {
+                toast({ variant: 'destructive', title: 'Cliente não encontrado' });
+                return;
+            }
+            
+            const orcamentoData = {
+                ...data,
+                total: totalQuote,
+                partnerName: selectedPartner.razaoSocial,
+                updatedAt: serverTimestamp()
+            };
 
-    const handleGeneratePdf = (data: FormData) => {
-        if (!activeCompany) {
-            toast({ variant: 'destructive', title: 'Empresa não selecionada' });
-            return;
+            let docId = currentOrcamentoId;
+            if (docId) {
+                const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, docId);
+                await setDoc(orcamentoRef, orcamentoData, { merge: true });
+            } else {
+                 const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
+                 const docRef = await addDoc(orcamentosRef, { ...orcamentoData, createdAt: serverTimestamp() });
+                 docId = docRef.id;
+                 setCurrentOrcamentoId(docId);
+                 router.replace(`/fiscal/orcamento?id=${docId}`, { scroll: false });
+            }
+            toast({ title: "Orçamento salvo com sucesso!", description: "Gerando PDF..." });
+            generateQuotePdf(activeCompany, selectedPartner, data);
+        } catch(error) {
+             toast({ variant: 'destructive', title: 'Erro ao salvar orçamento.' });
+        } finally {
+            setLoading(false);
         }
-        const selectedPartner = partners.find(p => p.id === data.partnerId);
-        if (!selectedPartner) {
-            toast({ variant: 'destructive', title: 'Cliente não encontrado' });
-            return;
-        }
-        generateQuotePdf(activeCompany, selectedPartner, data);
-    };
+    }
 
     if (loading) {
         return <div className="flex h-full w-full items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
@@ -142,7 +206,7 @@ export default function OrcamentoPage() {
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleGeneratePdf)}>
+            <form onSubmit={form.handleSubmit(handleSaveAndGeneratePdf)}>
                 <div className="space-y-6">
                     <div className="flex items-center gap-4">
                         <Button variant="outline" size="icon" asChild>
@@ -151,7 +215,7 @@ export default function OrcamentoPage() {
                                 <span className="sr-only">Voltar</span>
                             </Link>
                         </Button>
-                        <h1 className="text-2xl font-bold">Gerador de Orçamento</h1>
+                        <h1 className="text-2xl font-bold">{orcamentoId ? 'Editar Orçamento' : 'Gerador de Orçamento'}</h1>
                     </div>
 
                     <Card>
@@ -166,7 +230,7 @@ export default function OrcamentoPage() {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Cliente</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!partners.length}>
                                     <FormControl>
                                         <SelectTrigger>
                                         <SelectValue placeholder="Selecione um cliente..." />
@@ -212,11 +276,19 @@ export default function OrcamentoPage() {
                         </CardContent>
                         <CardFooter className="flex justify-between items-center bg-muted p-4 rounded-b-lg">
                             <h3 className="text-lg font-bold">Total: {totalQuote.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}</h3>
-                            <Button type="submit"><FileText className="mr-2 h-4 w-4"/>Gerar PDF do Orçamento</Button>
+                            <Button type="submit" disabled={loading}>
+                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                                {orcamentoId ? 'Atualizar e Gerar PDF' : 'Salvar e Gerar PDF'}
+                            </Button>
                         </CardFooter>
                     </Card>
                 </div>
             </form>
         </Form>
     );
+}
+
+// Wrapper to use searchParams
+export default function OrcamentoPageWrapper() {
+    return <OrcamentoPage />;
 }
