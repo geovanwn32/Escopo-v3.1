@@ -7,9 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, onSnapshot, query, where, orderBy, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2, Save } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2, Save, Search } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -24,6 +24,7 @@ import { generateQuotePdf } from '@/services/quote-service';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Orcamento, OrcamentoItem } from '@/types/orcamento';
 import { Timestamp } from 'firebase/firestore';
+import { PartnerSelectionModal } from '@/components/parceiros/partner-selection-modal';
 
 const quoteItemSchema = z.object({
   type: z.enum(['produto', 'servico']),
@@ -54,6 +55,8 @@ function OrcamentoPage() {
     const [loading, setLoading] = useState(true);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [currentOrcamentoId, setCurrentOrcamentoId] = useState<string | null>(orcamentoId);
+    const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
+    const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
 
     const { user } = useAuth();
     const { toast } = useToast();
@@ -97,19 +100,16 @@ function OrcamentoPage() {
         const loadInitialData = async () => {
             setLoading(true);
             try {
-                const partnersRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/partners`);
                 const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
                 const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
 
-                const [pSnap, prodSnap, servSnap] = await Promise.all([
-                    getDocs(query(partnersRef, orderBy('razaoSocial'))),
+                const [prodSnap, servSnap] = await Promise.all([
                     getDocs(query(productsRef, orderBy('descricao'))),
                     getDocs(query(servicesRef, orderBy('descricao')))
                 ]);
                 
                 if (!isMounted) return;
 
-                setPartners(pSnap.docs.map(d => ({ id: d.id, ...d.data() } as Partner)));
                 setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Produto)));
                 setServices(servSnap.docs.map(d => ({ id: d.id, ...d.data() } as Servico)));
 
@@ -118,6 +118,13 @@ function OrcamentoPage() {
                     const orcamentoSnap = await getDoc(orcamentoRef);
                     if (orcamentoSnap.exists()) {
                         const data = orcamentoSnap.data() as Orcamento;
+                        
+                        const partnerRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/partners`, data.partnerId);
+                        const partnerSnap = await getDoc(partnerRef);
+                        if(partnerSnap.exists()){
+                            setSelectedPartner({ id: partnerSnap.id, ...partnerSnap.data() } as Partner);
+                        }
+
                         form.reset({
                             partnerId: data.partnerId,
                             items: data.items,
@@ -159,6 +166,13 @@ function OrcamentoPage() {
         const item = form.getValues(`items.${index}`);
         update(index, { ...item, quantity, total: quantity * (item.unitPrice || 0) });
     };
+
+    const handleSelectPartner = (partner: Partner) => {
+        setSelectedPartner(partner);
+        form.setValue('partnerId', partner.id!);
+        form.clearErrors('partnerId'); // Clear error after selection
+        setPartnerModalOpen(false);
+    };
     
     const handleSaveAndGeneratePdf = async (data: FormData) => {
         if (!user || !activeCompany) {
@@ -167,7 +181,6 @@ function OrcamentoPage() {
         }
         setLoading(true);
         try {
-            const selectedPartner = partners.find(p => p.id === data.partnerId);
             if (!selectedPartner) {
                 toast({ variant: 'destructive', title: 'Cliente não encontrado' });
                 return;
@@ -224,22 +237,24 @@ function OrcamentoPage() {
                             <CardDescription>Selecione o cliente e adicione os itens para gerar o orçamento em PDF.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <FormField
+                             <FormField
                                 control={form.control}
                                 name="partnerId"
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Cliente</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={!partners.length}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                        <SelectValue placeholder="Selecione um cliente..." />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {partners.filter(p => p.type === 'cliente').map(p => <SelectItem key={p.id} value={p.id!}>{p.razaoSocial}</SelectItem>)}
-                                    </SelectContent>
-                                    </Select>
+                                     <div className="flex gap-2">
+                                        <FormControl>
+                                            <Input 
+                                                readOnly
+                                                value={selectedPartner?.razaoSocial || ''}
+                                                placeholder="Nenhum cliente selecionado"
+                                            />
+                                        </FormControl>
+                                        <Button type="button" variant="outline" onClick={() => setPartnerModalOpen(true)} disabled={!activeCompany}>
+                                            <Search className="mr-2 h-4 w-4" /> Buscar Cliente
+                                        </Button>
+                                    </div>
                                     <FormMessage />
                                 </FormItem>
                                 )}
@@ -284,6 +299,17 @@ function OrcamentoPage() {
                     </Card>
                 </div>
             </form>
+            
+            {user && activeCompany && (
+                <PartnerSelectionModal
+                    isOpen={isPartnerModalOpen}
+                    onClose={() => setPartnerModalOpen(false)}
+                    onSelect={handleSelectPartner}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                    partnerType='cliente'
+                />
+            )}
         </Form>
     );
 }
