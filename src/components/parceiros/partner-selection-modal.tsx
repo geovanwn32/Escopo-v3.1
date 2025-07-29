@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -33,10 +33,15 @@ export function PartnerSelectionModal({ isOpen, onClose, onSelect, userId, compa
       setLoading(true);
       try {
         const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
-        const q = query(partnersRef, where('type', '==', partnerType), orderBy('razaoSocial', 'asc'));
+        // Query only by type, and sort client-side to avoid composite index requirement
+        const q = query(partnersRef, where('type', '==', partnerType));
         const snapshot = await getDocs(q);
-        setPartners(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner)));
+        const partnersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
+        // Sort the data alphabetically by 'razaoSocial' on the client side
+        partnersData.sort((a, b) => a.razaoSocial.localeCompare(b.razaoSocial));
+        setPartners(partnersData);
       } catch (error) {
+        console.error("Error fetching partners:", error);
         toast({ variant: 'destructive', title: "Erro ao buscar parceiros", description: "Não foi possível carregar a lista de parceiros." });
       } finally {
         setLoading(false);
