@@ -90,7 +90,7 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
     totalProdutos = products.reduce((acc, item) => acc + item.total, 0);
     const productRows = products.map(item => [
       item.description,
-      item.quantity,
+      item.quantity.toLocaleString('pt-BR'),
       formatCurrency(item.unitPrice),
       formatCurrency(item.total)
     ]);
@@ -103,7 +103,7 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
       theme: 'grid',
       headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
       styles: { fontSize: 8, cellPadding: 2, lineColor: 150, lineWidth: 0.1 },
-      columnStyles: { 0: {cellWidth: 'auto'}, 1: {cellWidth: 30}, 2: {cellWidth: 35}, 3: {cellWidth: 35} },
+      columnStyles: { 0: {cellWidth: 'auto'}, 1: {cellWidth: 30, halign: 'right'}, 2: {cellWidth: 35, halign: 'right'}, 3: {cellWidth: 35, halign: 'right'} },
     });
     y = (doc as any).lastAutoTable.finalY;
   }
@@ -111,16 +111,22 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
   let totalServicos = 0;
   if (services.length > 0) {
     totalServicos = services.reduce((acc, item) => acc + item.total, 0);
-    const serviceRows = services.map(item => [item.description, formatCurrency(item.total)]);
+    const serviceRows = services.map(item => [
+      item.description,
+      item.quantity.toLocaleString('pt-BR'),
+      formatCurrency(item.unitPrice),
+      formatCurrency(item.total)
+    ]);
     
     autoTable(doc, {
       startY: y,
-      head: [['SERVIÇO (DESCRIÇÃO)', 'VALOR TOTAL']],
+      head: [['SERVIÇO (DESCRIÇÃO)', 'QUANTIDADE', 'VALOR UNITÁRIO', 'VALOR TOTAL']],
       body: serviceRows,
-      foot: [[{ content: 'TOTAL', styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(totalServicos), styles: { halign: 'right', fontStyle: 'bold' } }]],
+      foot: [[{ content: 'TOTAL', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: formatCurrency(totalServicos), styles: { halign: 'right', fontStyle: 'bold' } }]],
       theme: 'grid',
       headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
       styles: { fontSize: 8, cellPadding: 2, lineColor: 150, lineWidth: 0.1 },
+      columnStyles: { 0: {cellWidth: 'auto'}, 1: {cellWidth: 30, halign: 'right'}, 2: {cellWidth: 35, halign: 'right'}, 3: {cellWidth: 35, halign: 'right'} },
     });
     y = (doc as any).lastAutoTable.finalY;
   }
