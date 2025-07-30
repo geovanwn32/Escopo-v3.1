@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, where, orderBy, addDoc, doc, setDoc, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ const quoteItemSchema = z.object({
   id: z.string().min(1, "Selecione um item"),
   description: z.string(),
   quantity: z.coerce.number().min(1, "Quantidade deve ser pelo menos 1"),
-  unitPrice: z.coerce.number(),
+  unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
 });
 
@@ -74,7 +74,7 @@ function OrcamentoPage() {
     });
 
     const watchItems = form.watch('items');
-    const totalQuote = watchItems.reduce((acc, item) => acc + item.total, 0);
+    const totalQuote = watchItems.reduce((acc, item) => acc + (item.total || 0), 0);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -103,8 +103,8 @@ function OrcamentoPage() {
                 const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
 
                 const [prodSnap, servSnap] = await Promise.all([
-                    getDocs(query(productsRef)),
-                    getDocs(query(servicesRef))
+                    getDocs(productsRef),
+                    getDocs(servicesRef)
                 ]);
                 
                 if (!isMounted) return;
@@ -171,6 +171,11 @@ function OrcamentoPage() {
         const item = form.getValues(`items.${index}`);
         update(index, { ...item, quantity, total: quantity * (item.unitPrice || 0) });
     };
+
+    const handlePriceChange = (index: number, unitPrice: number) => {
+        const item = form.getValues(`items.${index}`);
+        update(index, { ...item, unitPrice, total: (item.quantity || 1) * unitPrice });
+    }
 
     const handleSelectPartner = (partner: Partner) => {
         setSelectedPartner(partner);
@@ -268,11 +273,11 @@ function OrcamentoPage() {
                             <div className="space-y-4 pt-4">
                                 <FormLabel>Itens do Orçamento</FormLabel>
                                 {fields.map((field, index) => (
-                                    <div key={field.id} className="flex gap-2 items-end p-3 border rounded-md">
-                                        <div className="w-2/12">
+                                    <div key={field.id} className="grid grid-cols-12 gap-2 items-end p-3 border rounded-md">
+                                        <div className="col-span-2">
                                             <FormField control={form.control} name={`items.${index}.type`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Tipo</FormLabel><Select onValueChange={(value) => { field.onChange(value); update(index, { ...watchItems[index], type: value as any, id: '', description: '', unitPrice: 0, total: 0 }); }} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select></FormItem> )}/>
                                         </div>
-                                         <div className="w-5/12">
+                                         <div className="col-span-4">
                                             <FormField control={form.control} name={`items.${index}.id`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Item</FormLabel><Select onValueChange={(value) => { onChange(value); handleItemChange(index, value, watchItems[index].type); }} {...restField}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent>
                                             {watchItems[index].type === 'produto' 
                                                 ? products.map(p => <SelectItem key={p.id} value={p.id!}>{p.descricao}</SelectItem>)
@@ -280,11 +285,18 @@ function OrcamentoPage() {
                                             }
                                             </SelectContent></Select></FormItem> )}/>
                                         </div>
-                                        <div className="w-2/12">
+                                        <div className="col-span-2">
                                             <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" min="1" onChange={(e) => { onChange(e); handleQuantityChange(index, Number(e.target.value)); }} {...restField} /></FormControl></FormItem> )}/>
                                         </div>
-                                         <div className="w-2/12">
-                                            <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input value={(watchItems[index].total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} readOnly /></FormItem>
+                                        <div className="col-span-2">
+                                            <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="text" onChange={(e) => {
+                                                const value = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.')) || 0;
+                                                onChange(value); 
+                                                handlePriceChange(index, value);
+                                            }} value={(restField.value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} /></FormControl></FormItem> )}/>
+                                        </div>
+                                        <div className="col-span-1">
+                                            <FormItem><FormLabel className="text-xs">Total</FormLabel><Input value={(watchItems[index].total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} readOnly /></FormItem>
                                         </div>
                                         <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
                                     </div>
