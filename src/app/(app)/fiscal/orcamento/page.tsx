@@ -34,8 +34,8 @@ const quoteItemSchema = z.object({
   quantity: z.coerce.number().min(0.01, "Qtd. deve ser maior que 0"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
-  itemLc: z.string().optional(),
-  issAliquota: z.coerce.number().optional(),
+  itemLc: z.string().optional().nullable(),
+  issAliquota: z.coerce.number().optional().nullable(),
 });
 
 const quoteSchema = z.object({
@@ -172,8 +172,8 @@ function OrcamentoPage() {
                 quantity: 1,
                 unitPrice: item.unitPrice,
                 total: item.unitPrice,
-                itemLc: item.type === 'servico' ? (item as any).itemLc : undefined,
-                issAliquota: item.type === 'servico' ? (item as any).issAliquota || 0 : undefined,
+                itemLc: item.type === 'servico' ? (item as any).itemLc : '',
+                issAliquota: item.type === 'servico' ? (item as any).issAliquota || 0 : 0,
             };
             append(newItem);
         });
@@ -204,10 +204,14 @@ function OrcamentoPage() {
             
             // Clean and convert data before saving
             const cleanedItems = data.items.map(item => ({
-                ...item,
-                quantity: Number(item.quantity) || 0,
-                unitPrice: Number(item.unitPrice) || 0,
-                total: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+                type: item.type,
+                id: item.id || '',
+                description: item.description,
+                quantity: Number(String(item.quantity).replace(',', '.')) || 0,
+                unitPrice: Number(String(item.unitPrice).replace(',', '.')) || 0,
+                total: (Number(String(item.quantity).replace(',', '.')) || 0) * (Number(String(item.unitPrice).replace(',', '.')) || 0),
+                itemLc: item.itemLc || '', // Ensure field exists
+                issAliquota: item.issAliquota || 0, // Ensure field exists
             }));
 
             const finalTotal = cleanedItems.reduce((acc, item) => acc + item.total, 0);
@@ -377,5 +381,3 @@ function OrcamentoPage() {
 export default function OrcamentoPageWrapper() {
     return <OrcamentoPage />;
 }
-
-    
