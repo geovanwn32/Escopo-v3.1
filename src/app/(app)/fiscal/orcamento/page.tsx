@@ -2,10 +2,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,12 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import type { Orcamento, OrcamentoItem } from '@/types/orcamento';
 import { Timestamp } from 'firebase/firestore';
 import { PartnerSelectionModal } from '@/components/parceiros/partner-selection-modal';
+import { Textarea } from '@/components/ui/textarea';
 
 const quoteItemSchema = z.object({
   type: z.enum(['produto', 'servico']),
-  id: z.string().min(1, "Selecione um item"),
-  description: z.string(),
+  id: z.string().optional(), // ID is optional for manual items
+  description: z.string().min(1, "A descrição é obrigatória."),
   quantity: z.coerce.number().min(1, "Quantidade deve ser pelo menos 1"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
@@ -102,9 +103,12 @@ function OrcamentoPage() {
                 const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
                 const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
 
+                const productsQuery = query(productsRef);
+                const servicesQuery = query(servicesRef);
+
                 const [prodSnap, servSnap] = await Promise.all([
-                    getDocs(productsRef),
-                    getDocs(servicesRef)
+                    getDocs(productsQuery),
+                    getDocs(servicesQuery)
                 ]);
                 
                 if (!isMounted) return;
@@ -149,13 +153,14 @@ function OrcamentoPage() {
     }, [user, activeCompany, orcamentoId, form, toast]);
 
 
-    const handleItemChange = (index: number, itemId: string, type: 'produto' | 'servico') => {
-        const selectedItem = type === 'produto' 
+    const handleItemSelectionChange = (index: number, itemId: string) => {
+        const itemType = form.getValues(`items.${index}.type`);
+        const selectedItem = itemType === 'produto' 
             ? products.find(p => p.id === itemId)
             : services.find(s => s.id === itemId);
 
         if (selectedItem) {
-            const unitPrice = type === 'produto' ? (selectedItem as Produto).valorUnitario : (selectedItem as Servico).valorPadrao;
+            const unitPrice = itemType === 'produto' ? (selectedItem as Produto).valorUnitario : (selectedItem as Servico).valorPadrao;
             const quantity = form.getValues(`items.${index}.quantity`) || 1;
             update(index, {
                 ...watchItems[index],
@@ -167,21 +172,26 @@ function OrcamentoPage() {
         }
     };
     
-    const handleQuantityChange = (index: number, quantity: number) => {
-        const item = form.getValues(`items.${index}`);
-        update(index, { ...item, quantity, total: quantity * (item.unitPrice || 0) });
+    const handleFieldChange = (index: number, field: keyof OrcamentoItem, value: any) => {
+        const currentItem = form.getValues(`items.${index}`);
+        const newValues = { ...currentItem, [field]: value };
+        
+        if (field === 'quantity' || field === 'unitPrice') {
+            newValues.total = (newValues.quantity || 1) * (newValues.unitPrice || 0);
+        }
+        
+        update(index, newValues as any);
     };
-
-    const handlePriceChange = (index: number, unitPrice: number) => {
-        const item = form.getValues(`items.${index}`);
-        update(index, { ...item, unitPrice, total: (item.quantity || 1) * unitPrice });
-    }
 
     const handleSelectPartner = (partner: Partner) => {
         setSelectedPartner(partner);
         form.setValue('partnerId', partner.id!);
-        form.clearErrors('partnerId'); // Clear error after selection
+        form.clearErrors('partnerId');
         setPartnerModalOpen(false);
+    };
+
+    const addManualItem = () => {
+      append({ type: 'produto', id: '', description: '', quantity: 1, unitPrice: 0, total: 0 });
     };
     
     const handleSaveAndGeneratePdf = async (data: FormData) => {
@@ -273,36 +283,57 @@ function OrcamentoPage() {
                             <div className="space-y-4 pt-4">
                                 <FormLabel>Itens do Orçamento</FormLabel>
                                 {fields.map((field, index) => (
-                                    <div key={field.id} className="grid grid-cols-12 gap-2 items-end p-3 border rounded-md">
-                                        <div className="col-span-2">
-                                            <FormField control={form.control} name={`items.${index}.type`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Tipo</FormLabel><Select onValueChange={(value) => { field.onChange(value); update(index, { ...watchItems[index], type: value as any, id: '', description: '', unitPrice: 0, total: 0 }); }} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select></FormItem> )}/>
+                                    <div key={field.id} className="grid grid-cols-12 gap-2 items-start p-3 border rounded-md">
+                                        
+                                        <div className="col-span-12 md:col-span-5">
+                                             <FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel>
+                                              <Textarea 
+                                                 value={watchItems[index]?.description || ''} 
+                                                 onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
+                                                 rows={2}
+                                              />
+                                            </FormItem>
                                         </div>
-                                         <div className="col-span-4">
-                                            <FormField control={form.control} name={`items.${index}.id`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Item</FormLabel><Select onValueChange={(value) => { onChange(value); handleItemChange(index, value, watchItems[index].type); }} {...restField}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent>
-                                            {watchItems[index].type === 'produto' 
-                                                ? products.map(p => <SelectItem key={p.id} value={p.id!}>{p.descricao}</SelectItem>)
-                                                : services.map(s => <SelectItem key={s.id} value={s.id!}>{s.descricao}</SelectItem>)
-                                            }
-                                            </SelectContent></Select></FormItem> )}/>
+
+                                        <div className="col-span-12 md:col-span-3">
+                                            <FormItem><FormLabel className="text-xs">Carregar Item Cadastrado</FormLabel>
+                                                <Select onValueChange={(value) => handleItemSelectionChange(index, value)}><FormControl><SelectTrigger><SelectValue placeholder="Ou selecione um item..." /></SelectTrigger></FormControl><SelectContent>
+                                                <optgroup label="Produtos">
+                                                  {products.map(p => <SelectItem key={p.id} value={p.id!}>{p.descricao}</SelectItem>)}
+                                                </optgroup>
+                                                <optgroup label="Serviços">
+                                                  {services.map(s => <SelectItem key={s.id} value={s.id!}>{s.descricao}</SelectItem>)}
+                                                </optgroup>
+                                            </SelectContent></Select>
+                                            </FormItem>
                                         </div>
-                                        <div className="col-span-2">
-                                            <FormField control={form.control} name={`items.${index}.quantity`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" min="1" onChange={(e) => { onChange(e); handleQuantityChange(index, Number(e.target.value)); }} {...restField} /></FormControl></FormItem> )}/>
+
+                                        <div className="col-span-4 md:col-span-1">
+                                            <FormItem><FormLabel className="text-xs">Qtd.</FormLabel>
+                                              <Input type="number" min="1" 
+                                                value={watchItems[index]?.quantity || '1'} 
+                                                onChange={(e) => handleFieldChange(index, 'quantity', Number(e.target.value))}
+                                              />
+                                            </FormItem>
                                         </div>
-                                        <div className="col-span-2">
-                                            <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field: { onChange, ...restField } }) => ( <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="text" onChange={(e) => {
-                                                const value = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.')) || 0;
-                                                onChange(value); 
-                                                handlePriceChange(index, value);
-                                            }} value={(restField.value || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} /></FormControl></FormItem> )}/>
+                                        <div className="col-span-4 md:col-span-2">
+                                            <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel>
+                                              <Input type="text"
+                                                value={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                                onChange={(e) => {
+                                                    const value = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.')) || 0;
+                                                    handleFieldChange(index, 'unitPrice', value);
+                                                }}
+                                              />
+                                            </FormItem>
                                         </div>
-                                        <div className="col-span-1">
-                                            <FormItem><FormLabel className="text-xs">Total</FormLabel><Input value={(watchItems[index].total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} readOnly /></FormItem>
+                                        <div className="col-span-3 md:col-span-1 flex items-end h-full">
+                                            <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
-                                        <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
                                     </div>
                                 ))}
-                                <Button type="button" variant="outline" className="w-full" onClick={() => append({ type: 'produto', id: '', description: '', quantity: 1, unitPrice: 0, total: 0 })}>
-                                    <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item
+                                <Button type="button" variant="outline" className="w-full" onClick={addManualItem}>
+                                    <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item Manual
                                 </Button>
                             </div>
                         </CardContent>
