@@ -201,12 +201,22 @@ function OrcamentoPage() {
                 const snapshot = await getCountFromServer(orcamentosRef);
                 quoteNumber = snapshot.data().count + 1;
             }
+            
+            // Clean and convert data before saving
+            const cleanedItems = data.items.map(item => ({
+                ...item,
+                quantity: Number(item.quantity) || 0,
+                unitPrice: Number(item.unitPrice) || 0,
+                total: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+            }));
+
+            const finalTotal = cleanedItems.reduce((acc, item) => acc + item.total, 0);
 
             const orcamentoData: Omit<Orcamento, 'id'> = {
                 quoteNumber: quoteNumber!,
                 partnerId: data.partnerId,
-                items: data.items,
-                total: totalQuote,
+                items: cleanedItems,
+                total: finalTotal,
                 partnerName: selectedPartner.razaoSocial,
                 createdAt: currentOrcamento?.createdAt || serverTimestamp(),
                 updatedAt: serverTimestamp()
@@ -223,6 +233,7 @@ function OrcamentoPage() {
             toast({ title: "Orçamento salvo com sucesso!", description: "Gerando PDF..." });
             generateQuotePdf(activeCompany, selectedPartner, { ...orcamentoData, id: docId } as Orcamento);
         } catch(error) {
+             console.error("Erro ao salvar:", error);
              toast({ variant: 'destructive', title: 'Erro ao salvar orçamento.' });
         } finally {
             setLoading(false);
@@ -366,3 +377,5 @@ function OrcamentoPage() {
 export default function OrcamentoPageWrapper() {
     return <OrcamentoPage />;
 }
+
+    
