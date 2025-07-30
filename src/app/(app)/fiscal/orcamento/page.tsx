@@ -249,7 +249,7 @@ function OrcamentoPage() {
                                 {fields.map((field, index) => (
                                     <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-4 items-start p-3 border rounded-md bg-muted/50">
                                         
-                                        <div className="col-span-12 md:col-span-6">
+                                        <div className="col-span-12 md:col-span-5">
                                              <FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel>
                                               <Input 
                                                  value={watchItems[index]?.description || ''} 
@@ -266,7 +266,7 @@ function OrcamentoPage() {
                                               />
                                             </FormItem>
                                         </div>
-                                        <div className="col-span-4 md:col-span-3">
+                                        <div className="col-span-4 md:col-span-2">
                                             <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel>
                                               <Input type="text"
                                                 defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
@@ -274,7 +274,16 @@ function OrcamentoPage() {
                                               />
                                             </FormItem>
                                         </div>
-                                        <div className="col-span-3 md:col-span-1 flex items-end h-full">
+                                        <div className="col-span-4 md:col-span-2">
+                                            <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel>
+                                              <Input
+                                                readOnly
+                                                value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
+                                                className="font-semibold"
+                                              />
+                                            </FormItem>
+                                        </div>
+                                        <div className="col-span-12 md:col-span-1 flex items-end justify-end h-full">
                                             <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
                                     </div>
