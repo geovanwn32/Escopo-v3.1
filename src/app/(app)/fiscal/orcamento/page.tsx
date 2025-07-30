@@ -34,6 +34,9 @@ const quoteItemSchema = z.object({
   quantity: z.coerce.number().min(0.01, "Qtd. deve ser maior que 0"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
+  // Service-specific fields
+  itemLc: z.string().optional(),
+  issAliquota: z.coerce.number().optional(),
 });
 
 const quoteSchema = z.object({
@@ -118,20 +121,22 @@ function OrcamentoPage() {
         }
     }, [orcamentoId, activeCompany, loadOrcamento]);
 
-    const handleFieldChange = (index: number, fieldName: 'quantity' | 'unitPrice', value: string) => {
+    const handleFieldChange = (index: number, fieldName: 'quantity' | 'unitPrice' | 'issAliquota', value: string) => {
         const currentItem = form.getValues(`items.${index}`);
         const numberValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
         const newValues = { ...currentItem, [fieldName]: numberValue };
         
-        const quantity = newValues.quantity || 1;
-        const unitPrice = newValues.unitPrice || 0;
-        newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
+        if (fieldName === 'quantity' || fieldName === 'unitPrice') {
+            const quantity = newValues.quantity || 1;
+            const unitPrice = newValues.unitPrice || 0;
+            newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
+        }
         
         update(index, newValues as any);
     };
 
-    const handleDescriptionChange = (index: number, value: string) => {
-        update(index, { ...form.getValues(`items.${index}`), description: value });
+    const handleTextChange = (index: number, fieldName: 'description' | 'itemLc', value: string) => {
+        update(index, { ...form.getValues(`items.${index}`), [fieldName]: value });
     }
 
     const handleSelectPartner = (partner: Partner) => {
@@ -141,20 +146,37 @@ function OrcamentoPage() {
         setPartnerModalOpen(false);
     };
 
-    const addManualItem = () => {
-      append({ type: 'produto', id: `manual_${Date.now()}`, description: '', quantity: 1, unitPrice: 0, total: 0 });
+    const addManualItem = (type: 'produto' | 'servico') => {
+        const baseItem: Partial<OrcamentoItem> = {
+            type,
+            id: `manual_${Date.now()}`,
+            description: '',
+            quantity: 1,
+            unitPrice: 0,
+            total: 0
+        };
+        if (type === 'servico') {
+            baseItem.itemLc = '';
+            baseItem.issAliquota = 0;
+        }
+      append(baseItem as OrcamentoItem);
     };
 
     const handleSelectItems = (items: CatalogoItem[]) => {
         items.forEach(item => {
-            append({
+            const newItem: Partial<OrcamentoItem> = {
                 type: item.type,
                 id: item.id,
                 description: item.description,
                 quantity: 1,
                 unitPrice: item.unitPrice,
                 total: item.unitPrice
-            });
+            };
+             if (item.type === 'servico' && (item as any).itemLc) {
+                newItem.itemLc = (item as any).itemLc;
+                newItem.issAliquota = (item as any).issAliquota || 0;
+            }
+            append(newItem as OrcamentoItem);
         });
         setItemModalOpen(false);
     }
@@ -267,50 +289,38 @@ function OrcamentoPage() {
                             <div className="space-y-4 pt-4">
                                 <FormLabel>Itens do Orçamento</FormLabel>
                                 {fields.map((field, index) => (
-                                    <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-4 items-start p-3 border rounded-md bg-muted/50">
-                                        
-                                        <div className="col-span-12 md:col-span-5">
-                                             <FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel>
-                                              <Input 
-                                                 value={watchItems[index]?.description || ''} 
-                                                 onChange={(e) => handleDescriptionChange(index, e.target.value)}
-                                              />
-                                            </FormItem>
-                                        </div>
-
-                                        <div className="col-span-3 md:col-span-2">
-                                            <FormItem><FormLabel className="text-xs">Qtd.</FormLabel>
-                                              <Input type="number" min="1" 
-                                                defaultValue={watchItems[index]?.quantity || '1'} 
-                                                onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)}
-                                              />
-                                            </FormItem>
-                                        </div>
-                                        <div className="col-span-4 md:col-span-2">
-                                            <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel>
-                                              <Input type="text"
-                                                defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                                                onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)}
-                                              />
-                                            </FormItem>
-                                        </div>
-                                        <div className="col-span-4 md:col-span-2">
-                                            <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel>
-                                              <Input
-                                                readOnly
-                                                value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}
-                                                className="font-semibold"
-                                              />
-                                            </FormItem>
-                                        </div>
-                                        <div className="col-span-1 flex items-end justify-end h-full">
-                                            <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
-                                        </div>
+                                    <div key={field.id} className="p-3 border rounded-md bg-muted/50">
+                                       {field.type === 'produto' ? (
+                                             <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
+                                                <div className="col-span-12 md:col-span-5"><FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel><Input value={watchItems[index]?.description || ''} onChange={(e) => handleTextChange(index, 'description', e.target.value)} /></FormItem></div>
+                                                <div className="col-span-3 md:col-span-2"><FormItem><FormLabel className="text-xs">Qtd.</FormLabel><Input type="number" min="1" defaultValue={watchItems[index]?.quantity || '1'} onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)} /></FormItem></div>
+                                                <div className="col-span-4 md:col-span-2"><FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><Input type="text" defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)} /></FormItem></div>
+                                                <div className="col-span-4 md:col-span-2"><FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormItem></div>
+                                                <div className="col-span-1 flex items-end justify-end h-full"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
+                                            </div>
+                                       ) : (
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
+                                                    <div className="col-span-2"><FormItem><FormLabel className="text-xs">Nr Item LC</FormLabel><Input value={watchItems[index]?.itemLc || ''} onChange={(e) => handleTextChange(index, 'itemLc', e.target.value)}/></FormItem></div>
+                                                    <div className="col-span-9"><FormItem><FormLabel className="text-xs">Descrição do Serviço</FormLabel><Input value={watchItems[index]?.description || ''} onChange={(e) => handleTextChange(index, 'description', e.target.value)} /></FormItem></div>
+                                                    <div className="col-span-1 flex items-end justify-end h-full"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
+                                                </div>
+                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
+                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Qtd.</FormLabel><Input type="number" min="1" defaultValue={watchItems[index]?.quantity || '1'} onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)} /></FormItem></div>
+                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><Input type="text" defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)} /></FormItem></div>
+                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Alíquota ISS (%)</FormLabel><Input type="text" defaultValue={(watchItems[index]?.issAliquota || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'issAliquota', e.target.value)} /></FormItem></div>
+                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormItem></div>
+                                                </div>
+                                            </div>
+                                       )}
                                     </div>
                                 ))}
                                 <div className="flex gap-2">
-                                    <Button type="button" variant="outline" className="w-full" onClick={addManualItem}>
-                                        <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item Manual
+                                    <Button type="button" variant="outline" className="w-full" onClick={() => addManualItem('produto')}>
+                                        <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Produto Manual
+                                    </Button>
+                                     <Button type="button" variant="outline" className="w-full" onClick={() => addManualItem('servico')}>
+                                        <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Serviço Manual
                                     </Button>
                                     <Button type="button" variant="secondary" className="w-full" onClick={() => setItemModalOpen(true)}>
                                         <BookOpen className="mr-2 h-4 w-4"/>Adicionar do Catálogo

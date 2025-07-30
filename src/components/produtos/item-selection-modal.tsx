@@ -18,6 +18,9 @@ export interface CatalogoItem {
   type: 'produto' | 'servico';
   description: string;
   unitPrice: number;
+  // Optional service fields
+  itemLc?: string;
+  issAliquota?: number;
 }
 
 interface ItemSelectionModalProps {
@@ -53,11 +56,11 @@ export function ItemSelectionModal({ isOpen, onClose, onSelect, userId, companyI
             return { id: doc.id, type: 'produto', description: data.descricao, unitPrice: data.valorUnitario };
         });
         const servicesData: CatalogoItem[] = servicesSnap.docs.map(doc => {
-            const data = doc.data() as Servico;
-            return { id: doc.id, type: 'servico', description: data.descricao, unitPrice: data.valorPadrao };
+            const data = doc.data() as any; // Use any to access potential extra fields
+            return { id: doc.id, type: 'servico', description: data.descricao, unitPrice: data.valorPadrao, itemLc: data.codigo };
         });
 
-        setItems([...productsData, ...servicesData]);
+        setItems([...productsData, ...servicesData].sort((a,b) => a.description.localeCompare(b.description)));
 
       } catch (error) {
         toast({ variant: 'destructive', title: "Erro ao buscar catálogo", description: "Não foi possível carregar produtos e serviços." });

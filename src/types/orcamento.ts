@@ -8,6 +8,9 @@ export interface OrcamentoItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  // Service-specific fields
+  itemLc?: string;
+  issAliquota?: number;
 }
 
 export interface Orcamento {
