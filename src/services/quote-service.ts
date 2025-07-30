@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Company } from '@/types/company';
 import type { Partner } from '@/types/partner';
-import type { Orcamento, OrcamentoItem } from '@/types/orcamento';
+import type { Orcamento } from '@/types/orcamento';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -20,7 +20,7 @@ const formatCnpj = (cnpj?: string): string => {
     return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
-export function generateQuotePdf(company: Company, partner: Partner, quoteData: Orcamento, quoteId?: string) {
+export function generateQuotePdf(company: Company, partner: Partner, quoteData: Orcamento) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   let y = 15;
@@ -41,10 +41,10 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
   y += 8;
 
   // --- QUOTE NUMBER ---
-  const quoteNumber = quoteId ? `${new Date().getFullYear()}-${quoteId.substring(0,4).toUpperCase()}` : `${new Date().getFullYear()}-ORC`;
+  const quoteNumberText = `Nº ${String(quoteData.quoteNumber).padStart(4, '0')}`;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Nº ${quoteNumber}`, pageWidth - 14, y, { align: 'right' });
+  doc.text(quoteNumberText, pageWidth - 14, y, { align: 'right' });
   y += 2;
 
   // --- TITLE ---

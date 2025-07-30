@@ -245,7 +245,7 @@ export default function FiscalPage() {
 
         const isNFe = xmlDoc.querySelector('infNFe');
         const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
-        const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta');
+        const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta, CompNfse');
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
 
         if (isCancelled) {
@@ -595,6 +595,7 @@ endDate.setHours(23,59,59,999);
                  <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>Nº</TableHead>
                             <TableHead>Data</TableHead>
                             <TableHead>Cliente</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
@@ -604,6 +605,7 @@ endDate.setHours(23,59,59,999);
                     <TableBody>
                         {orcamentos.slice(0, 5).map(orc => (
                             <TableRow key={orc.id}>
+                                <TableCell className="font-mono">{String(orc.quoteNumber).padStart(4, '0')}</TableCell>
                                 <TableCell>{format(orc.createdAt as Date, 'dd/MM/yyyy')}</TableCell>
                                 <TableCell>{orc.partnerName}</TableCell>
                                 <TableCell className="text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(orc.total)}</TableCell>

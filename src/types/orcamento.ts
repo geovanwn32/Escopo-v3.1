@@ -12,6 +12,7 @@ export interface OrcamentoItem {
 
 export interface Orcamento {
     id?: string;
+    quoteNumber: number;
     partnerId: string;
     partnerName: string;
     items: OrcamentoItem[];

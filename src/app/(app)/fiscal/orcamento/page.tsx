@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,7 @@ function OrcamentoPage() {
 
     const [loading, setLoading] = useState(true);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-    const [currentOrcamentoId, setCurrentOrcamentoId] = useState<string | null>(orcamentoId);
+    const [currentOrcamento, setCurrentOrcamento] = useState<Orcamento | null>(null);
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
     const [isItemModalOpen, setItemModalOpen] = useState(false);
     const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -93,7 +93,8 @@ function OrcamentoPage() {
         const orcamentoRef = doc(db, `users/${user.uid}/companies/${company.id}/orcamentos`, id);
         const orcamentoSnap = await getDoc(orcamentoRef);
         if (orcamentoSnap.exists()) {
-            const data = orcamentoSnap.data() as Orcamento;
+            const data = { id: orcamentoSnap.id, ...orcamentoSnap.data() } as Orcamento;
+            setCurrentOrcamento(data);
             
             const partnerRef = doc(db, `users/${user.uid}/companies/${company.id}/partners`, data.partnerId);
             const partnerSnap = await getDoc(partnerRef);
@@ -103,7 +104,7 @@ function OrcamentoPage() {
 
             form.reset({
                 partnerId: data.partnerId,
-                items: data.items,
+                items: data.items.map(item => ({ ...item, unitPrice: Number(item.unitPrice), total: Number(item.total) })),
             });
         }
         setLoading(false);
@@ -170,26 +171,35 @@ function OrcamentoPage() {
                 return;
             }
             
-            const orcamentoData = {
-                ...data,
+            const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
+            let docId = currentOrcamento?.id;
+            let quoteNumber = currentOrcamento?.quoteNumber;
+            
+            if (!docId) { // Only generate new number for new quotes
+                const snapshot = await getCountFromServer(orcamentosRef);
+                quoteNumber = snapshot.data().count + 1;
+            }
+
+            const orcamentoData: Omit<Orcamento, 'id'> = {
+                quoteNumber: quoteNumber!,
+                partnerId: data.partnerId,
+                items: data.items,
                 total: totalQuote,
                 partnerName: selectedPartner.razaoSocial,
+                createdAt: currentOrcamento?.createdAt || serverTimestamp(),
                 updatedAt: serverTimestamp()
             };
 
-            let docId = currentOrcamentoId;
             if (docId) {
                 const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, docId);
-                await setDoc(orcamentoRef, { ...orcamentoData, updatedAt: serverTimestamp() }, { merge: true });
+                await setDoc(orcamentoRef, { ...orcamentoData, createdAt: currentOrcamento?.createdAt }, { merge: true });
             } else {
-                 const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
-                 const docRef = await addDoc(orcamentosRef, { ...orcamentoData, createdAt: serverTimestamp() });
+                 const docRef = await addDoc(orcamentosRef, orcamentoData);
                  docId = docRef.id;
-                 setCurrentOrcamentoId(docId);
                  router.replace(`/fiscal/orcamento?id=${docId}`, { scroll: false });
             }
             toast({ title: "Orçamento salvo com sucesso!", description: "Gerando PDF..." });
-            generateQuotePdf(activeCompany, selectedPartner, data);
+            generateQuotePdf(activeCompany, selectedPartner, { ...orcamentoData, id: docId } as Orcamento);
         } catch(error) {
              toast({ variant: 'destructive', title: 'Erro ao salvar orçamento.' });
         } finally {
@@ -197,7 +207,7 @@ function OrcamentoPage() {
         }
     }
 
-    if (loading) {
+    if (loading && orcamentoId) {
         return <div className="flex h-full w-full items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
     }
 
@@ -217,8 +227,18 @@ function OrcamentoPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Detalhes do Orçamento</CardTitle>
-                            <CardDescription>Selecione o cliente e adicione os itens para gerar o orçamento em PDF.</CardDescription>
+                             <div className="flex justify-between items-start">
+                                <div>
+                                    <CardTitle>Detalhes do Orçamento</CardTitle>
+                                    <CardDescription>Selecione o cliente e adicione os itens para gerar o orçamento em PDF.</CardDescription>
+                                </div>
+                                {currentOrcamento && (
+                                    <div className="text-right">
+                                        <p className="text-sm font-semibold text-muted-foreground">Nº DO ORÇAMENTO</p>
+                                        <p className="text-xl font-bold">{String(currentOrcamento.quoteNumber).padStart(4, '0')}</p>
+                                    </div>
+                                )}
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                              <FormField
@@ -258,7 +278,7 @@ function OrcamentoPage() {
                                             </FormItem>
                                         </div>
 
-                                        <div className="col-span-4 md:col-span-2">
+                                        <div className="col-span-3 md:col-span-2">
                                             <FormItem><FormLabel className="text-xs">Qtd.</FormLabel>
                                               <Input type="number" min="1" 
                                                 defaultValue={watchItems[index]?.quantity || '1'} 
@@ -283,7 +303,7 @@ function OrcamentoPage() {
                                               />
                                             </FormItem>
                                         </div>
-                                        <div className="col-span-12 md:col-span-1 flex items-end justify-end h-full">
+                                        <div className="col-span-1 flex items-end justify-end h-full">
                                             <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>
                                         </div>
                                     </div>
