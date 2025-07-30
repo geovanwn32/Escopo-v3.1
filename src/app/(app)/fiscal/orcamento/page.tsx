@@ -105,25 +105,34 @@ function OrcamentoPage() {
 
     const loadOrcamento = useCallback(async (id: string, company: Company) => {
         if (!user) return;
-        const orcamentoRef = doc(db, `users/${user.uid}/companies/${company.id}/orcamentos`, id);
-        const orcamentoSnap = await getDoc(orcamentoRef);
-        if (orcamentoSnap.exists()) {
-            const data = { id: orcamentoSnap.id, ...orcamentoSnap.data() } as Orcamento;
-            setCurrentOrcamento(data);
-            
-            const partnerRef = doc(db, `users/${user.uid}/companies/${company.id}/partners`, data.partnerId);
-            const partnerSnap = await getDoc(partnerRef);
-            if(partnerSnap.exists()){
-                setSelectedPartner({ id: partnerSnap.id, ...partnerSnap.data() } as Partner);
-            }
+        setLoading(true);
+        try {
+            const orcamentoRef = doc(db, `users/${user.uid}/companies/${company.id}/orcamentos`, id);
+            const orcamentoSnap = await getDoc(orcamentoRef);
+            if (orcamentoSnap.exists()) {
+                const data = { id: orcamentoSnap.id, ...orcamentoSnap.data() } as Orcamento;
+                setCurrentOrcamento(data);
+                
+                const partnerRef = doc(db, `users/${user.uid}/companies/${company.id}/partners`, data.partnerId);
+                const partnerSnap = await getDoc(partnerRef);
+                if(partnerSnap.exists()){
+                    setSelectedPartner({ id: partnerSnap.id, ...partnerSnap.data() } as Partner);
+                }
 
-            form.reset({
-                partnerId: data.partnerId,
-                items: data.items.map(item => ({ ...item, unitPrice: Number(item.unitPrice), total: Number(item.total) })),
-            });
+                form.reset({
+                    partnerId: data.partnerId,
+                    items: data.items.map(item => ({ ...item, unitPrice: Number(item.unitPrice), total: Number(item.total) })),
+                });
+            } else {
+                 toast({ variant: 'destructive', title: 'Orçamento não encontrado.' });
+                 router.push('/fiscal');
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro ao carregar orçamento.' });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-    }, [user, form]);
+    }, [user, form, router, toast]);
     
     useEffect(() => {
         if (orcamentoId && activeCompany) {
@@ -180,6 +189,7 @@ function OrcamentoPage() {
         try {
             if (!selectedPartner) {
                 toast({ variant: 'destructive', title: 'Cliente não encontrado' });
+                setLoading(false);
                 return;
             }
             
