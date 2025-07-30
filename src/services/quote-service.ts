@@ -33,7 +33,7 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  const companyAddress = `${company.logradouro || ''}, S/n, Qd: --, Lt: --, ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}, CEP: ${company.cep || ''}`;
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || 'S/N'}${company.complemento ? ` - ${company.complemento}` : ''}, ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
   doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
   y += 5;
   doc.setDrawColor(150);
