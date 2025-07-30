@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,7 +9,7 @@ import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, ge
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2, Save, Search } from "lucide-react";
+import { ArrowLeft, FileText, PlusCircle, Trash2, Loader2, Save, Search, BookOpen } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -18,20 +18,20 @@ import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import Link from 'next/link';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { generateQuotePdf } from '@/services/quote-service';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Orcamento, OrcamentoItem } from '@/types/orcamento';
 import { Timestamp } from 'firebase/firestore';
 import { PartnerSelectionModal } from '@/components/parceiros/partner-selection-modal';
-import { Textarea } from '@/components/ui/textarea';
+import { ItemSelectionModal, type CatalogoItem } from '@/components/produtos/item-selection-modal';
+
 
 const quoteItemSchema = z.object({
   type: z.enum(['produto', 'servico']),
   id: z.string().optional(),
   description: z.string().min(1, "A descrição é obrigatória."),
-  quantity: z.coerce.number().min(1, "Quantidade deve ser pelo menos 1"),
+  quantity: z.coerce.number().min(0.01, "Qtd. deve ser maior que 0"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
 });
@@ -50,12 +50,11 @@ function OrcamentoPage() {
     const router = useRouter();
     const orcamentoId = searchParams.get('id');
 
-    const [products, setProducts] = useState<Produto[]>([]);
-    const [services, setServices] = useState<Servico[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [currentOrcamentoId, setCurrentOrcamentoId] = useState<string | null>(orcamentoId);
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
+    const [isItemModalOpen, setItemModalOpen] = useState(false);
     const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
 
     const { user } = useAuth();
@@ -89,111 +88,50 @@ function OrcamentoPage() {
         }
     }, [user]);
 
-    useEffect(() => {
-        if (!user || !activeCompany) {
-            setLoading(false);
-            setProducts([]); setServices([]);
-            return;
-        }
-
-        let isMounted = true;
-        const loadInitialData = async () => {
-            setLoading(true);
-            try {
-                const productsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`);
-                const servicesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
-
-                const productsQuery = query(productsRef);
-                const servicesQuery = query(servicesRef);
-
-                const [prodSnap, servSnap] = await Promise.all([
-                    getDocs(productsQuery),
-                    getDocs(servicesQuery)
-                ]);
-                
-                if (!isMounted) return;
-
-                const productsData = prodSnap.docs.map(d => ({ id: d.id, ...d.data() } as Produto));
-                productsData.sort((a, b) => a.descricao.localeCompare(b.descricao));
-                setProducts(productsData);
-
-                const servicesData = servSnap.docs.map(d => ({ id: d.id, ...d.data() } as Servico));
-                servicesData.sort((a, b) => a.descricao.localeCompare(b.descricao));
-                setServices(servicesData);
-
-
-                if (orcamentoId) {
-                    const orcamentoRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, orcamentoId);
-                    const orcamentoSnap = await getDoc(orcamentoRef);
-                    if (orcamentoSnap.exists()) {
-                        const data = orcamentoSnap.data() as Orcamento;
-                        
-                        const partnerRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/partners`, data.partnerId);
-                        const partnerSnap = await getDoc(partnerRef);
-                        if(partnerSnap.exists()){
-                            setSelectedPartner({ id: partnerSnap.id, ...partnerSnap.data() } as Partner);
-                        }
-
-                        form.reset({
-                            partnerId: data.partnerId,
-                            items: data.items,
-                        });
-                    }
-                }
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Erro ao carregar dados' });
-            } finally {
-                if (isMounted) setLoading(false);
+    const loadOrcamento = useCallback(async (id: string, company: Company) => {
+        if (!user) return;
+        const orcamentoRef = doc(db, `users/${user.uid}/companies/${company.id}/orcamentos`, id);
+        const orcamentoSnap = await getDoc(orcamentoRef);
+        if (orcamentoSnap.exists()) {
+            const data = orcamentoSnap.data() as Orcamento;
+            
+            const partnerRef = doc(db, `users/${user.uid}/companies/${company.id}/partners`, data.partnerId);
+            const partnerSnap = await getDoc(partnerRef);
+            if(partnerSnap.exists()){
+                setSelectedPartner({ id: partnerSnap.id, ...partnerSnap.data() } as Partner);
             }
-        }
-        
-        loadInitialData();
-        return () => { isMounted = false; };
 
-    }, [user, activeCompany, orcamentoId, form, toast]);
-
-
-    const handleItemSelectionChange = (index: number, itemId: string) => {
-        const product = products.find(p => p.id === itemId);
-        if (product) {
-            const quantity = form.getValues(`items.${index}.quantity`) || 1;
-            update(index, {
-                id: itemId,
-                type: 'produto',
-                description: product.descricao,
-                quantity,
-                unitPrice: product.valorUnitario,
-                total: quantity * product.valorUnitario
-            });
-            return;
-        }
-
-        const service = services.find(s => s.id === itemId);
-        if (service) {
-            const quantity = form.getValues(`items.${index}.quantity`) || 1;
-            update(index, {
-                id: itemId,
-                type: 'servico',
-                description: service.descricao,
-                quantity,
-                unitPrice: service.valorPadrao,
-                total: quantity * service.valorPadrao
+            form.reset({
+                partnerId: data.partnerId,
+                items: data.items,
             });
         }
-    };
+        setLoading(false);
+    }, [user, form]);
     
-    const handleFieldChange = (index: number, fieldName: keyof OrcamentoItem, value: any) => {
-        const currentItem = form.getValues(`items.${index}`);
-        const newValues = { ...currentItem, [fieldName]: value };
-        
-        if (fieldName === 'quantity' || fieldName === 'unitPrice') {
-            const quantity = newValues.quantity || 1;
-            const unitPrice = newValues.unitPrice || 0;
-            newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
+    useEffect(() => {
+        if (orcamentoId && activeCompany) {
+            loadOrcamento(orcamentoId, activeCompany);
+        } else {
+            setLoading(false);
         }
+    }, [orcamentoId, activeCompany, loadOrcamento]);
+
+    const handleFieldChange = (index: number, fieldName: 'quantity' | 'unitPrice', value: string) => {
+        const currentItem = form.getValues(`items.${index}`);
+        const numberValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
+        const newValues = { ...currentItem, [fieldName]: numberValue };
+        
+        const quantity = newValues.quantity || 1;
+        const unitPrice = newValues.unitPrice || 0;
+        newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
         
         update(index, newValues as any);
     };
+
+    const handleDescriptionChange = (index: number, value: string) => {
+        update(index, { ...form.getValues(`items.${index}`), description: value });
+    }
 
     const handleSelectPartner = (partner: Partner) => {
         setSelectedPartner(partner);
@@ -203,8 +141,22 @@ function OrcamentoPage() {
     };
 
     const addManualItem = () => {
-      append({ type: 'produto', id: '', description: '', quantity: 1, unitPrice: 0, total: 0 });
+      append({ type: 'produto', id: `manual_${Date.now()}`, description: '', quantity: 1, unitPrice: 0, total: 0 });
     };
+
+    const handleSelectItems = (items: CatalogoItem[]) => {
+        items.forEach(item => {
+            append({
+                type: item.type,
+                id: item.id,
+                description: item.description,
+                quantity: 1,
+                unitPrice: item.unitPrice,
+                total: item.unitPrice
+            });
+        });
+        setItemModalOpen(false);
+    }
     
     const handleSaveAndGeneratePdf = async (data: FormData) => {
         if (!user || !activeCompany) {
@@ -297,45 +249,28 @@ function OrcamentoPage() {
                                 {fields.map((field, index) => (
                                     <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-4 items-start p-3 border rounded-md bg-muted/50">
                                         
-                                        <div className="col-span-12 md:col-span-5">
+                                        <div className="col-span-12 md:col-span-6">
                                              <FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel>
-                                              <Textarea 
+                                              <Input 
                                                  value={watchItems[index]?.description || ''} 
-                                                 onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                                                 rows={2}
+                                                 onChange={(e) => handleDescriptionChange(index, e.target.value)}
                                               />
                                             </FormItem>
                                         </div>
 
-                                        <div className="col-span-12 md:col-span-3">
-                                            <FormItem><FormLabel className="text-xs">Carregar Item Cadastrado</FormLabel>
-                                                <Select onValueChange={(value) => handleItemSelectionChange(index, value)}><FormControl><SelectTrigger><SelectValue placeholder="Ou selecione um item..." /></SelectTrigger></FormControl><SelectContent>
-                                                <optgroup label="Produtos">
-                                                  {products.map(p => <SelectItem key={p.id} value={p.id!}>{p.descricao}</SelectItem>)}
-                                                </optgroup>
-                                                <optgroup label="Serviços">
-                                                  {services.map(s => <SelectItem key={s.id} value={s.id!}>{s.descricao}</SelectItem>)}
-                                                </optgroup>
-                                            </SelectContent></Select>
-                                            </FormItem>
-                                        </div>
-
-                                        <div className="col-span-4 md:col-span-1">
+                                        <div className="col-span-4 md:col-span-2">
                                             <FormItem><FormLabel className="text-xs">Qtd.</FormLabel>
                                               <Input type="number" min="1" 
-                                                value={watchItems[index]?.quantity || '1'} 
-                                                onChange={(e) => handleFieldChange(index, 'quantity', Number(e.target.value))}
+                                                defaultValue={watchItems[index]?.quantity || '1'} 
+                                                onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)}
                                               />
                                             </FormItem>
                                         </div>
-                                        <div className="col-span-4 md:col-span-2">
+                                        <div className="col-span-4 md:col-span-3">
                                             <FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel>
                                               <Input type="text"
-                                                value={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                                                onChange={(e) => {
-                                                    const value = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.')) || 0;
-                                                    handleFieldChange(index, 'unitPrice', value);
-                                                }}
+                                                defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                                onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)}
                                               />
                                             </FormItem>
                                         </div>
@@ -344,9 +279,14 @@ function OrcamentoPage() {
                                         </div>
                                     </div>
                                 ))}
-                                <Button type="button" variant="outline" className="w-full" onClick={addManualItem}>
-                                    <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item Manual
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button type="button" variant="outline" className="w-full" onClick={addManualItem}>
+                                        <PlusCircle className="mr-2 h-4 w-4"/>Adicionar Item Manual
+                                    </Button>
+                                    <Button type="button" variant="secondary" className="w-full" onClick={() => setItemModalOpen(true)}>
+                                        <BookOpen className="mr-2 h-4 w-4"/>Adicionar do Catálogo
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                         <CardFooter className="flex justify-between items-center bg-muted p-4 rounded-b-lg">
@@ -368,6 +308,15 @@ function OrcamentoPage() {
                     userId={user.uid}
                     companyId={activeCompany.id}
                     partnerType='cliente'
+                />
+            )}
+             {user && activeCompany && (
+                <ItemSelectionModal
+                    isOpen={isItemModalOpen}
+                    onClose={() => setItemModalOpen(false)}
+                    onSelect={handleSelectItems}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
                 />
             )}
         </Form>
