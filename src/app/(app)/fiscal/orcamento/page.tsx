@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 const quoteItemSchema = z.object({
   type: z.enum(['produto', 'servico']),
-  id: z.string().optional(), // ID is optional for manual items
+  id: z.string().optional(),
   description: z.string().min(1, "A descrição é obrigatória."),
   quantity: z.coerce.number().min(1, "Quantidade deve ser pelo menos 1"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
@@ -154,30 +154,42 @@ function OrcamentoPage() {
 
 
     const handleItemSelectionChange = (index: number, itemId: string) => {
-        const itemType = form.getValues(`items.${index}.type`);
-        const selectedItem = itemType === 'produto' 
-            ? products.find(p => p.id === itemId)
-            : services.find(s => s.id === itemId);
-
-        if (selectedItem) {
-            const unitPrice = itemType === 'produto' ? (selectedItem as Produto).valorUnitario : (selectedItem as Servico).valorPadrao;
+        const product = products.find(p => p.id === itemId);
+        if (product) {
             const quantity = form.getValues(`items.${index}.quantity`) || 1;
             update(index, {
-                ...watchItems[index],
                 id: itemId,
-                description: selectedItem.descricao,
-                unitPrice,
-                total: quantity * unitPrice
+                type: 'produto',
+                description: product.descricao,
+                quantity,
+                unitPrice: product.valorUnitario,
+                total: quantity * product.valorUnitario
+            });
+            return;
+        }
+
+        const service = services.find(s => s.id === itemId);
+        if (service) {
+            const quantity = form.getValues(`items.${index}.quantity`) || 1;
+            update(index, {
+                id: itemId,
+                type: 'servico',
+                description: service.descricao,
+                quantity,
+                unitPrice: service.valorPadrao,
+                total: quantity * service.valorPadrao
             });
         }
     };
     
-    const handleFieldChange = (index: number, field: keyof OrcamentoItem, value: any) => {
+    const handleFieldChange = (index: number, fieldName: keyof OrcamentoItem, value: any) => {
         const currentItem = form.getValues(`items.${index}`);
-        const newValues = { ...currentItem, [field]: value };
+        const newValues = { ...currentItem, [fieldName]: value };
         
-        if (field === 'quantity' || field === 'unitPrice') {
-            newValues.total = (newValues.quantity || 1) * (newValues.unitPrice || 0);
+        if (fieldName === 'quantity' || fieldName === 'unitPrice') {
+            const quantity = newValues.quantity || 1;
+            const unitPrice = newValues.unitPrice || 0;
+            newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
         }
         
         update(index, newValues as any);
@@ -283,7 +295,7 @@ function OrcamentoPage() {
                             <div className="space-y-4 pt-4">
                                 <FormLabel>Itens do Orçamento</FormLabel>
                                 {fields.map((field, index) => (
-                                    <div key={field.id} className="grid grid-cols-12 gap-2 items-start p-3 border rounded-md">
+                                    <div key={field.id} className="grid grid-cols-12 gap-x-2 gap-y-4 items-start p-3 border rounded-md bg-muted/50">
                                         
                                         <div className="col-span-12 md:col-span-5">
                                              <FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel>
