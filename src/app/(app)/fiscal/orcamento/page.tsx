@@ -34,7 +34,6 @@ const quoteItemSchema = z.object({
   quantity: z.coerce.number().min(0.01, "Qtd. deve ser maior que 0"),
   unitPrice: z.coerce.number().min(0, "O preço deve ser positivo."),
   total: z.coerce.number(),
-  // Service-specific fields
   itemLc: z.string().optional(),
   issAliquota: z.coerce.number().optional(),
 });
@@ -77,6 +76,19 @@ function OrcamentoPage() {
     });
 
     const watchItems = form.watch('items');
+    
+    // Recalculate totals whenever items change
+    useEffect(() => {
+        watchItems.forEach((item, index) => {
+            const quantity = item.quantity || 0;
+            const unitPrice = item.unitPrice || 0;
+            const newTotal = parseFloat((quantity * unitPrice).toFixed(2));
+            if (item.total !== newTotal) {
+                 form.setValue(`items.${index}.total`, newTotal, { shouldValidate: true });
+            }
+        });
+    }, [watchItems, form]);
+
     const totalQuote = watchItems.reduce((acc, item) => acc + (item.total || 0), 0);
 
     useEffect(() => {
@@ -121,24 +133,6 @@ function OrcamentoPage() {
         }
     }, [orcamentoId, activeCompany, loadOrcamento]);
 
-    const handleFieldChange = (index: number, fieldName: 'quantity' | 'unitPrice' | 'issAliquota', value: string) => {
-        const currentItem = form.getValues(`items.${index}`);
-        const numberValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
-        const newValues = { ...currentItem, [fieldName]: numberValue };
-        
-        if (fieldName === 'quantity' || fieldName === 'unitPrice') {
-            const quantity = newValues.quantity || 1;
-            const unitPrice = newValues.unitPrice || 0;
-            newValues.total = parseFloat((quantity * unitPrice).toFixed(2));
-        }
-        
-        update(index, newValues as any);
-    };
-
-    const handleTextChange = (index: number, fieldName: 'description' | 'itemLc', value: string) => {
-        update(index, { ...form.getValues(`items.${index}`), [fieldName]: value });
-    }
-
     const handleSelectPartner = (partner: Partner) => {
         setSelectedPartner(partner);
         form.setValue('partnerId', partner.id!);
@@ -147,36 +141,32 @@ function OrcamentoPage() {
     };
 
     const addManualItem = (type: 'produto' | 'servico') => {
-        const baseItem: Partial<OrcamentoItem> = {
+        const baseItem: OrcamentoItem = {
             type,
             id: `manual_${Date.now()}`,
             description: '',
             quantity: 1,
             unitPrice: 0,
-            total: 0
+            total: 0,
+            itemLc: '',
+            issAliquota: 0,
         };
-        if (type === 'servico') {
-            baseItem.itemLc = '';
-            baseItem.issAliquota = 0;
-        }
-      append(baseItem as OrcamentoItem);
+      append(baseItem);
     };
 
     const handleSelectItems = (items: CatalogoItem[]) => {
         items.forEach(item => {
-            const newItem: Partial<OrcamentoItem> = {
+            const newItem: OrcamentoItem = {
                 type: item.type,
                 id: item.id,
                 description: item.description,
                 quantity: 1,
                 unitPrice: item.unitPrice,
-                total: item.unitPrice
+                total: item.unitPrice,
+                itemLc: item.type === 'servico' ? (item as any).itemLc : undefined,
+                issAliquota: item.type === 'servico' ? (item as any).issAliquota || 0 : undefined,
             };
-             if (item.type === 'servico' && (item as any).itemLc) {
-                newItem.itemLc = (item as any).itemLc;
-                newItem.issAliquota = (item as any).issAliquota || 0;
-            }
-            append(newItem as OrcamentoItem);
+            append(newItem);
         });
         setItemModalOpen(false);
     }
@@ -197,7 +187,7 @@ function OrcamentoPage() {
             let docId = currentOrcamento?.id;
             let quoteNumber = currentOrcamento?.quoteNumber;
             
-            if (!docId) { // Only generate new number for new quotes
+            if (!docId) { 
                 const snapshot = await getCountFromServer(orcamentosRef);
                 quoteNumber = snapshot.data().count + 1;
             }
@@ -291,25 +281,25 @@ function OrcamentoPage() {
                                 {fields.map((field, index) => (
                                     <div key={field.id} className="p-3 border rounded-md bg-muted/50">
                                        {field.type === 'produto' ? (
-                                             <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
-                                                <div className="col-span-12 md:col-span-5"><FormItem><FormLabel className="text-xs">Descrição do Item</FormLabel><Input value={watchItems[index]?.description || ''} onChange={(e) => handleTextChange(index, 'description', e.target.value)} /></FormItem></div>
-                                                <div className="col-span-3 md:col-span-2"><FormItem><FormLabel className="text-xs">Qtd.</FormLabel><Input type="number" min="1" defaultValue={watchItems[index]?.quantity || '1'} onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)} /></FormItem></div>
-                                                <div className="col-span-4 md:col-span-2"><FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><Input type="text" defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)} /></FormItem></div>
-                                                <div className="col-span-4 md:col-span-2"><FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormItem></div>
-                                                <div className="col-span-1 flex items-end justify-end h-full"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
+                                            <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                                <FormField control={form.control} name={`items.${index}.description`} render={({ field }) => (<FormItem className="col-span-12 md:col-span-5"><FormLabel className="text-xs">Descrição do Item</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem className="col-span-4 md:col-span-2"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (<FormItem className="col-span-4 md:col-span-2"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                <FormField control={form.control} name={`items.${index}.total`} render={({ field }) => (<FormItem className="col-span-4 md:col-span-2"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input readOnly value={(field.value || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormControl><FormMessage /></FormItem>)} />
+                                                <div className="col-span-12 md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
                                             </div>
                                        ) : (
                                             <div className="space-y-2">
-                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
-                                                    <div className="col-span-2"><FormItem><FormLabel className="text-xs">Nr Item LC</FormLabel><Input value={watchItems[index]?.itemLc || ''} onChange={(e) => handleTextChange(index, 'itemLc', e.target.value)}/></FormItem></div>
-                                                    <div className="col-span-9"><FormItem><FormLabel className="text-xs">Descrição do Serviço</FormLabel><Input value={watchItems[index]?.description || ''} onChange={(e) => handleTextChange(index, 'description', e.target.value)} /></FormItem></div>
-                                                    <div className="col-span-1 flex items-end justify-end h-full"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
+                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                                    <FormField control={form.control} name={`items.${index}.itemLc`} render={({ field }) => (<FormItem className="col-span-3 md:col-span-2"><FormLabel className="text-xs">Nr Item LC</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.description`} render={({ field }) => (<FormItem className="col-span-9 md:col-span-9"><FormLabel className="text-xs">Descrição do Serviço</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                    <div className="col-span-12 md:col-span-1 flex justify-end"><Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button></div>
                                                 </div>
-                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-start">
-                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Qtd.</FormLabel><Input type="number" min="1" defaultValue={watchItems[index]?.quantity || '1'} onBlur={(e) => handleFieldChange(index, 'quantity', e.target.value)} /></FormItem></div>
-                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Vlr. Unitário</FormLabel><Input type="text" defaultValue={(watchItems[index]?.unitPrice || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'unitPrice', e.target.value)} /></FormItem></div>
-                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Alíquota ISS (%)</FormLabel><Input type="text" defaultValue={(watchItems[index]?.issAliquota || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})} onBlur={(e) => handleFieldChange(index, 'issAliquota', e.target.value)} /></FormItem></div>
-                                                    <div className="col-span-3"><FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={(watchItems[index]?.total || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormItem></div>
+                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                                    <FormField control={form.control} name={`items.${index}.quantity`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.unitPrice`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.issAliquota`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Alíquota ISS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                                    <FormField control={form.control} name={`items.${index}.total`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input readOnly value={(field.value || 0).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})} className="font-semibold" /></FormControl><FormMessage /></FormItem>)} />
                                                 </div>
                                             </div>
                                        )}
@@ -366,5 +356,3 @@ function OrcamentoPage() {
 export default function OrcamentoPageWrapper() {
     return <OrcamentoPage />;
 }
-
-    
