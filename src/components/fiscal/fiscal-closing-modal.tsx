@@ -103,4 +103,3 @@ export function FiscalClosingModal({ isOpen, onClose, userId, companyId }: Fisca
     </Dialog>
   );
 }
-
