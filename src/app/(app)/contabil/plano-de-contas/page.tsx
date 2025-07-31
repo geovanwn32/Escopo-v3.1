@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, get
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp, Info } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp, Info, FileDown } from "lucide-react";
 import { ContaContabilFormModal } from '@/components/contabil/conta-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { format } from 'date-fns';
 
 function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -160,6 +161,35 @@ function PlanoDeContasPage() {
     }
   }
 
+  const handleExportExcel = () => {
+    if (contas.length === 0) {
+        toast({ variant: 'destructive', title: 'Nenhuma conta para exportar.' });
+        return;
+    }
+    const dataToExport = contas.map(conta => ({
+        'Codigo': conta.codigo,
+        'Nome': conta.nome,
+        'Tipo': conta.tipo,
+        'Natureza': conta.natureza,
+        'Descricao': conta.descricao || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "PlanoDeContas");
+
+    worksheet['!cols'] = [
+        { wch: 15 }, // Codigo
+        { wch: 40 }, // Nome
+        { wch: 15 }, // Tipo
+        { wch: 20 }, // Natureza
+        { wch: 50 }, // Descricao
+    ];
+
+    XLSX.writeFile(workbook, `plano_de_contas_${activeCompany?.nomeFantasia.replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast({ title: "Exportação Iniciada!", description: "O download do arquivo foi iniciado." });
+  };
+
 
   const totalPages = Math.ceil(contas.length / itemsPerPage);
   const paginatedContas = contas.slice(
@@ -181,6 +211,10 @@ function PlanoDeContasPage() {
             <h1 className="text-2xl font-bold">Plano de Contas</h1>
         </div>
         <div className="flex items-center gap-2">
+             <Button variant="outline" onClick={handleExportExcel} disabled={!activeCompany || contas.length === 0}>
+                <FileDown className="mr-2 h-4 w-4" />
+                Exportar Plano (XLSX)
+            </Button>
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={!activeCompany || isImporting}>
                 {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUp className="mr-2 h-4 w-4" />}
                 Importar Plano (XLSX)
@@ -316,3 +350,5 @@ function PlanoDeContasPage() {
 export default function PlanoDeContasPageWrapper() {
     return <PlanoDeContasPage />;
 }
+
+    
