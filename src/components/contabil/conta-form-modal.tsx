@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Plus } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ContaContabil } from '@/types/conta-contabil';
@@ -33,6 +33,13 @@ const contaSchema = z.object({
 
 type FormData = z.infer<typeof contaSchema>;
 
+const defaultValues: FormData = {
+    codigo: '',
+    nome: '',
+    tipo: 'analitica',
+    natureza: 'despesa',
+};
+
 export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, conta }: ContaContabilFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -43,17 +50,12 @@ export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, con
     defaultValues: conta ? {
         ...conta,
         natureza: conta.natureza.replace(' ', '_') as FormData['natureza'],
-    } : {
-        codigo: '',
-        nome: '',
-        tipo: 'analitica',
-        natureza: 'despesa',
-    },
+    } : defaultValues,
   });
 
   const mode = conta ? 'edit' : 'create';
 
-  const onSubmit = async (values: FormData) => {
+  const onSubmit = async (values: FormData, andClose: boolean) => {
     setLoading(true);
     try {
       const dataToSave = { ...values };
@@ -67,7 +69,12 @@ export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, con
         await setDoc(contaRef, dataToSave, { merge: true });
         toast({ title: "Conta Atualizada!", description: `Os dados da conta ${values.nome} foram atualizados.` });
       }
-      onClose();
+
+      if(andClose) {
+          onClose();
+      } else if (mode === 'create') {
+          form.reset(defaultValues);
+      }
     } catch (error) {
         console.error("Error saving conta:", error);
         toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar os dados da conta." });
@@ -84,7 +91,7 @@ export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, con
           <DialogDescription>Preencha os dados da conta abaixo.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <form className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Código</FormLabel><FormControl><Input {...field} placeholder="1.01.01.001" /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="nome" render={({ field }) => ( <FormItem><FormLabel>Nome da Conta</FormLabel><FormControl><Input {...field} placeholder="Caixa" /></FormControl><FormMessage /></FormItem> )} />
@@ -95,9 +102,15 @@ export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, con
             </div>
             <DialogFooter className="pt-6">
               <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-              <Button type="submit" disabled={loading}>
+              {mode === 'create' && (
+                <Button type="button" variant="outline" onClick={form.handleSubmit(v => onSubmit(v, false))} disabled={loading}>
+                    {loading ? <Loader2 className="animate-spin" /> : <Plus />}
+                    Salvar e Novo
+                </Button>
+              )}
+              <Button type="button" onClick={form.handleSubmit(v => onSubmit(v, true))} disabled={loading}>
                 {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                {mode === 'create' ? 'Salvar Conta' : 'Salvar Alterações'}
+                {mode === 'create' ? 'Salvar e Fechar' : 'Salvar Alterações'}
               </Button>
             </DialogFooter>
           </form>
