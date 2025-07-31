@@ -102,21 +102,19 @@ function ImportacaoExtratoPage() {
                 const result = await response.json();
                 textContent = result.text;
 
-            } else {
-                const fileBuffer = await file.arrayBuffer();
-                if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel') || file.name.endsWith('.csv')) {
-                    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-                    const sheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[sheetName];
-                    textContent = XLSX.utils.sheet_to_csv(worksheet);
-                } else { // Assume plain text
-                    textContent = await file.text();
-                }
+            } else if (file.type.includes('spreadsheetml') || file.type.includes('ms-excel') || file.name.endsWith('.csv')) {
+                 const fileBuffer = await file.arrayBuffer();
+                 const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+                 const sheetName = workbook.SheetNames[0];
+                 const worksheet = workbook.Sheets[sheetName];
+                 textContent = XLSX.utils.sheet_to_csv(worksheet);
+            } else { // Assume plain text
+                textContent = await file.text();
             }
 
 
             if (!textContent) {
-                throw new Error("Could not extract text content from the file.");
+                throw new Error("Não foi possível extrair conteúdo de texto do arquivo.");
             }
 
             const result = await extractBankTransactions({ textContent });

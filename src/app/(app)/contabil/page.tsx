@@ -11,30 +11,35 @@ const accountingSections = [
         href: "/contabil/plano-de-contas",
         title: "Plano de Contas",
         icon: BookMarked,
+        description: "Estruture e gerencie as contas contábeis da sua empresa.",
         className: "bg-blue-100 text-blue-800 hover:bg-blue-200"
     },
     {
         href: "/contabil/lancamentos",
         title: "Lançamentos Manuais",
         icon: ListChecks,
+        description: "Realize lançamentos contábeis de partidas dobradas manualmente.",
         className: "bg-green-100 text-green-800 hover:bg-green-200"
     },
     {
         href: "/contabil/importacao-extrato",
         title: "Categorização com IA",
         icon: Sparkles,
+        description: "Importe extratos (PDF, CSV) e deixe a IA extrair as transações.",
         className: "bg-purple-100 text-purple-800 hover:bg-purple-200"
     },
     {
         href: "/contabil/conciliacao",
         title: "Conciliação Bancária",
         icon: Banknote,
+        description: "Compare seus lançamentos com o extrato bancário.",
         className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
     },
     {
         href: "/contabil/relatorios-contabeis",
         title: "Relatórios Contábeis",
         icon: LineChart,
+        description: "Gere balancetes, DRE e balanços patrimoniais.",
         className: "bg-red-100 text-red-800 hover:bg-red-200"
     },
 ];
@@ -43,43 +48,36 @@ export default function ContabilPage() {
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">Módulo Contábil</h1>
-             <div className="grid gap-6 md:grid-cols-2">
+             <div className="grid gap-6 md:grid-cols-1">
                 <Card>
                     <CardHeader>
                         <CardTitle>Central Contábil</CardTitle>
                         <CardDescription>Selecione uma das opções abaixo para gerenciar a contabilidade da sua empresa.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex flex-col gap-3">
+                    <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                          {accountingSections.map((section) => (
-                            <Button asChild key={section.href} className={`w-full justify-start ${section.className}`}>
-                                <Link href={section.href}>
-                                    <span><section.icon className="mr-2 h-4 w-4" />{section.title}</span>
-                                </Link>
-                            </Button>
+                            <Card key={section.href} className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                         <div className={`p-2 rounded-md ${section.className}`}>
+                                            <section.icon className="h-5 w-5" />
+                                        </div>
+                                        {section.title}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className="text-sm text-muted-foreground">{section.description}</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button asChild className="w-full justify-center">
+                                        <Link href={section.href}>
+                                            <span>Acessar</span>
+                                            <ArrowRight className="ml-2 h-4 w-4" />
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
                         ))}
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Atalhos Rápidos</CardTitle>
-                        <CardDescription>Acesse rapidamente as funções mais usadas.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-3">
-                         <Button asChild className="w-full justify-start">
-                            <Link href="/contabil/lancamentos">
-                                <span><ListChecks className="mr-2 h-4 w-4" />Novo Lançamento</span>
-                            </Link>
-                        </Button>
-                         <Button asChild className="w-full justify-start">
-                            <Link href="/contabil/plano-de-contas">
-                                <span><BookUp className="mr-2 h-4 w-4" />Importar Plano de Contas</span>
-                            </Link>
-                        </Button>
-                         <Button asChild className="w-full justify-start">
-                            <Link href="/contabil/relatorios-contabeis">
-                                <span><LineChart className="mr-2 h-4 w-4" />Gerar Balancete</span>
-                            </Link>
-                        </Button>
                     </CardContent>
                 </Card>
             </div>
