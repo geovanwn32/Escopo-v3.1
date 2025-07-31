@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,15 @@ import type { Servico } from '@/types/servico';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { defaultServices } from '@/lib/default-services';
+
 
 export default function ServicosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingServico, setEditingServico] = useState<Servico | null>(null);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,15 +41,47 @@ export default function ServicosPage() {
                 setActiveCompany(JSON.parse(companyDataString));
             }
         } else {
-            setLoading(false);
+             setIsInitializing(false);
+             setLoading(false);
         }
     }
   }, [user]);
+
+  const initializeServicesIfNeeded = useCallback(async () => {
+    if (!user || !activeCompany) {
+      setIsInitializing(false);
+      return;
+    }
+
+    const servicosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/servicos`);
+    const snapshot = await getDocs(query(servicosRef, {}));
+    
+    if (snapshot.empty) {
+        toast({ title: 'Inicializando Catálogo', description: 'Cadastrando a lista de serviços padrão. Aguarde...' });
+        try {
+            const batch = writeBatch(db);
+            defaultServices.forEach(service => {
+                const docRef = doc(servicosRef);
+                batch.set(docRef, service);
+            });
+            await batch.commit();
+            toast({ title: 'Catálogo de Serviços Criado!', description: 'A lista padrão foi cadastrada com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao popular serviços:", error);
+            toast({ variant: 'destructive', title: 'Erro na Inicialização', description: 'Não foi possível cadastrar a lista de serviços.' });
+        }
+    }
+    setIsInitializing(false);
+  }, [user, activeCompany, toast]);
+
+  useEffect(() => {
+    if (activeCompany) {
+        initializeServicesIfNeeded();
+    }
+  }, [activeCompany, initializeServicesIfNeeded]);
   
   useEffect(() => {
-    if (!user || !activeCompany) {
-        setLoading(false);
-        setServicos([]);
+    if (isInitializing || !user || !activeCompany) {
         return;
     };
 
@@ -72,7 +107,7 @@ export default function ServicosPage() {
     });
 
     return () => unsubscribe();
-  }, [user, activeCompany, toast]);
+  }, [isInitializing, user, activeCompany, toast]);
 
   const handleOpenModal = (servico: Servico | null = null) => {
     setEditingServico(servico);
@@ -105,6 +140,8 @@ export default function ServicosPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+  
+  const isLoadingOrInitializing = loading || isInitializing;
 
   return (
     <div className="space-y-6">
@@ -121,7 +158,7 @@ export default function ServicosPage() {
           <CardDescription>Gerencie os serviços prestados pela empresa.</CardDescription>
         </CardHeader>
         <CardContent>
-           {loading ? (
+           {isLoadingOrInitializing ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
