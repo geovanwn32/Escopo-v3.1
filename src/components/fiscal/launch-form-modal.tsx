@@ -119,7 +119,15 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ']) || '0');
         data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
         data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']);
-        data.itemLc116 = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
+        
+        let itemLc = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
+        if (!itemLc) {
+            const cTribNac = querySelectorText(nfseNode, ['cTribNac']);
+            if (cTribNac) {
+                itemLc = cTribNac.substring(0, 4);
+            }
+        }
+        data.itemLc116 = itemLc;
         
         data.valorPis = parseFloat(querySelectorText(nfseNode, ['ValorPis', 'vPIS']) || '0');
         data.valorCofins = parseFloat(querySelectorText(nfseNode, ['ValorCofins', 'vCOFINS']) || '0');
