@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp } from "lucide-react";
 import { ContaContabilFormModal } from '@/components/contabil/conta-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
 function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,7 +25,9 @@ function PlanoDeContasPage() {
   const [contas, setContas] = useState<ContaContabil[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -100,6 +103,63 @@ function PlanoDeContasPage() {
     }
   };
 
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || !user || !activeCompany) return;
+    setIsImporting(true);
+    const file = event.target.files[0];
+
+    try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            const contasToImport: ContaContabil[] = jsonData
+                .slice(1) // Skip header row
+                .map(row => ({
+                    codigo: String(row[0] || ''),
+                    nome: String(row[1] || ''),
+                    tipo: String(row[2] || '').toLowerCase() as 'analitica' | 'sintetica',
+                    natureza: String(row[3] || '').toLowerCase().replace(' ', '_') as any,
+                }))
+                .filter(c => c.codigo && c.nome && ['analitica', 'sintetica'].includes(c.tipo) && ['ativo', 'passivo', 'patrimonio_liquido', 'receita', 'despesa'].includes(c.natureza));
+
+            if (contasToImport.length === 0) {
+                toast({ variant: 'destructive', title: "Nenhum dado válido encontrado", description: "Verifique o formato do arquivo. Cabeçalhos esperados: Codigo, Nome, Tipo, Natureza" });
+                setIsImporting(false);
+                return;
+            }
+
+            const existingContasSnap = await getDocs(collection(db, `users/${user.uid}/companies/${activeCompany.id}/contasContabeis`));
+            const existingCodes = new Set(existingContasSnap.docs.map(d => d.data().codigo));
+
+            const batch = writeBatch(db);
+            let importedCount = 0;
+            contasToImport.forEach(conta => {
+                if (!existingCodes.has(conta.codigo)) {
+                    const docRef = doc(collection(db, `users/${user.uid}/companies/${activeCompany.id}/contasContabeis`));
+                    batch.set(docRef, conta);
+                    importedCount++;
+                }
+            });
+
+            await batch.commit();
+            toast({ title: "Importação Concluída!", description: `${importedCount} novas contas importadas com sucesso.` });
+        };
+        reader.readAsBinaryString(file);
+    } catch (error) {
+         toast({ variant: 'destructive', title: 'Erro na Importação', description: 'Houve um problema ao ler o arquivo.' });
+         console.error(error);
+    } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+
   const totalPages = Math.ceil(contas.length / itemsPerPage);
   const paginatedContas = contas.slice(
     (currentPage - 1) * itemsPerPage,
@@ -108,6 +168,7 @@ function PlanoDeContasPage() {
 
   return (
     <div className="space-y-6">
+      <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" accept=".xlsx" />
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" asChild>
@@ -118,10 +179,16 @@ function PlanoDeContasPage() {
             </Button>
             <h1 className="text-2xl font-bold">Plano de Contas</h1>
         </div>
-        <Button onClick={() => handleOpenModal()} disabled={!activeCompany}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Nova Conta
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={!activeCompany || isImporting}>
+                {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookUp className="mr-2 h-4 w-4" />}
+                Importar Plano (XLSX)
+            </Button>
+            <Button onClick={() => handleOpenModal()} disabled={!activeCompany}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Nova Conta
+            </Button>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -140,7 +207,7 @@ function PlanoDeContasPage() {
               </div>
               <h3 className="text-xl font-semibold">Nenhuma conta cadastrada</h3>
               <p className="text-muted-foreground mt-2">
-                {!activeCompany ? "Selecione uma empresa para começar." : 'Clique em "Nova Conta" para começar.'}
+                {!activeCompany ? "Selecione uma empresa para começar." : 'Clique em "Nova Conta" ou "Importar Plano" para começar.'}
               </p>
             </div>
           ) : (

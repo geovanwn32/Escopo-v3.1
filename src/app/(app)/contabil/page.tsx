@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud } from "lucide-react";
+import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud, BookUp } from "lucide-react";
 import Link from "next/link";
 
 const accountingSections = [
@@ -68,6 +68,11 @@ export default function ContabilPage() {
                          <Button asChild className="w-full justify-start">
                             <Link href="/contabil/lancamentos">
                                 <span><ListChecks className="mr-2 h-4 w-4" />Novo Lançamento</span>
+                            </Link>
+                        </Button>
+                         <Button asChild className="w-full justify-start">
+                            <Link href="/contabil/plano-de-contas">
+                                <span><BookUp className="mr-2 h-4 w-4" />Importar Plano de Contas</span>
                             </Link>
                         </Button>
                          <Button asChild className="w-full justify-start">
