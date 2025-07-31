@@ -105,21 +105,12 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     }
 
     const data: Partial<FormData> = {};
-
-    const getNodeData = (node: Element | null, nameSelectors: string[], idSelectors: string[]) => {
-        if (!node) return { nome: null, cnpj: null };
-        return {
-            nome: querySelectorText(node, nameSelectors),
-            cnpj: querySelectorText(node, idSelectors)
-        };
-    };
-
+    
     const isNFe = xmlDoc.querySelector('infNFe');
     const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
     const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta, CompNfse');
 
     if (type === 'servico' && (isNfsePadrao || isNfseAbrasf)) {
-        // --- NFS-e Parsing (Handles multiple formats) ---
         const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
         if (!nfseNode) return {};
 
@@ -130,27 +121,44 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl']);
         data.itemLc116 = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
         
-        // Impostos
         data.valorPis = parseFloat(querySelectorText(nfseNode, ['ValorPis', 'vPIS']) || '0');
         data.valorCofins = parseFloat(querySelectorText(nfseNode, ['ValorCofins', 'vCOFINS']) || '0');
         data.valorIr = parseFloat(querySelectorText(nfseNode, ['ValorIr', 'vIR']) || '0');
         data.valorInss = parseFloat(querySelectorText(nfseNode, ['ValorInss', 'vINSS']) || '0');
         data.valorCsll = parseFloat(querySelectorText(nfseNode, ['ValorCsll', 'vCSLL']) || '0');
 
-        // Partes (Prestador e Tomador)
         const prestadorNode = nfseNode.querySelector('PrestadorServico, Prestador, prest');
-        const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
+        if (prestadorNode) {
+            data.prestador = {
+                nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome']),
+                cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ'])
+            };
+        }
 
-        data.prestador = getNodeData(prestadorNode, ['RazaoSocial', 'Nome'], ['Cnpj', 'CNPJ']);
-        data.tomador = getNodeData(tomadorNode, ['RazaoSocial', 'Nome'], ['CpfCnpj > Cnpj', 'CpfCnpj > Cpf', 'CNPJ', 'CPF']);
+        const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
+        if (tomadorNode) {
+            data.tomador = {
+                nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome']),
+                cnpj: querySelectorText(tomadorNode, ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF'])
+            };
+        }
         
     } else if (isNFe) {
-        // --- NF-e Parsing ---
         const emitNode = xmlDoc.querySelector('emit');
         const destNode = xmlDoc.querySelector('dest');
         
-        data.emitente = getNodeData(emitNode, ['xNome'], ['CNPJ']);
-        data.destinatario = getNodeData(destNode, ['xNome'], ['CNPJ', 'CPF']);
+        if (emitNode) {
+            data.emitente = {
+                nome: querySelectorText(emitNode, ['xNome']),
+                cnpj: querySelectorText(emitNode, ['CNPJ', 'CPF'])
+            };
+        }
+        if (destNode) {
+            data.destinatario = {
+                nome: querySelectorText(destNode, ['xNome']),
+                cnpj: querySelectorText(destNode, ['CNPJ', 'CPF'])
+            };
+        }
         
         const infNFeNode = xmlDoc.querySelector('infNFe');
         let chave = infNFeNode ? infNFeNode.getAttribute('Id') || '' : '';
@@ -161,7 +169,6 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
 
-        // Product Parsing
         data.produtos = Array.from(xmlDoc.querySelectorAll('det')).map(det => {
             const prodNode = det.querySelector('prod');
             if (!prodNode) return {};
