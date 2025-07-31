@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, get
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp, Info, FileDown } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp, Info, FileDown, FileText } from "lucide-react";
 import { ContaContabilFormModal } from '@/components/contabil/conta-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,7 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format } from 'date-fns';
+import { generateChartOfAccountsPdf } from '@/services/chart-of-accounts-report-service';
 
 function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +29,7 @@ function PlanoDeContasPage() {
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -189,6 +191,21 @@ function PlanoDeContasPage() {
     XLSX.writeFile(workbook, `plano_de_contas_${activeCompany?.nomeFantasia.replace(/\s/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     toast({ title: "Exportação Iniciada!", description: "O download do arquivo foi iniciado." });
   };
+  
+   const handleGeneratePdf = () => {
+    if (!activeCompany || contas.length === 0) {
+      toast({ variant: 'destructive', title: 'Nenhuma conta para gerar o PDF.' });
+      return;
+    }
+    setIsGeneratingPdf(true);
+    try {
+      generateChartOfAccountsPdf(activeCompany, contas);
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao Gerar PDF', description: (error as Error).message });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
 
   const totalPages = Math.ceil(contas.length / itemsPerPage);
@@ -211,7 +228,11 @@ function PlanoDeContasPage() {
             <h1 className="text-2xl font-bold">Plano de Contas</h1>
         </div>
         <div className="flex items-center gap-2">
-             <Button variant="outline" onClick={handleExportExcel} disabled={!activeCompany || contas.length === 0}>
+            <Button variant="outline" onClick={handleGeneratePdf} disabled={!activeCompany || contas.length === 0 || isGeneratingPdf}>
+                {isGeneratingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                Gerar PDF
+            </Button>
+            <Button variant="outline" onClick={handleExportExcel} disabled={!activeCompany || contas.length === 0}>
                 <FileDown className="mr-2 h-4 w-4" />
                 Exportar Plano (XLSX)
             </Button>
