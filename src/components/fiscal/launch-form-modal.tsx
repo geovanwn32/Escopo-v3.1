@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -24,6 +25,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { PartnerSelectionModal } from '../parceiros/partner-selection-modal';
 import type { Partner } from '@/types/partner';
 import { upsertPartnerFromLaunch } from '@/services/partner-service';
+import type { Orcamento } from '@/types/orcamento';
 
 
 interface XmlFile {
@@ -38,6 +40,7 @@ interface LaunchFormModalProps {
   onClose: () => void;
   xmlFile: XmlFile | null;
   launch: Launch | null;
+  orcamento: Orcamento | null;
   manualLaunchType: 'entrada' | 'saida' | 'servico' | null;
   mode: 'create' | 'edit' | 'view';
   userId: string;
@@ -194,7 +197,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     return data;
 }
 
-export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunchType, mode, userId, company, onLaunchSuccess }: LaunchFormModalProps) {
+export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, manualLaunchType, mode, userId, company, onLaunchSuccess }: LaunchFormModalProps) {
   const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
   const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
@@ -229,13 +232,40 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
           } else if (manualLaunchType === 'entrada') {
              initialData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
           }
+        } else if (orcamento) {
+            const hasServices = orcamento.items.some(i => i.type === 'servico');
+            const hasProducts = orcamento.items.some(i => i.type === 'produto');
+            const type = hasServices ? 'servico' : 'saida';
+
+            initialData = {
+                type: type,
+                date: new Date(),
+                fileName: `Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`,
+                status: 'Normal',
+                discriminacao: orcamento.items.map(i => `${i.quantity}x ${i.description}`).join('; '),
+                valorServicos: orcamento.total,
+                valorTotalNota: orcamento.total,
+                valorLiquido: orcamento.total,
+                produtos: hasProducts ? orcamento.items.filter(i => i.type === 'produto').map(p => ({
+                    codigo: p.id,
+                    descricao: p.description,
+                    valorUnitario: p.unitPrice,
+                    ncm: '', // NCM should be in product catalog
+                    cfop: '', // CFOP should be in product catalog
+                })) : [],
+            };
+            if(type === 'servico') {
+                initialData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            } else {
+                 initialData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
+            }
         }
       } else if (mode === 'edit' || mode === 'view') {
         initialData = { ...launch };
       }
       form.reset(initialData);
     }
-  }, [isOpen, xmlFile, launch, manualLaunchType, mode, company, form]);
+  }, [isOpen, xmlFile, launch, manualLaunchType, orcamento, mode, company, form]);
 
    const handleSelectPartner = (partner: Partner) => {
     if (!partnerTarget) return;
@@ -299,6 +329,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
   };
   
   const getTitle = () => {
+    if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
     if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
     return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
   }
@@ -348,7 +379,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                   <span>Tipo:</span>
                   <Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge>
               </div>
-              {xmlFile && <p>Arquivo: <span className="font-semibold">{xmlFile.file.name}</span></p>}
+              {(xmlFile || orcamento) && <p>Arquivo: <span className="font-semibold">{form.getValues('fileName')}</span></p>}
             </div>
           </DialogDescription>
         </DialogHeader>
@@ -360,7 +391,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(field.value, 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                     </AccordionContent>
@@ -395,7 +426,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, manualLaunch
                     <AccordionContent className="space-y-4 px-1">
                         <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(field.value, 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
                     </AccordionContent>

@@ -7,7 +7,7 @@ import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, d
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -113,6 +113,7 @@ export default function FiscalPage() {
   const [isClosingModalOpen, setClosingModalOpen] = useState(false);
   const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
   const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
+  const [orcamentoToLaunch, setOrcamentoToLaunch] = useState<Orcamento | null>(null);
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   
@@ -268,7 +269,7 @@ export default function FiscalPage() {
                 const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
 
                 const prestadorCnpj = getCnpjCpfFromNode(prestadorNode, ['Cnpj', 'CNPJ']);
-                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode, ['CpfCnpj > Cnpj', 'CNPJ']);
+                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode, ['CpfCnpj > Cnpj', 'CNPJ', 'CPF']);
 
                 const numeroNfse = nfseNode.querySelector('Numero, nNFSe')?.textContent;
                 key = numeroNfse || undefined;
@@ -321,6 +322,7 @@ export default function FiscalPage() {
     setSelectedXml({ ...file, file: fileObject });
     setEditingLaunch(null);
     setManualLaunchType(null);
+    setOrcamentoToLaunch(null);
     setIsModalOpen(true);
   };
   
@@ -329,14 +331,25 @@ export default function FiscalPage() {
     setSelectedXml(null);
     setEditingLaunch(null);
     setManualLaunchType(type);
+    setOrcamentoToLaunch(null);
     setIsModalOpen(true);
   };
+
+  const handleLaunchFromOrcamento = (orcamento: Orcamento) => {
+    setModalMode('create');
+    setSelectedXml(null);
+    setEditingLaunch(null);
+    setManualLaunchType(null);
+    setOrcamentoToLaunch(orcamento);
+    setIsModalOpen(true);
+  }
 
   const handleViewLaunch = (launch: Launch) => {
     setModalMode('view');
     setEditingLaunch(launch);
     setSelectedXml(null);
     setManualLaunchType(null);
+    setOrcamentoToLaunch(null);
     setIsModalOpen(true);
   };
 
@@ -345,6 +358,7 @@ export default function FiscalPage() {
     setEditingLaunch(launch);
     setSelectedXml(null);
     setManualLaunchType(null);
+    setOrcamentoToLaunch(null);
     setIsModalOpen(true);
   };
 
@@ -389,6 +403,7 @@ export default function FiscalPage() {
     setSelectedXml(null);
     setEditingLaunch(null);
     setManualLaunchType(null);
+    setOrcamentoToLaunch(null);
   }
 
   const handleLaunchSuccess = (launchedKey: string, status: Launch['status']) => {
@@ -614,6 +629,7 @@ endDate.setHours(23,59,59,999);
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleLaunchFromOrcamento(orc)}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -931,6 +947,7 @@ endDate.setHours(23,59,59,999);
             onClose={handleModalClose}
             xmlFile={selectedXml}
             launch={editingLaunch}
+            orcamento={orcamentoToLaunch}
             manualLaunchType={manualLaunchType}
             mode={modalMode}
             userId={user.uid}
