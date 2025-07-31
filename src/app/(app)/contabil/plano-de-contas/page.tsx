@@ -6,7 +6,7 @@ import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, get
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp } from "lucide-react";
+import { PlusCircle, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, BookCopy, ArrowLeft, BookUp, Info } from "lucide-react";
 import { ContaContabilFormModal } from '@/components/contabil/conta-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -194,6 +195,14 @@ function PlanoDeContasPage() {
         <CardHeader>
           <CardTitle>Contas Cadastradas</CardTitle>
           <CardDescription>Gerencie a estrutura de contas contábeis da empresa.</CardDescription>
+          <Alert variant="default" className="mt-4">
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Para importar um plano de contas via arquivo XLSX, certifique-se que a primeira linha contém os cabeçalhos: <strong>Codigo</strong>, <strong>Nome</strong>, <strong>Tipo</strong> e <strong>Natureza</strong>.<br/>
+              Valores aceitos para <strong>Tipo</strong>: 'analitica' ou 'sintetica'.<br/>
+              Valores aceitos para <strong>Natureza</strong>: 'ativo', 'passivo', 'patrimonio_liquido', 'receita', 'despesa'.
+            </AlertDescription>
+          </Alert>
         </CardHeader>
         <CardContent>
           {loading ? (
