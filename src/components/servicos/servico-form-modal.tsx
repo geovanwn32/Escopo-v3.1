@@ -25,7 +25,7 @@ interface ServicoFormModalProps {
 }
 
 const servicoSchema = z.object({
-  codigo: z.string().min(1, "Código é obrigatório"),
+  codigo: z.string().min(1, "Código (Item da LC 116) é obrigatório"),
   descricao: z.string().min(1, "Descrição é obrigatória"),
   valorPadrao: z.string().transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0, "Valor deve ser positivo")),
 });
@@ -108,7 +108,7 @@ export function ServicoFormModal({ isOpen, onClose, userId, companyId, servico }
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Código</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} placeholder="Ex: 01.01"/></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="valorPadrao" render={({ field }) => ( <FormItem><FormLabel>Valor Padrão (R$)</FormLabel><FormControl><Input {...field} onChange={e => {
                         const { value } = e.target;
                         e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');

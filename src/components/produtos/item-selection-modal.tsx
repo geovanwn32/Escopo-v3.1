@@ -18,9 +18,7 @@ export interface CatalogoItem {
   type: 'produto' | 'servico';
   description: string;
   unitPrice: number;
-  // Optional service fields
-  itemLc?: string;
-  issAliquota?: number;
+  itemLc?: string; // Now included for services
 }
 
 interface ItemSelectionModalProps {
@@ -56,7 +54,7 @@ export function ItemSelectionModal({ isOpen, onClose, onSelect, userId, companyI
             return { id: doc.id, type: 'produto', description: data.descricao, unitPrice: data.valorUnitario };
         });
         const servicesData: CatalogoItem[] = servicesSnap.docs.map(doc => {
-            const data = doc.data() as any; // Use any to access potential extra fields
+            const data = doc.data() as Servico;
             return { id: doc.id, type: 'servico', description: data.descricao, unitPrice: data.valorPadrao, itemLc: data.codigo };
         });
 
