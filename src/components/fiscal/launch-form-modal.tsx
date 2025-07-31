@@ -118,7 +118,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.numeroNfse = querySelectorText(nfseNode, ['Numero', 'nNFSe']);
         data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ']) || '0');
         data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
-        data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'infCpl']);
+        data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']);
         data.itemLc116 = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
         
         data.valorPis = parseFloat(querySelectorText(nfseNode, ['ValorPis', 'vPIS']) || '0');
