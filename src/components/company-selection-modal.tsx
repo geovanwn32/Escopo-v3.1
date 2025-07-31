@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs, addDoc, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './ui/form';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { Card, CardContent } from './ui/card';
-import { cn } from '@/lib/utils';
+import { createCompanyWithDefaults } from '@/services/company-creation-service';
+import { doc, setDoc } from 'firebase/firestore';
 
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
@@ -27,6 +28,7 @@ const companySchema = z.object({
 export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId }: { isOpen: boolean; onClose: () => void; onCompanySelect: (company: any) => void; userId: string; }) {
   const [companies, setCompanies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,22 +66,27 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
   }, [companies, searchTerm]);
 
   const handleCreateOrUpdateCompany = async (values: z.infer<typeof companySchema>) => {
+    setIsSubmitting(true);
     try {
       if (editingCompany) {
+        // Handle update
         const companyRef = doc(db, `users/${userId}/companies`, editingCompany.id);
         await setDoc(companyRef, values, { merge: true });
         toast({ title: "Empresa atualizada com sucesso!" });
       } else {
-        const companiesRef = collection(db, `users/${userId}/companies`);
-        await addDoc(companiesRef, values);
-        toast({ title: "Empresa criada com sucesso!" });
+        // Handle create
+        await createCompanyWithDefaults(userId, values);
+        toast({ title: "Empresa criada com sucesso!", description: "Um plano de contas padrão foi adicionado." });
       }
       form.reset();
       setIsCreating(false);
       setEditingCompany(null);
-      fetchCompanies();
+      await fetchCompanies();
     } catch (error) {
+      console.error("Error saving company:", error);
       toast({ variant: 'destructive', title: "Erro ao salvar empresa", description: "Tente novamente." });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -129,8 +136,11 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
                 field.onChange(e);
               }} /></FormControl><FormMessage /></FormItem>)} />
               <DialogFooter>
-                <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setEditingCompany(null); }}>Cancelar</Button>
-                <Button type="submit">Salvar Empresa</Button>
+                <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setEditingCompany(null); }} disabled={isSubmitting}>Cancelar</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    Salvar Empresa
+                </Button>
               </DialogFooter>
             </form>
           </Form>
