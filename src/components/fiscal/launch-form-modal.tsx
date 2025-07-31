@@ -138,7 +138,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         const prestadorNode = nfseNode.querySelector('PrestadorServico, Prestador, prest');
         if (prestadorNode) {
             data.prestador = {
-                nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome']),
+                nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome', 'xNome']),
                 cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj'])
             };
         }
@@ -146,7 +146,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
         if (tomadorNode) {
             data.tomador = {
-                nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome']),
+                nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome', 'xNome']),
                 cnpj: querySelectorText(tomadorNode, ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF'])
             };
         }
