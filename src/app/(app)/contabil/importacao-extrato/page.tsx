@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, CheckCircle, Sparkles } from 'lucide-react';
@@ -12,6 +12,12 @@ import { extractBankTransactions, type BankTransaction } from '@/ai/flows/extrac
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
+import { useAuth } from '@/lib/auth';
+import type { Company } from '@/types/company';
+import { ContaBancariaSelectionModal } from '@/components/contabil/conta-bancaria-selection-modal';
+import { collection, writeBatch } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { serverTimestamp } from 'firebase/firestore';
 
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
@@ -33,9 +39,25 @@ function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isAccounting, setIsAccounting] = useState(false);
+    const [isAccountModalOpen, setAccountModalOpen] = useState(false);
     const [extractedTransactions, setExtractedTransactions] = useState<BankTransaction[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { toast } = useToast();
+    const { user } = useAuth();
+    const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+                if (companyDataString) {
+                    setActiveCompany(JSON.parse(companyDataString));
+                }
+            }
+        }
+    }, [user]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -132,6 +154,51 @@ function ImportacaoExtratoPage() {
             setIsProcessing(false);
         }
     };
+
+    const handleAccountSelection = async (bankAccountId: string, expenseAccountId: string, revenueAccountId: string) => {
+        if (!user || !activeCompany) return;
+        
+        setIsAccounting(true);
+        setAccountModalOpen(false);
+        
+        const batch = writeBatch(db);
+        const lancamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/lancamentosContabeis`);
+        
+        extractedTransactions.forEach(tx => {
+            const docRef = doc(lancamentosRef); // Firestore generates a new ID
+            const date = new Date(tx.date);
+
+            const lancamento = {
+                data: isNaN(date.getTime()) ? serverTimestamp() : date,
+                descricao: `[Extrato] ${tx.description}`,
+                valorTotal: Math.abs(tx.amount),
+                partidas: tx.type === 'credit' 
+                    ? [ // Receita
+                        { tipo: 'debito', contaId: bankAccountId, valor: Math.abs(tx.amount) },
+                        { tipo: 'credito', contaId: revenueAccountId, valor: Math.abs(tx.amount) }
+                    ]
+                    : [ // Despesa
+                        { tipo: 'debito', contaId: expenseAccountId, valor: Math.abs(tx.amount) },
+                        { tipo: 'credito', contaId: bankAccountId, valor: Math.abs(tx.amount) }
+                    ],
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            };
+            batch.set(docRef, lancamento);
+        });
+
+        try {
+            await batch.commit();
+            toast({ title: "Sucesso!", description: `${extractedTransactions.length} lançamentos foram criados.` });
+            setExtractedTransactions([]); // Clear list after accounting for them
+        } catch(error) {
+            console.error("Error committing batch:", error);
+            toast({ variant: 'destructive', title: "Erro ao Contabilizar", description: "Não foi possível salvar os lançamentos."});
+        } finally {
+            setIsAccounting(false);
+        }
+    };
+
 
     const resetState = () => {
         setFile(null);
@@ -244,18 +311,27 @@ function ImportacaoExtratoPage() {
                          </div>
                     </CardContent>
                     <CardFooter className="justify-end">
-                        <Button disabled>
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Contabilizar Lançamentos (Em Breve)
+                        <Button onClick={() => setAccountModalOpen(true)} disabled={isAccounting}>
+                             {isAccounting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                             Contabilizar Lançamentos
                         </Button>
                     </CardFooter>
                 </Card>
+            )}
+
+            {user && activeCompany && (
+                <ContaBancariaSelectionModal
+                    isOpen={isAccountModalOpen}
+                    onClose={() => setAccountModalOpen(false)}
+                    onConfirm={handleAccountSelection}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                />
             )}
         </div>
     );
 }
 
-// Wrapper component to handle search params
 export default function ImportacaoExtratoPageWrapper() {
     return <ImportacaoExtratoPage />;
 }
