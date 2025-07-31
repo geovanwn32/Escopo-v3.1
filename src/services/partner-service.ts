@@ -1,3 +1,4 @@
+
 import { collection, query, where, getDocs, addDoc, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Partner } from "@/types/partner";
