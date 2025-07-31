@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud, BookUp } from "lucide-react";
+import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud, BookUp, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 const accountingSections = [
@@ -21,15 +21,15 @@ const accountingSections = [
     },
     {
         href: "/contabil/importacao-extrato",
-        title: "Importar Extrato Bancário",
-        icon: UploadCloud,
-        className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+        title: "Categorização com IA",
+        icon: Sparkles,
+        className: "bg-purple-100 text-purple-800 hover:bg-purple-200"
     },
     {
         href: "/contabil/conciliacao",
         title: "Conciliação Bancária",
         icon: Banknote,
-        className: "bg-purple-100 text-purple-800 hover:bg-purple-200"
+        className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
     },
     {
         href: "/contabil/relatorios-contabeis",

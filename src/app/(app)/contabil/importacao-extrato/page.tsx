@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, CheckCircle } from 'lucide-react';
+import { ArrowLeft, UploadCloud, File as FileIcon, X, Loader2, CheckCircle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -149,13 +149,16 @@ function ImportacaoExtratoPage() {
                         <span className="sr-only">Voltar</span>
                     </Link>
                 </Button>
-                <h1 className="text-2xl font-bold">Importação de Extrato Bancário</h1>
+                <h1 className="text-2xl font-bold">Importação e Categorização com IA</h1>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Enviar Extrato</CardTitle>
-                    <CardDescription>Arraste e solte ou selecione o arquivo do seu extrato bancário (PDF, TXT, CSV, XLSX).</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Sparkles className="h-6 w-6 text-purple-500"/>
+                        Extração de Lançamentos de Extrato Bancário
+                    </CardTitle>
+                    <CardDescription>Envie um arquivo de extrato (PDF, TXT, CSV, XLSX) e a inteligência artificial irá extrair as transações para você.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <input
@@ -179,7 +182,7 @@ function ImportacaoExtratoPage() {
                         <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
                             <UploadCloud className="h-12 w-12" />
                             <div>
-                                <p className="font-semibold text-foreground">Arraste seu arquivo aqui</p>
+                                <p className="font-semibold text-foreground">Arraste seu arquivo de extrato aqui</p>
                                 <p className="text-sm">ou clique para selecionar</p>
                             </div>
                         </div>
@@ -204,8 +207,8 @@ function ImportacaoExtratoPage() {
                 </CardContent>
                 <CardFooter>
                     <Button onClick={handleProcessFile} disabled={!file || isProcessing}>
-                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        {isProcessing ? 'Processando...' : 'Processar Arquivo'}
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4" />}
+                        {isProcessing ? 'Processando com IA...' : 'Extrair Transações'}
                     </Button>
                 </CardFooter>
             </Card>
