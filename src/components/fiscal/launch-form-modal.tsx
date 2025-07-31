@@ -106,11 +106,11 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     const data: Partial<FormData> = {};
 
-    const getNodeData = (node: Element | null, nameSelectors: string[], cnpjSelectors: string[]) => {
+    const getNodeData = (node: Element | null, nameSelectors: string[], idSelectors: string[]) => {
         if (!node) return { nome: null, cnpj: null };
         return {
             nome: querySelectorText(node, nameSelectors),
-            cnpj: querySelectorText(node, cnpjSelectors)
+            cnpj: querySelectorText(node, idSelectors)
         };
     };
 
