@@ -131,7 +131,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         if (prestadorNode) {
             data.prestador = {
                 nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome']),
-                cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ'])
+                cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj'])
             };
         }
 
