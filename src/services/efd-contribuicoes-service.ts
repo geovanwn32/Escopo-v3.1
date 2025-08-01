@@ -21,10 +21,15 @@ const sanitizeString = (str: string | undefined | null): string => {
     return str.replace(/\|/g, '').trim();
 }
 
+interface ServiceResult {
+    success: boolean;
+    message?: string;
+}
+
 /**
  * Generates the EFD Contribuições TXT file content.
  */
-export async function generateEfdContribuicoesTxt(userId: string, company: Company, period: string) {
+export async function generateEfdContribuicoesTxt(userId: string, company: Company, period: string): Promise<ServiceResult> {
     const [monthStr, yearStr] = period.split('/');
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
@@ -45,7 +50,7 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
     const serviceLaunches = launches.filter(l => l.type === 'servico');
 
     if (salesLaunches.length === 0 && serviceLaunches.length === 0) {
-        throw new Error("Nenhuma nota de saída ou serviço encontrada para o período selecionado.");
+        return { success: false, message: "Nenhuma nota de saída ou serviço encontrada para o período selecionado." };
     }
 
     // --- 2. BUILD TXT CONTENT ---
@@ -144,4 +149,6 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    return { success: true };
 }

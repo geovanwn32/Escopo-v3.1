@@ -63,7 +63,13 @@ export default function EfdContribuicoesPage() {
 
         setIsGenerating(true);
         try {
-            await generateEfdContribuicoesTxt(user.uid, activeCompany, period);
+            const result = await generateEfdContribuicoesTxt(user.uid, activeCompany, period);
+             if (!result.success) {
+                toast({
+                    title: "Nenhum dado encontrado",
+                    description: result.message,
+                });
+            }
         } catch (error) {
             console.error("Erro ao gerar arquivo EFD:", error);
             toast({ variant: 'destructive', title: 'Erro ao gerar arquivo', description: (error as Error).message });
