@@ -47,6 +47,8 @@ const companySchema = z.object({
   licenseType: z.enum(['basica', 'profissional', 'premium']).default('basica'),
   metodoApropriacaoCredito: z.string().optional(),
   tipoContribuicao: z.string().optional(),
+  incidenciaTributaria: z.string().optional(),
+  apuracaoPisCofins: z.string().optional(),
 }).superRefine((data, ctx) => {
     const { tipoInscricao, inscricao } = data;
     const cleanedInscricao = inscricao ? inscricao.replace(/\D/g, '') : '';
@@ -94,6 +96,8 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         licenseType: data.licenseType || 'basica',
         metodoApropriacaoCredito: data.metodoApropriacaoCredito || '1',
         tipoContribuicao: data.tipoContribuicao || '1',
+        incidenciaTributaria: data.incidenciaTributaria || '1',
+        apuracaoPisCofins: data.apuracaoPisCofins || '1',
     };
 };
 
@@ -563,13 +567,47 @@ export default function MinhaEmpresaPage() {
                             <FormField control={form.control} name="cnaePrincipalDescricao" render={({ field }) => ( <FormItem><FormLabel>Descrição da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
                             <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><div className="relative"><FormControl><Input {...field} /></FormControl><div className="absolute inset-y-0 right-0 flex items-center pr-3">{loadingSintegra ? ( <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />)}</div></div><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="inscricaoMunicipal" render={({ field }) => ( <FormItem><FormLabel>Inscrição Municipal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-
+                            <FormField
+                                control={form.control}
+                                name="incidenciaTributaria"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Incidência tributária do PIS/COFINS</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 - Exclusivamente no regime não-cumulativo</SelectItem>
+                                                <SelectItem value="2">2 - Exclusivamente no regime cumulativo</SelectItem>
+                                                <SelectItem value="3">3 - Regimes não-cumulativo e cumulativo</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="apuracaoPisCofins"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Tipo de apuração PIS/COFINS</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 - Apuração a Alíquota Básica</SelectItem>
+                                                <SelectItem value="2">2 - Apuração a Alíquotas Diferenciadas</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
                                 name="metodoApropriacaoCredito"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Método de apropriação de créditos comuns</FormLabel>
+                                        <FormLabel>Método de apropriação de créditos</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                                             <SelectContent>
@@ -586,12 +624,12 @@ export default function MinhaEmpresaPage() {
                                 name="tipoContribuicao"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tipo de contribuição apurada no período</FormLabel>
+                                        <FormLabel>Tipo de contribuição apurada</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
                                             <SelectContent>
-                                                <SelectItem value="1">1 - Apuração da Contribuição Exclusivamente a Alíquota Básica</SelectItem>
-                                                <SelectItem value="2">2 - Apuração da Contribuição a Alíquotas Específicas</SelectItem>
+                                                <SelectItem value="1">1 - Apuração Exclusivamente a Alíquota Básica</SelectItem>
+                                                <SelectItem value="2">2 - Apuração a Alíquotas Específicas</SelectItem>
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
@@ -819,3 +857,4 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
+

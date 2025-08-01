@@ -34,4 +34,7 @@ export interface Company {
     licenseType?: 'basica' | 'profissional' | 'premium';
     metodoApropriacaoCredito?: string;
     tipoContribuicao?: string;
+    incidenciaTributaria?: string;
+    apuracaoPisCofins?: string;
 }
+
