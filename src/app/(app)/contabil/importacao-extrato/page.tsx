@@ -15,7 +15,7 @@ import * as XLSX from 'xlsx';
 import { useAuth } from '@/lib/auth';
 import type { Company } from '@/types/company';
 import { ContaBancariaSelectionModal } from '@/components/contabil/conta-bancaria-selection-modal';
-import { collection, writeBatch } from 'firebase/firestore';
+import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { serverTimestamp } from 'firebase/firestore';
 
