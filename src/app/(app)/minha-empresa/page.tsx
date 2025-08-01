@@ -45,6 +45,8 @@ const companySchema = z.object({
   logoUrl: z.string().url().optional().nullable(),
   logoPath: z.string().optional().nullable(),
   licenseType: z.enum(['basica', 'profissional', 'premium']).default('basica'),
+  metodoApropriacaoCredito: z.string().optional(),
+  tipoContribuicao: z.string().optional(),
 }).superRefine((data, ctx) => {
     const { tipoInscricao, inscricao } = data;
     const cleanedInscricao = inscricao ? inscricao.replace(/\D/g, '') : '';
@@ -90,6 +92,8 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         logoUrl: data.logoUrl || null,
         logoPath: data.logoPath || null,
         licenseType: data.licenseType || 'basica',
+        metodoApropriacaoCredito: data.metodoApropriacaoCredito || '1',
+        tipoContribuicao: data.tipoContribuicao || '1',
     };
 };
 
@@ -555,55 +559,41 @@ export default function MinhaEmpresaPage() {
                                     </FormItem>
                                 )}
                             />
+                            <FormField control={form.control} name="cnaePrincipalCodigo" render={({ field }) => ( <FormItem><FormLabel>Código da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="cnaePrincipalDescricao" render={({ field }) => ( <FormItem><FormLabel>Descrição da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
+                            <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><div className="relative"><FormControl><Input {...field} /></FormControl><div className="absolute inset-y-0 right-0 flex items-center pr-3">{loadingSintegra ? ( <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />)}</div></div><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="inscricaoMunicipal" render={({ field }) => ( <FormItem><FormLabel>Inscrição Municipal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+
                             <FormField
                                 control={form.control}
-                                name="cnaePrincipalCodigo"
+                                name="metodoApropriacaoCredito"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Código da Atividade Principal</FormLabel>
-                                        <FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl>
+                                        <FormLabel>Método de apropriação de créditos comuns</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 - Método de Apropriação Direta</SelectItem>
+                                                <SelectItem value="2">2 - Método de Rateio Proporcional (Receita Bruta)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
-                            <FormField
+                             <FormField
                                 control={form.control}
-                                name="cnaePrincipalDescricao"
+                                name="tipoContribuicao"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Descrição da Atividade Principal</FormLabel>
-                                        <FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="inscricaoEstadual"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Inscrição Estadual</FormLabel>
-                                        <div className="relative">
-                                            <FormControl><Input {...field} /></FormControl>
-                                             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                {loadingSintegra ? (
-                                                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                                ) : (
-                                                    <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />
-                                                )}
-                                            </div>
-                                        </div>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="inscricaoMunicipal"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Inscrição Municipal</FormLabel>
-                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormLabel>Tipo de contribuição apurada no período</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 - Apuração da Contribuição Exclusivamente a Alíquota Básica</SelectItem>
+                                                <SelectItem value="2">2 - Apuração da Contribuição a Alíquotas Específicas</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}

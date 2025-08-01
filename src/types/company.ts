@@ -32,4 +32,6 @@ export interface Company {
     logoUrl?: string | null;
     logoPath?: string | null;
     licenseType?: 'basica' | 'profissional' | 'premium';
+    metodoApropriacaoCredito?: string;
+    tipoContribuicao?: string;
 }
