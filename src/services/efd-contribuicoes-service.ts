@@ -1,6 +1,8 @@
-
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Launch } from '@/app/(app)/fiscal/page';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -13,7 +15,6 @@ const formatDate = (date: Date): string => {
 
 const sanitizeString = (str: string | undefined | null): string => {
     if (!str) return '';
-    // Remove o caractere pipe e quaisquer outros caracteres que possam quebrar o leiaute.
     return str.replace(/[|]/g, '').trim().toUpperCase();
 }
 
@@ -24,65 +25,111 @@ interface ServiceResult {
 
 /**
  * Generates the EFD Contribuições TXT file content based on a specific layout.
- * This version uses a more robust method for calculating the final record counts (Block 9).
+ * This version handles data fetching for a full file generation.
  */
 export async function generateEfdContribuicoesTxt(
     userId: string,
     company: Company,
     period: string,
-    semMovimento: boolean
+    semMovimento: boolean,
+    tipoEscrituracao: '0' | '1' = '0'
 ): Promise<ServiceResult> {
     const [monthStr, yearStr] = period.split('/');
-    if (!monthStr || !yearStr || isNaN(parseInt(monthStr)) || isNaN(parseInt(yearStr))) {
+    if (!monthStr || !yearStr) {
         return { success: false, message: "Período inválido." };
     }
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    // Use a safe method to calculate start and end dates
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
-    const lines: string[] = [];
+    let launches: Launch[] = [];
+    if (!semMovimento) {
+        const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+        const q = query(launchesRef, 
+            where('date', '>=', Timestamp.fromDate(startDate)),
+            where('date', '<=', Timestamp.fromDate(endDate))
+        );
+        const snapshot = await getDocs(q);
+        launches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
+    }
+    
+    if (!semMovimento && launches.length === 0) {
+        return { success: false, message: "Nenhum lançamento fiscal encontrado no período para gerar o arquivo com movimento." };
+    }
 
+    const lines: string[] = [];
     const addLine = (fields: (string | number | undefined)[]) => {
         lines.push('|' + fields.map(f => (f === undefined || f === null) ? '' : f).join('|') + '|');
     };
-    
-    // Hardcoded IBGE code for Aparecida de Goiânia as per the error log
-    const cityCode = '5201405';
 
     // --- BLOCO 0 ---
-    addLine(['0000', '006', '0', '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, cityCode, '', '00', '9']);
-    addLine(['0001', '0']); // 0 = Bloco com dados informados
+    const cityCode = '5201405'; // Hardcoded for Aparecida de Goiânia as requested
+    addLine(['0000', '006', tipoEscrituracao, '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, cityCode, '', '00', '9']);
+    addLine(['0001', '0']); 
     addLine(['0110', '1', '1', '1', '']);
     addLine(['0120', format(startDate, 'MMyyyy'), '04']);
-    // Field 2 (COD_EST) is optional and is being left empty as per standard practice. The pipe delimiters handle the positioning.
-    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf || '', '', cityCode, '', '']);
-    addLine(['0990', lines.length + 1]);
-
-    // --- BLOCOS DE DADOS (SEM MOVIMENTO) ---
-    addLine(['A001', '1']); addLine(['A990', '2']);
-    addLine(['C001', '1']); addLine(['C990', '2']);
-    addLine(['D001', '1']); addLine(['D990', '2']);
-    addLine(['F001', '1']); addLine(['F990', '2']);
-    addLine(['I001', '1']); addLine(['I990', '2']);
+    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, '', cityCode, '', '']);
+    // Placeholder for other 0 block records if needed
+    // addLine(['0500', ...]);
     
+    // --- BLOCO A ---
+    const servicos = launches.filter(l => l.type === 'servico');
+    addLine(['A001', servicos.length > 0 ? '0' : '1']);
+    if (servicos.length > 0) {
+        servicos.forEach(s => {
+            const tomadorCnpj = s.tomador?.cnpj?.replace(/\D/g, '') || '';
+            addLine(['A010', tomadorCnpj]);
+            addLine([
+                'A100', '2', s.status === 'Cancelado' ? '02' : '01', s.numeroNfse, s.chaveNfe, formatDate(s.date as Date), formatDate(s.date as Date),
+                s.valorServicos, '0', '0', '0', '0', s.valorLiquido
+            ]);
+        });
+    }
+
+    // --- BLOCO C ---
+    const produtos = launches.filter(l => l.type === 'saida');
+    addLine(['C001', produtos.length > 0 ? '0' : '1']);
+    if (produtos.length > 0) {
+        produtos.forEach(p => {
+             const destCnpj = p.destinatario?.cnpj?.replace(/\D/g, '') || '';
+             addLine(['C010', destCnpj]);
+             addLine([
+                'C100', '1', '1', destCnpj, '55', p.status === 'Cancelado' ? '02' : '01', '', p.chaveNfe, 
+                formatDate(p.date as Date), formatDate(p.date as Date), p.valorTotalNota, '1', 
+                '0', '0', p.valorTotalNota, '9', p.valorTotalNota, '0', '0', '0'
+             ]);
+        });
+    }
+    
+    // --- BLOCO D (Placeholder) ---
+    addLine(['D001', '1']);
+
+    // --- BLOCO F (Placeholder) ---
+    addLine(['F001', '1']);
+    
+    // --- BLOCO I (Placeholder) ---
+    addLine(['I001', '1']);
+
     // --- BLOCO M ---
-    addLine(['M001', '1']); // Bloco sem movimento
-    addLine(['M990', '2']);
-
-    // --- OUTROS BLOCOS (SEM MOVIMENTO) ---
-    addLine(['P001', '1']); addLine(['P990', '2']);
-    addLine(['1001', '1']); addLine(['1990', '2']);
+    const totalPis = launches.reduce((acc, l) => acc + (l.valorPis || 0), 0);
+    const totalCofins = launches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
+    const hasPisCofins = totalPis > 0 || totalCofins > 0;
     
+    addLine(['M001', hasPisCofins ? '0' : '1']);
+    if(hasPisCofins) {
+        addLine(['M200', totalPis, '0', '0', '0', totalPis, '01']);
+        addLine(['M600', totalCofins, '0', '0', '0', totalCofins, '01']);
+    }
+
+    // --- BLOCO P (Placeholder) ---
+    addLine(['P001', '1']);
+
+    // --- BLOCO 1 (Placeholder) ---
+    addLine(['1001', '1']);
+
     // --- BLOCO 9: ENCERRAMENTO ---
-    
-    // Start Block 9
-    const block9Lines: string[] = [];
-    block9Lines.push('|9001|0|'); // 0 = Bloco 9 com dados
-
-    // Count all records generated so far (data blocks)
     const recordCounts: { [key: string]: number } = {};
     lines.forEach(line => {
         const recordType = line.split('|')[1];
@@ -91,29 +138,24 @@ export async function generateEfdContribuicoesTxt(
         }
     });
 
-    // Add count for the Block 9 opener itself
+    const block9Lines: string[] = [];
+    block9Lines.push('|9001|0|');
+    
+    // Add block 9 records to the count
     recordCounts['9001'] = 1;
-
-    // Generate 9900 records for each type
+    
     Object.keys(recordCounts).sort().forEach(record => {
         block9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
-
-    // Add count for the 9900 records we are about to add
-    // The +3 is for 9900, 9990, and 9999 which are also part of Block 9.
+    
     const countOf9900Records = Object.keys(recordCounts).length;
     block9Lines.push(`|9900|9900|${countOf9900Records + 3}|`);
-
-    // Add count for 9990 and 9999
     block9Lines.push('|9900|9990|1|');
     block9Lines.push('|9900|9999|1|');
     
-    // Now that all 9900 records are generated, we can finalize the totals for 9990 and 9999
-    // QTD_LIN_9: Total lines in Block 9. It's the sum of all `9900` lines + the `9001`, `9990`, and `9999` lines themselves.
-    const totalLinesInBlock9 = block9Lines.length + 2; // +2 for the 9990 and 9999 lines that will be added.
+    const totalLinesInBlock9 = block9Lines.length + 2; 
     block9Lines.push(`|9990|${totalLinesInBlock9}|`);
     
-    // QTD_LIN: Total lines in the file.
     const totalLinesInFile = lines.length + totalLinesInBlock9;
     block9Lines.push(`|9999|${totalLinesInFile}|`);
 

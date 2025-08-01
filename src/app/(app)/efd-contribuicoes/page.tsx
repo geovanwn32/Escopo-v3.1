@@ -15,10 +15,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from "next/link";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function EfdContribuicoesPage() {
     const [period, setPeriod] = useState<string>('');
     const [semMovimento, setSemMovimento] = useState(false);
+    const [tipoEscrituracao, setTipoEscrituracao] = useState<'0' | '1'>('0'); // 0: Original, 1: Retificadora
     const [isGenerating, setIsGenerating] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
@@ -90,7 +92,7 @@ export default function EfdContribuicoesPage() {
 
         setIsGenerating(true);
         try {
-            const result = await generateEfdContribuicoesTxt(user.uid, activeCompany, period, semMovimento);
+            const result = await generateEfdContribuicoesTxt(user.uid, activeCompany, period, semMovimento, tipoEscrituracao);
              if (!result.success) {
                 toast({
                     variant: "destructive",
@@ -115,7 +117,7 @@ export default function EfdContribuicoesPage() {
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">EFD Contribuições</h1>
 
-            <Card className="max-w-xl mx-auto">
+            <Card className="max-w-2xl mx-auto">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <FileDigit className="h-6 w-6 text-primary" />
@@ -124,17 +126,31 @@ export default function EfdContribuicoesPage() {
                     <CardDescription>Selecione o período de competência para gerar o arquivo TXT para importação no programa da Receita Federal.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="period">Período de Competência (MM/AAAA)</Label>
-                        <Input 
-                            id="period" 
-                            placeholder="Ex: 07/2024" 
-                            value={period} 
-                            onChange={handlePeriodChange} 
-                            maxLength={7} 
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <Label htmlFor="period">Período de Competência (MM/AAAA)</Label>
+                            <Input 
+                                id="period" 
+                                placeholder="Ex: 07/2024" 
+                                value={period} 
+                                onChange={handlePeriodChange} 
+                                maxLength={7} 
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="tipo-escrituracao">Tipo de Escrituração</Label>
+                             <Select value={tipoEscrituracao} onValueChange={(v) => setTipoEscrituracao(v as '0' | '1')}>
+                                <SelectTrigger id="tipo-escrituracao">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="0">0 - Original</SelectItem>
+                                    <SelectItem value="1">1 - Retificadora</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                     <div className="flex items-center space-x-2">
+                     <div className="flex items-center space-x-2 pt-2">
                         <Checkbox id="sem-movimento" checked={semMovimento} onCheckedChange={(checked) => setSemMovimento(Boolean(checked))} />
                         <label
                             htmlFor="sem-movimento"
