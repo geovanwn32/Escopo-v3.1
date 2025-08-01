@@ -1,6 +1,7 @@
 
 import type { Company } from '@/types/company';
-import { format, startOfMonth, lastDayOfMonth } from 'date-fns';
+import { format } from 'date-fns';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -37,10 +38,10 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    const startDate = startOfMonth(new Date(year, month - 1));
-    const endDate = lastDayOfMonth(new Date(year, month - 1));
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
     
-    // For this specific use case, we assume no movement as per the provided example structure
+    // Per a solicitação, o arquivo sempre será gerado como se não houvesse movimento
     const hasMovement = false; 
 
     const lines: string[] = [];
@@ -55,12 +56,11 @@ export async function generateEfdContribuicoesTxt(
     };
     
     // Bloco 0: Abertura, Identificação e Referências
-    // Based on user's example, using specific codes
-    addLine(['0000', '006', '0', '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '5201405', '', '00', '9']);
-    addLine(['0001', hasMovement ? '0' : '1']);
-    addLine(['0110', '1', '1', '1', '']); // Regime de Apuração
-    addLine(['0120', format(startDate, 'MMyyyy'), '04']); // CPRB: Não-incidência da Contribuição
-    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj, company.inscricaoEstadual || '', '5201405', '', '']); // Estabelecimento
+    addLine(['0000', '006', '0', '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, '5201405', '', '00', '9']);
+    addLine(['0001', '0']); // Sempre '0' (com dados) porque temos registros de abertura/encerramento
+    addLine(['0110', '1', '1', '1', '']);
+    addLine(['0120', format(startDate, 'MMyyyy'), '04']);
+    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.inscricaoEstadual || '', '5201405', '', '']);
     addLine(['0990', Object.keys(recordCounts).length + 1]);
 
     // Blocos de Dados (sem movimento)
@@ -71,26 +71,27 @@ export async function generateEfdContribuicoesTxt(
     addLine(['I001', '1']); addLine(['I990', '2']);
     
     // Bloco M (com movimento = 0, mas registros presentes)
-    addLine(['M001', hasMovement ? '0' : '1']);
-    addLine(['M200', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']); // Total PIS
-    addLine(['M600', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']); // Total COFINS
-    addLine(['M990', '4']); // Encerramento Bloco M
+    addLine(['M001', '0']);
+    addLine(['M200', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']);
+    addLine(['M600', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']);
+    addLine(['M990', '4']);
 
     addLine(['P001', '1']); addLine(['P990', '2']);
     addLine(['1001', '1']); addLine(['1990', '2']);
     
     // Bloco 9: Encerramento do Arquivo Digital
     addLine(['9001', '0']);
-    const finalRecordCounts: { [key: string]: number } = {...recordCounts}; // Clone counts before adding 9900 records
+    const finalRecordCounts: { [key: string]: number } = {...recordCounts};
     Object.keys(finalRecordCounts).forEach(record => {
         addLine(['9900', record, finalRecordCounts[record]]);
     });
-    addLine(['9900', '9900', Object.keys(finalRecordCounts).length + 2]); // +2 for 9900 and 9999 itself
+    addLine(['9900', '9900', Object.keys(finalRecordCounts).length + 2]);
     addLine(['9900', '9999', 1]);
-    addLine(['9990', lines.length + 2]); // Total lines in file up to this point + 9990 and 9999
-    addLine(['9999', lines.length + 1]); // Final total lines
+    addLine(['9990', lines.length + 2]);
+    addLine(['9999', lines.length + 1]);
 
-    const txtContent = lines.join('\r\n');
+    // Ensure the last line ends with a CRLF
+    const txtContent = lines.join('\r\n') + '\r\n';
 
     const blob = new Blob([txtContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
