@@ -38,30 +38,27 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    // Correct and safe way to calculate start and end dates
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Day 0 of next month is the last day of the current month
+    const endDate = new Date(year, month, 0);
 
     let salesLaunches: Launch[] = [];
     let serviceLaunches: Launch[] = [];
 
-    if (!semMovimento) {
-        // --- 1. FETCH DATA ---
-        const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-        const q = query(launchesRef,
-            where('date', '>=', Timestamp.fromDate(startDate)),
-            where('date', '<=', Timestamp.fromDate(endDate))
-        );
-        const snapshot = await getDocs(q);
-        const launches = snapshot.docs.map(doc => doc.data() as Launch);
+    // --- 1. FETCH DATA ---
+    const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+    const q = query(launchesRef,
+        where('date', '>=', Timestamp.fromDate(startDate)),
+        where('date', '<=', Timestamp.fromDate(endDate))
+    );
+    const snapshot = await getDocs(q);
+    const launches = snapshot.docs.map(doc => doc.data() as Launch);
 
-        salesLaunches = launches.filter(l => l.type === 'saida');
-        serviceLaunches = launches.filter(l => l.type === 'servico');
+    salesLaunches = launches.filter(l => l.type === 'saida');
+    serviceLaunches = launches.filter(l => l.type === 'servico');
 
-        if (salesLaunches.length === 0 && serviceLaunches.length === 0) {
-            return { success: false, message: "Nenhuma nota de saída ou serviço encontrada para o período selecionado. Se não houve movimento, marque a opção 'Gerar arquivo sem movimento'." };
-        }
-    }
+    const hasLaunches = salesLaunches.length > 0 || serviceLaunches.length > 0;
+    const hasMovement = hasLaunches && !semMovimento;
+
 
     // --- 2. BUILD TXT CONTENT ---
     const recordCounts: { [key: string]: number } = {};
@@ -76,16 +73,15 @@ export async function generateEfdContribuicoesTxt(
     };
     
     // Bloco 0: Abertura, Identificação e Referências
-    const hasMovement = !semMovimento && (salesLaunches.length > 0 || serviceLaunches.length > 0);
     addLine(['0000', '018', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', hasMovement ? '0' : '1']);
-    addLine(['0001', '0']); // 0 = Bloco com dados informados
+    addLine(['0001', hasMovement ? '0' : '1']); // 0 = Bloco com dados informados, 1 = Sem dados
     addLine(['0100', sanitizeString(company.razaoSocial), company.cnpj, '', '', '', '', '', '', '', '']);
     addLine(['0140', '001', sanitizeString(company.razaoSocial), company.cnpj, company.inscricaoEstadual, '', company.cidade, '', '']);
     addLine(['0500', formatDate(startDate), '01']); // Regime de Competência
 
     // Bloco A: Documentos Fiscais - Serviços (NFS-e)
-    addLine(['A001', serviceLaunches.length > 0 ? '0' : '1']);
-    if (serviceLaunches.length > 0) {
+    addLine(['A001', hasMovement && serviceLaunches.length > 0 ? '0' : '1']);
+    if (hasMovement && serviceLaunches.length > 0) {
         serviceLaunches.forEach(launch => {
             const valorTotal = launch.valorServicos || 0;
             const pisValue = launch.valorPis || 0;
@@ -99,8 +95,8 @@ export async function generateEfdContribuicoesTxt(
     }
 
     // Bloco C: Documentos Fiscais - Mercadorias (NF-e)
-    addLine(['C001', salesLaunches.length > 0 ? '0' : '1']);
-    if (salesLaunches.length > 0) {
+    addLine(['C001', hasMovement && salesLaunches.length > 0 ? '0' : '1']);
+    if (hasMovement && salesLaunches.length > 0) {
         salesLaunches.forEach(launch => {
              const valorTotal = launch.valorTotalNota || 0;
              const pisValue = launch.valorPis || 0;
