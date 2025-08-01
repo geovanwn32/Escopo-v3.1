@@ -36,6 +36,7 @@ import {
   Shield,
   BookCopy,
   Landmark,
+  FileDigit,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 
@@ -70,6 +71,7 @@ const menuGroups = [
     items: [
         { href: "/esocial", icon: <Share2 className="h-5 w-5 flex-shrink-0" />, label: "eSocial" },
         { href: "/pgdas", icon: <Calculator className="h-5 w-5 flex-shrink-0" />, label: "PGDAS" },
+        { href: "/efd-contribuicoes", icon: <FileDigit className="h-5 w-5 flex-shrink-0" />, label: "EFD Contribuições" },
     ],
   },
    {
