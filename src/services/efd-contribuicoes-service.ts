@@ -3,7 +3,7 @@ import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -16,7 +16,6 @@ const formatDate = (date: Date): string => {
 
 const sanitizeString = (str: string | undefined | null): string => {
     if (!str) return '';
-    // Remove unsupported characters and limit length if necessary.
     return str.replace(/\|/g, '').trim();
 }
 
@@ -135,7 +134,7 @@ export async function generateEfdContribuicoesTxt(
     const txtContent = lines.join('\r\n');
 
     // --- 3. CREATE AND DOWNLOAD FILE ---
-    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
