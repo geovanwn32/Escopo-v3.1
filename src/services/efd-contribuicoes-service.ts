@@ -37,7 +37,6 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    // Explicit and safe date calculation
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // Correctly gets the last day of the previous month
 
@@ -69,7 +68,7 @@ export async function generateEfdContribuicoesTxt(
     };
     
     // Bloco 0: Abertura, Identificação e Referências
-    addLine(['0000', '018', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', hasMovement ? '0' : '1']);
+    addLine(['0000', '019', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', hasMovement ? '0' : '1']);
     addLine(['0001', hasMovement ? '0' : '1']); // 0 = Bloco com dados informados, 1 = Sem dados
     addLine(['0100', sanitizeString(company.razaoSocial), company.cnpj, '', '', '', '', '', '', '', '']);
     addLine(['0140', '001', sanitizeString(company.razaoSocial), company.cnpj, company.inscricaoEstadual, '', company.cidade, '', '']);
