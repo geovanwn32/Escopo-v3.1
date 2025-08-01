@@ -3,7 +3,7 @@ import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
-import { format } from 'date-fns';
+import { format, lastDayOfMonth } from 'date-fns';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -37,8 +37,9 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
+    // Robust date calculation
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Correctly gets the last day of the previous month
+    const endDate = lastDayOfMonth(startDate);
 
     // --- 1. FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
