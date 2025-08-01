@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Loader2, ArrowLeft, BarChart2, Calculator, Scale, Lock } from "lucide-react";
+import { FileText, Loader2, ArrowLeft, BarChart2, Calculator, Scale, Lock, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
@@ -26,6 +26,7 @@ interface TaxResult {
     iss: number;
     inss: number;
     irrf: number;
+    irpj: number;
     csll: number;
     total: number;
 }
@@ -156,6 +157,14 @@ export default function ApuracaoPage() {
             setIsCalculating(false);
         }
     };
+    
+    const handleZeroCalculation = () => {
+        const zeroResult: TaxResult = {
+            pis: 0, cofins: 0, csll: 0, irpj: 0, iss: 0, inss: 0, irrf: 0, total: 0
+        };
+        setCalculationResult(zeroResult);
+        toast({ title: 'Apuração Zerada', description: `Apurado R$ 0,00 para o período ${period}.` });
+    };
 
 
     return (
@@ -193,9 +202,13 @@ export default function ApuracaoPage() {
                                 maxLength={7} 
                             />
                         </div>
-                        <Button onClick={handleCalculate} className="w-full sm:w-auto" disabled={isCalculating || !activeCompany}>
+                         <Button onClick={handleCalculate} className="w-full sm:w-auto" disabled={isCalculating || !activeCompany}>
                             {isCalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Calculator className="mr-2 h-4 w-4" />}
                             Apurar Impostos
+                        </Button>
+                        <Button onClick={handleZeroCalculation} variant="outline" className="w-full sm:w-auto" disabled={isCalculating || !activeCompany}>
+                            <RefreshCcw className="mr-2 h-4 w-4" />
+                            Apurar Zerado
                         </Button>
                     </div>
 
