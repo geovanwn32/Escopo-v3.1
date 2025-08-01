@@ -118,7 +118,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
         if (!nfseNode) return {};
 
-        data.date = new Date(querySelectorText(nfseNode, ['DataEmissao', 'dCompet', 'dtEmissao']));
+        data.date = new Date(querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']));
         data.numeroNfse = querySelectorText(nfseNode, ['Numero', 'nNFSe']);
         data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ', 'vlrServicos']) || '0');
         data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
@@ -177,7 +177,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         if (!chave) chave = querySelectorText(xmlDoc, ['chNFe']);
         data.chaveNfe = chave.replace(/\D/g, '');
         
-        data.date = new Date(querySelectorText(infNFeNode, ['dhEmi', 'dEmi']));
+        data.date = new Date(querySelectorText(infNFeNode, ['dCompet', 'dhProc', 'dhEmi', 'dEmi']));
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
 
@@ -479,3 +479,4 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
     </>
   );
 }
+
