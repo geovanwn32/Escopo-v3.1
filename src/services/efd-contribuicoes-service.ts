@@ -1,3 +1,4 @@
+
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
@@ -65,69 +66,91 @@ export async function generateEfdContribuicoesTxt(
     };
 
     // --- BLOCO 0 ---
-    const cityCode = '5201405'; // Hardcoded for Aparecida de Goiânia as requested
-    addLine(['0000', '006', tipoEscrituracao, '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, cityCode, '', '00', '9']);
-    addLine(['0001', '0']); 
-    addLine(['0110', '1', '1', '1', '']);
-    addLine(['0120', format(startDate, 'MMyyyy'), '04']);
-    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, '', cityCode, '', '']);
-    // Placeholder for other 0 block records if needed
-    // addLine(['0500', ...]);
+    const bloco0Lines: string[] = [];
+    const addLine0 = (fields: any[]) => bloco0Lines.push('|' + fields.join('|') + '|');
     
+    addLine0(['0000', '006', tipoEscrituracao, '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, '5201405', company.inscricaoMunicipal || '', '00', company.incidenciaTributaria || '1']);
+    addLine0(['0001', '0']); // Com dados
+    addLine0(['0110', company.apuracaoPisCofins || '1', company.metodoApropriacaoCredito || '1', '1', '']);
+    addLine0(['0120', format(startDate, 'MMyyyy'), '04']);
+    addLine0(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, company.inscricaoEstadual || '', '5201405', '', '']);
+    
+    lines.push(...bloco0Lines);
+    addLine(['0990', bloco0Lines.length + 1]); // Encerramento Bloco 0
+
     // --- BLOCO A ---
     const servicos = launches.filter(l => l.type === 'servico');
-    addLine(['A001', servicos.length > 0 ? '0' : '1']);
+    const blocoALines: string[] = [];
+    const addLineA = (fields: any[]) => blocoALines.push('|' + fields.join('|') + '|');
+    addLineA(['A001', servicos.length > 0 ? '0' : '1']);
     if (servicos.length > 0) {
         servicos.forEach(s => {
             const tomadorCnpj = s.tomador?.cnpj?.replace(/\D/g, '') || '';
-            addLine(['A010', tomadorCnpj]);
-            addLine([
+            addLineA(['A010', tomadorCnpj]);
+            addLineA([
                 'A100', '2', s.status === 'Cancelado' ? '02' : '01', s.numeroNfse, s.chaveNfe, formatDate(s.date as Date), formatDate(s.date as Date),
-                s.valorServicos, '0', '0', '0', '0', s.valorLiquido
+                formatValue(s.valorServicos), '0', '0', '0', '0', formatValue(s.valorLiquido)
             ]);
         });
     }
+    lines.push(...blocoALines);
+    addLine(['A990', blocoALines.length + 1]);
 
     // --- BLOCO C ---
     const produtos = launches.filter(l => l.type === 'saida');
-    addLine(['C001', produtos.length > 0 ? '0' : '1']);
+    const blocoCLines: string[] = [];
+    const addLineC = (fields: any[]) => blocoCLines.push('|' + fields.join('|') + '|');
+    addLineC(['C001', produtos.length > 0 ? '0' : '1']);
     if (produtos.length > 0) {
         produtos.forEach(p => {
              const destCnpj = p.destinatario?.cnpj?.replace(/\D/g, '') || '';
-             addLine(['C010', destCnpj]);
-             addLine([
+             addLineC(['C010', destCnpj]);
+             addLineC([
                 'C100', '1', '1', destCnpj, '55', p.status === 'Cancelado' ? '02' : '01', '', p.chaveNfe, 
-                formatDate(p.date as Date), formatDate(p.date as Date), p.valorTotalNota, '1', 
-                '0', '0', p.valorTotalNota, '9', p.valorTotalNota, '0', '0', '0'
+                formatDate(p.date as Date), formatDate(p.date as Date), formatValue(p.valorTotalNota), '1', 
+                '0', '0', formatValue(p.valorTotalNota), '9', formatValue(p.valorTotalNota), '0', '0', '0'
              ]);
         });
     }
+    lines.push(...blocoCLines);
+    addLine(['C990', blocoCLines.length + 1]);
     
     // --- BLOCO D (Placeholder) ---
     addLine(['D001', '1']);
+    addLine(['D990', 2]);
 
     // --- BLOCO F (Placeholder) ---
     addLine(['F001', '1']);
+    addLine(['F990', 2]);
     
     // --- BLOCO I (Placeholder) ---
     addLine(['I001', '1']);
+    addLine(['I990', 2]);
 
     // --- BLOCO M ---
     const totalPis = launches.reduce((acc, l) => acc + (l.valorPis || 0), 0);
     const totalCofins = launches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
     const hasPisCofins = totalPis > 0 || totalCofins > 0;
     
-    addLine(['M001', hasPisCofins ? '0' : '1']);
+    const blocoMLines: string[] = [];
+    const addLineM = (fields: any[]) => blocoMLines.push('|' + fields.join('|') + '|');
+    
+    addLineM(['M001', hasPisCofins ? '0' : '1']);
     if(hasPisCofins) {
-        addLine(['M200', totalPis, '0', '0', '0', totalPis, '01']);
-        addLine(['M600', totalCofins, '0', '0', '0', totalCofins, '01']);
+        addLineM(['M200', formatValue(totalPis), '0', '0', '0', formatValue(totalPis), '01']);
+        addLineM(['M600', formatValue(totalCofins), '0', '0', '0', formatValue(totalCofins), '01']);
     }
+    lines.push(...blocoMLines);
+    addLine(['M990', blocoMLines.length + 1]);
+
 
     // --- BLOCO P (Placeholder) ---
     addLine(['P001', '1']);
+    addLine(['P990', 2]);
 
     // --- BLOCO 1 (Placeholder) ---
     addLine(['1001', '1']);
+    addLine(['1990', 2]);
 
     // --- BLOCO 9: ENCERRAMENTO ---
     const recordCounts: { [key: string]: number } = {};
@@ -138,28 +161,30 @@ export async function generateEfdContribuicoesTxt(
         }
     });
 
-    const block9Lines: string[] = [];
-    block9Lines.push('|9001|0|');
+    const bloco9Lines: string[] = [];
+    const addLine9 = (fields: any[]) => bloco9Lines.push('|' + fields.join('|') + '|');
     
-    // Add block 9 records to the count
-    recordCounts['9001'] = 1;
+    addLine9(['9001', '0']);
     
-    Object.keys(recordCounts).sort().forEach(record => {
-        block9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
+    const finalCounts = { ...recordCounts };
+    finalCounts['9001'] = 1;
+    
+    Object.keys(finalCounts).sort().forEach(record => {
+        bloco9Lines.push(`|9900|${record}|${finalCounts[record]}|`);
     });
     
-    const countOf9900Records = Object.keys(recordCounts).length;
-    block9Lines.push(`|9900|9900|${countOf9900Records + 3}|`);
-    block9Lines.push('|9900|9990|1|');
-    block9Lines.push('|9900|9999|1|');
+    const countOf9900Records = Object.keys(finalCounts).length;
+    bloco9Lines.push(`|9900|9900|${countOf9900Records + 3}|`); // +3 for 9900, 9990, 9999
+    bloco9Lines.push(`|9900|9990|1|`);
+    bloco9Lines.push(`|9900|9999|1|`);
     
-    const totalLinesInBlock9 = block9Lines.length + 2; 
-    block9Lines.push(`|9990|${totalLinesInBlock9}|`);
+    const totalLinesInBlock9 = bloco9Lines.length + 1; // +1 for 9990 itself
+    bloco9Lines.push(`|9990|${totalLinesInBlock9}|`);
     
-    const totalLinesInFile = lines.length + totalLinesInBlock9;
-    block9Lines.push(`|9999|${totalLinesInFile}|`);
+    const totalLinesInFile = lines.length + totalLinesInBlock9 + 1; // +1 for 9999
+    bloco9Lines.push(`|9999|${totalLinesInFile}|`);
 
-    const finalFileContent = [...lines, ...block9Lines].join('\r\n') + '\r\n';
+    const finalFileContent = [...lines, ...bloco9Lines].join('\r\n') + '\r\n';
 
     const blob = new Blob([finalFileContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
