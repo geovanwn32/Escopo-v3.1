@@ -29,7 +29,12 @@ interface ServiceResult {
 /**
  * Generates the EFD Contribuições TXT file content.
  */
-export async function generateEfdContribuicoesTxt(userId: string, company: Company, period: string): Promise<ServiceResult> {
+export async function generateEfdContribuicoesTxt(
+    userId: string,
+    company: Company,
+    period: string,
+    semMovimento: boolean
+): Promise<ServiceResult> {
     const [monthStr, yearStr] = period.split('/');
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
@@ -37,20 +42,25 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
     const startDate = startOfMonth(new Date(year, month - 1));
     const endDate = endOfMonth(new Date(year, month - 1));
 
-    // --- 1. FETCH DATA ---
-    const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-    const q = query(launchesRef,
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-    );
-    const snapshot = await getDocs(q);
-    const launches = snapshot.docs.map(doc => doc.data() as Launch);
+    let salesLaunches: Launch[] = [];
+    let serviceLaunches: Launch[] = [];
 
-    const salesLaunches = launches.filter(l => l.type === 'saida');
-    const serviceLaunches = launches.filter(l => l.type === 'servico');
+    if (!semMovimento) {
+        // --- 1. FETCH DATA ---
+        const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+        const q = query(launchesRef,
+            where('date', '>=', Timestamp.fromDate(startDate)),
+            where('date', '<=', Timestamp.fromDate(endDate))
+        );
+        const snapshot = await getDocs(q);
+        const launches = snapshot.docs.map(doc => doc.data() as Launch);
 
-    if (salesLaunches.length === 0 && serviceLaunches.length === 0) {
-        return { success: false, message: "Nenhuma nota de saída ou serviço encontrada para o período selecionado." };
+        salesLaunches = launches.filter(l => l.type === 'saida');
+        serviceLaunches = launches.filter(l => l.type === 'servico');
+
+        if (salesLaunches.length === 0 && serviceLaunches.length === 0) {
+            return { success: false, message: "Nenhuma nota de saída ou serviço encontrada para o período selecionado. Se não houve movimento, marque a opção 'Gerar arquivo sem movimento'." };
+        }
     }
 
     // --- 2. BUILD TXT CONTENT ---
@@ -63,7 +73,8 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
     };
 
     // Bloco 0: Abertura, Identificação e Referências
-    addLine(['0000', '018', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', '0']);
+    const hasMovement = salesLaunches.length > 0 || serviceLaunches.length > 0;
+    addLine(['0000', '018', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', hasMovement ? '0' : '1']);
     addLine(['0001', '0']); // 0 = Bloco com dados informados
     addLine(['0100', sanitizeString(company.razaoSocial), company.cnpj, '', '', '', '', '', '', '', '']);
     addLine(['0140', '001', sanitizeString(company.razaoSocial), company.cnpj, company.inscricaoEstadual, '', company.cidade, '', '']);
@@ -106,11 +117,13 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
     const totalRevenue = salesLaunches.reduce((acc, l) => acc + (l.valorTotalNota || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorServicos || 0), 0);
     const totalPis = salesLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0);
     const totalCofins = salesLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
-    addLine(['M001', '0']);
-    addLine(['M200', formatValue(totalPis), '0', '0', '0', '0', '0', formatValue(totalPis)]); // PIS
-    addLine(['M210', '01', formatValue(totalRevenue), '1.65', '0', formatValue(totalPis), '']);
-    addLine(['M600', formatValue(totalCofins), '0', '0', '0', '0', '0', formatValue(totalCofins)]); // COFINS
-    addLine(['M610', '01', formatValue(totalRevenue), '7.60', '0', formatValue(totalCofins), '']);
+    addLine(['M001', hasMovement ? '0' : '1']);
+    if (hasMovement) {
+        addLine(['M200', formatValue(totalPis), '0', '0', '0', '0', '0', formatValue(totalPis)]); // PIS
+        addLine(['M210', '01', formatValue(totalRevenue), '1.65', '0', formatValue(pisValue), '']);
+        addLine(['M600', formatValue(totalCofins), '0', '0', '0', '0', '0', formatValue(totalCofins)]); // COFINS
+        addLine(['M610', '01', formatValue(totalRevenue), '7.60', '0', formatValue(cofinsValue), '']);
+    }
 
     // Bloco 9: Encerramento do Arquivo Digital
     addLine(['9001', '0']);
@@ -130,10 +143,12 @@ export async function generateEfdContribuicoesTxt(userId: string, company: Compa
          addLine(['9900', 'C100', salesLaunches.length]);
     }
     addLine(['9900', 'M001', '1']);
-    addLine(['9900', 'M200', '1']);
-    addLine(['9900', 'M210', '1']);
-    addLine(['9900', 'M600', '1']);
-    addLine(['9900', 'M610', '1']);
+    if (hasMovement) {
+        addLine(['9900', 'M200', '1']);
+        addLine(['9900', 'M210', '1']);
+        addLine(['9900', 'M600', '1']);
+        addLine(['9900', 'M610', '1']);
+    }
     addLine(['9900', '9001', '1']);
     addLine(['9900', '9900', lineCount - 1]); // Total records of 9900
     addLine(['9999', lineCount]); // Total lines in file

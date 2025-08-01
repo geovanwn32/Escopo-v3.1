@@ -11,9 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generateEfdContribuicoesTxt } from "@/services/efd-contribuicoes-service";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function EfdContribuicoesPage() {
     const [period, setPeriod] = useState<string>('');
+    const [semMovimento, setSemMovimento] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
 
@@ -63,10 +65,11 @@ export default function EfdContribuicoesPage() {
 
         setIsGenerating(true);
         try {
-            const result = await generateEfdContribuicoesTxt(user.uid, activeCompany, period);
+            const result = await generateEfdContribuicoesTxt(user.uid, activeCompany, period, semMovimento);
              if (!result.success) {
                 toast({
-                    title: "Nenhum dado encontrado",
+                    variant: "destructive",
+                    title: "Não foi possível gerar o arquivo",
                     description: result.message,
                 });
             }
@@ -102,13 +105,22 @@ export default function EfdContribuicoesPage() {
                             maxLength={7} 
                         />
                     </div>
+                     <div className="flex items-center space-x-2">
+                        <Checkbox id="sem-movimento" checked={semMovimento} onCheckedChange={(checked) => setSemMovimento(Boolean(checked))} />
+                        <label
+                            htmlFor="sem-movimento"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                            Gerar arquivo sem movimento
+                        </label>
+                    </div>
                     <Button onClick={handleGenerateFile} className="w-full" disabled={isGenerating || !activeCompany}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                         Gerar Arquivo TXT
                     </Button>
                 </CardContent>
                  <CardFooter>
-                    <p className="text-xs text-muted-foreground">O arquivo gerado conterá os blocos 0, A, C e M, com base nas notas fiscais de saída e serviços lançadas no sistema.</p>
+                    <p className="text-xs text-muted-foreground">O arquivo gerado conterá os blocos 0, A, C e M, com base nas notas fiscais de saída e serviços lançadas no sistema. Se "sem movimento" for selecionado, os blocos serão gerados vazios.</p>
                 </CardFooter>
             </Card>
         </div>
