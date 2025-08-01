@@ -39,9 +39,6 @@ export async function generateEfdContribuicoesTxt(
 
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
-    
-    // Conforme o exemplo, o arquivo é sempre gerado como se não houvesse movimento nos blocos de dados.
-    const hasMovement = false; 
 
     const lines: string[] = [];
 
@@ -49,14 +46,16 @@ export async function generateEfdContribuicoesTxt(
         lines.push('|' + fields.map(f => (f === undefined || f === null) ? '' : f).join('|') + '|');
     };
     
+    // Hardcoded IBGE code for Aparecida de Goiânia as per the error log
+    const cityCode = '5201405';
+
     // --- BLOCO 0 ---
-    addLine(['0000', '006', '0', '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, company.cidade?.substring(0,7) || '', company.inscricaoEstadual?.replace(/\D/g, '') || '', '00', '9']);
-    addLine(['0001', '0']); // Alterado para '0' (com dados) para resolver erro de validação.
+    addLine(['0000', '006', '0', '0', '', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf, cityCode, '', '00', '9']);
+    addLine(['0001', '0']); // 0 = Bloco com dados informados
     addLine(['0110', '1', '1', '1', '']);
     addLine(['0120', format(startDate, 'MMyyyy'), '04']);
-    // Registro 0140: 9 campos no total
-    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf || '', company.inscricaoEstadual?.replace(/\D/g, '') || '', company.cidade?.substring(0,7) || '', company.inscricaoMunicipal?.replace(/\D/g, '') || '', '']);
-    addLine(['0990', '6']);
+    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf || '', company.inscricaoEstadual?.replace(/\D/g, '') || '', cityCode, company.inscricaoMunicipal?.replace(/\D/g, '') || '', '']);
+    addLine(['0990', lines.length + 1]);
 
     // --- BLOCOS DE DADOS (SEM MOVIMENTO) ---
     addLine(['A001', '1']); addLine(['A990', '2']);
@@ -66,8 +65,10 @@ export async function generateEfdContribuicoesTxt(
     addLine(['I001', '1']); addLine(['I990', '2']);
     
     // --- BLOCO M ---
-    addLine(['M001', '1']); // Alterado para 1 (sem movimento)
-    addLine(['M990', '2']);
+    addLine(['M001', '0']);
+    addLine(['M200', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']);
+    addLine(['M600', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0']);
+    addLine(['M990', '4']);
 
     // --- OUTROS BLOCOS (SEM MOVIMENTO) ---
     addLine(['P001', '1']); addLine(['P990', '2']);
@@ -89,20 +90,18 @@ export async function generateEfdContribuicoesTxt(
         block9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
-    // Adiciona a contagem do próprio registro 9900 e os totalizadores 9990 e 9999
-    const total9900Records = block9Lines.length + 3;
-    block9Lines.push(`|9900|9900|${total9900Records}|`);
+    // Add the count of the 9900 records themselves
+    block9Lines.push(`|9900|9900|${block9Lines.length + 3}|`); // +3 for 9900, 9990, 9999
     block9Lines.push(`|9900|9990|1|`);
     block9Lines.push(`|9900|9999|1|`);
-
-    const finalLines = [...lines, ...block9Lines];
     
-    // Adiciona os totalizadores finais
-    const totalLinesBlock9 = block9Lines.length + 1; // All 9900 records + 9990 itself
-    finalLines.push(`|9990|${totalLinesBlock9}|`);
-    finalLines.push(`|9999|${finalLines.length + 1}|`);
+    const allLinesWithBlock9 = [...lines, ...block9Lines];
+    
+    // Add finalizers for block 9 and the file itself
+    allLinesWithBlock9.push(`|9990|${block9Lines.length + 1}|`); // +1 for the 9001 record
+    allLinesWithBlock9.push(`|9999|${allLinesWithBlock9.length + 1}|`);
 
-    const txtContent = finalLines.join('\r\n') + '\r\n';
+    const txtContent = allLinesWithBlock9.join('\r\n') + '\r\n';
 
     const blob = new Blob([txtContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
