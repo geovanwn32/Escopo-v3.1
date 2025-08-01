@@ -54,7 +54,7 @@ export async function generateEfdContribuicoesTxt(
     addLine(['0001', '0']); // 0 = Bloco com dados informados
     addLine(['0110', '1', '1', '1', '']);
     addLine(['0120', format(startDate, 'MMyyyy'), '04']);
-    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf || '', company.inscricaoEstadual?.replace(/\D/g, '') || '', cityCode, company.inscricaoMunicipal?.replace(/\D/g, '') || '', '']);
+    addLine(['0140', '', sanitizeString(company.razaoSocial), company.cnpj?.replace(/\D/g, ''), company.uf || '', '', cityCode, '', '']);
     addLine(['0990', lines.length + 1]);
 
     // --- BLOCOS DE DADOS (SEM MOVIMENTO) ---
@@ -77,6 +77,7 @@ export async function generateEfdContribuicoesTxt(
     // --- BLOCO 9: ENCERRAMENTO ---
     addLine(['9001', '0']);
     
+    // Final count logic
     const recordCounts: { [key: string]: number } = {};
     lines.forEach(line => {
         const recordType = line.split('|')[1];
@@ -90,18 +91,22 @@ export async function generateEfdContribuicoesTxt(
         block9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
-    // Add the count of the 9900 records themselves
-    block9Lines.push(`|9900|9900|${block9Lines.length + 3}|`); // +3 for 9900, 9990, 9999
+    const countOf9900 = block9Lines.length;
+    
+    // Add the counters for the Block 9 records themselves
+    block9Lines.push(`|9900|9900|${countOf9900 + 3}|`); // Counts itself, 9990, and 9999
     block9Lines.push(`|9900|9990|1|`);
     block9Lines.push(`|9900|9999|1|`);
     
-    const allLinesWithBlock9 = [...lines, ...block9Lines];
+    const allLinesWith9900 = [...lines, ...block9Lines];
     
-    // Add finalizers for block 9 and the file itself
-    allLinesWithBlock9.push(`|9990|${block9Lines.length + 1}|`); // +1 for the 9001 record
-    allLinesWithBlock9.push(`|9999|${allLinesWithBlock9.length + 1}|`);
+    const totalLinesInBlock9 = block9Lines.length + 1; // +1 for the 9001 record
+    allLinesWith9900.push(`|9990|${totalLinesInBlock9}|`);
+    
+    const totalLinesInFile = allLinesWith9900.length + 1; // +1 for the 9999 record itself
+    allLinesWith9900.push(`|9999|${totalLinesInFile}|`);
 
-    const txtContent = allLinesWithBlock9.join('\r\n') + '\r\n';
+    const txtContent = allLinesWith9900.join('\r\n') + '\r\n';
 
     const blob = new Blob([txtContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
