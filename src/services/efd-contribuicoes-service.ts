@@ -3,7 +3,7 @@ import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -37,11 +37,11 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0);
+    // Correctly and safely calculate start and end dates
+    const periodDate = new Date(year, month - 1, 1);
+    const startDate = startOfMonth(periodDate);
+    const endDate = endOfMonth(periodDate);
 
-    let salesLaunches: Launch[] = [];
-    let serviceLaunches: Launch[] = [];
 
     // --- 1. FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
@@ -52,11 +52,10 @@ export async function generateEfdContribuicoesTxt(
     const snapshot = await getDocs(q);
     const launches = snapshot.docs.map(doc => doc.data() as Launch);
 
-    salesLaunches = launches.filter(l => l.type === 'saida');
-    serviceLaunches = launches.filter(l => l.type === 'servico');
+    const salesLaunches = launches.filter(l => l.type === 'saida');
+    const serviceLaunches = launches.filter(l => l.type === 'servico');
 
-    const hasLaunches = salesLaunches.length > 0 || serviceLaunches.length > 0;
-    const hasMovement = hasLaunches && !semMovimento;
+    const hasMovement = (salesLaunches.length > 0 || serviceLaunches.length > 0) && !semMovimento;
 
 
     // --- 2. BUILD TXT CONTENT ---
@@ -89,7 +88,7 @@ export async function generateEfdContribuicoesTxt(
                 'A100', '2', '0', launch.tomador?.cnpj || '', '', '01', '01', '', launch.numeroNfse, launch.chaveNfe || '', formatDate(launch.date as Date), formatDate(launch.date as Date),
                 formatValue(valorTotal), '1', formatValue(valorTotal - pisValue - cofinsValue), '0', formatValue(pisValue), formatValue(cofinsValue), '0', '0', '0'
             ]);
-            addLine(['A170', '1', '', launch.discriminacao, formatValue(valorTotal), '0', '', '01', formatValue(valorTotal), '1.65', formatValue(pisValue), '7.60', formatValue(cofinsValue)]);
+            addLine(['A170', '1', '', launch.discriminacao, formatValue(valorTotal), '0', '', '01', formatValue(valorTotal), '1,65', formatValue(pisValue), '7,60', formatValue(cofinsValue)]);
         });
     }
 
@@ -115,10 +114,10 @@ export async function generateEfdContribuicoesTxt(
         const totalCofins = salesLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
         
         addLine(['M200', formatValue(totalPis), '0', '0', '0', '0', '0', formatValue(totalPis)]); // PIS
-        addLine(['M210', '01', formatValue(totalRevenue), '1.65', '0', formatValue(totalPis), '']);
+        addLine(['M210', '01', formatValue(totalRevenue), '1,65', '0', formatValue(totalPis), '']);
         
         addLine(['M600', formatValue(totalCofins), '0', '0', '0', '0', '0', formatValue(totalCofins)]); // COFINS
-        addLine(['M610', '01', formatValue(totalRevenue), '7.60', '0', formatValue(totalCofins), '']);
+        addLine(['M610', '01', formatValue(totalRevenue), '7,60', '0', formatValue(totalCofins), '']);
     }
 
     // Bloco 9: Encerramento do Arquivo Digital
