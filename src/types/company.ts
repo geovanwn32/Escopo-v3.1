@@ -21,6 +21,7 @@ export interface Company {
     nomeFantasia: string;
     razaoSocial: string;
     cnpj: string;
+    isMatriz?: boolean;
     logradouro?: string;
     numero?: string;
     bairro?: string;
@@ -37,4 +38,3 @@ export interface Company {
     incidenciaTributaria?: string;
     apuracaoPisCofins?: string;
 }
-

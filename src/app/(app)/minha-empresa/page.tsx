@@ -8,11 +8,11 @@ import * as z from "zod";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
@@ -22,12 +22,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
   nomeFantasia: z.string().optional(),
   tipoInscricao: z.enum(['cnpj', 'cpf']),
   inscricao: z.string().min(1, "CNPJ/CPF é obrigatório"),
+  isMatriz: z.boolean().default(true),
   cnaePrincipalCodigo: z.string().optional(),
   cnaePrincipalDescricao: z.string().optional(),
   regimeTributario: z.string().optional(),
@@ -77,6 +79,7 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         nomeFantasia: data.nomeFantasia || "",
         tipoInscricao: data.tipoInscricao || 'cnpj',
         inscricao: data.cnpj || data.inscricao || "",
+        isMatriz: data.isMatriz !== undefined ? data.isMatriz : true,
         cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
         cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
         regimeTributario: data.regimeTributario || "",
@@ -515,6 +518,26 @@ export default function MinhaEmpresaPage() {
                                     </FormItem>
                                 )}
                             />
+                            <FormField
+                                control={form.control}
+                                name="isMatriz"
+                                render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 md:col-span-2">
+                                    <div className="space-y-0.5">
+                                    <FormLabel className="text-base">Estabelecimento Matriz</FormLabel>
+                                    <FormDescription>
+                                        Marque se este CNPJ/CPF corresponde à matriz da empresa.
+                                    </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                    <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                    </FormControl>
+                                </FormItem>
+                                )}
+                            />
                              <FormField
                                 control={form.control}
                                 name="regimeTributario"
@@ -857,4 +880,3 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
-
