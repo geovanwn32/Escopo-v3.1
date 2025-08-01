@@ -6,18 +6,23 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Loader2, FileDigit } from "lucide-react";
+import { FileText, Loader2, FileDigit, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generateEfdContribuicoesTxt } from "@/services/efd-contribuicoes-service";
 import { Checkbox } from "@/components/ui/checkbox";
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import Link from "next/link";
 
 export default function EfdContribuicoesPage() {
     const [period, setPeriod] = useState<string>('');
     const [semMovimento, setSemMovimento] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
+    const [loadingClosures, setLoadingClosures] = useState(true);
 
     const { user } = useAuth();
     const { toast } = useToast();
@@ -40,6 +45,28 @@ export default function EfdContribuicoesPage() {
             }
         }
     }, [user]);
+
+     useEffect(() => {
+        if (!user || !activeCompany) {
+            setLoadingClosures(false);
+            setClosedPeriods([]);
+            return;
+        }
+
+        setLoadingClosures(true);
+        const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
+        const unsubscribe = onSnapshot(closuresRef, (snapshot) => {
+            const periods = snapshot.docs.map(doc => doc.id); // doc.id is 'YYYY-MM'
+            setClosedPeriods(periods);
+            setLoadingClosures(false);
+        }, (error) => {
+            console.error("Error fetching closures: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar períodos fechados" });
+            setLoadingClosures(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, activeCompany, toast]);
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = e.target.value.replace(/\D/g, ''); 
@@ -78,6 +105,10 @@ export default function EfdContribuicoesPage() {
             setIsGenerating(false);
         }
     };
+    
+    const formattedPeriodId = period.split('/').reverse().join('-');
+    const isPeriodClosed = closedPeriods.includes(formattedPeriodId);
+    const isButtonDisabled = isGenerating || !activeCompany || loadingClosures || (!isPeriodClosed && !semMovimento);
 
 
     return (
@@ -112,10 +143,15 @@ export default function EfdContribuicoesPage() {
                             Gerar arquivo sem movimento
                         </label>
                     </div>
-                    <Button onClick={handleGenerateFile} className="w-full" disabled={isGenerating || !activeCompany}>
-                        {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                    <Button onClick={handleGenerateFile} className="w-full" disabled={isButtonDisabled}>
+                        {isGenerating || loadingClosures ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                         Gerar Arquivo TXT
                     </Button>
+                     {!isPeriodClosed && !semMovimento && (
+                        <p className="text-xs text-center text-destructive">
+                            O período <span className="font-bold">{period}</span> precisa ser fechado no <Link href="/fiscal/apuracao" className="underline hover:text-destructive/80">módulo de Apuração</Link> antes de gerar o arquivo.
+                        </p>
+                    )}
                 </CardContent>
                  <CardFooter>
                     <p className="text-xs text-muted-foreground">O arquivo gerado conterá os blocos 0, A, C e M, com base nas notas fiscais de saída e serviços lançadas no sistema. Se "sem movimento" for selecionado, os blocos serão gerados vazios.</p>
