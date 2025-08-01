@@ -23,11 +23,9 @@ export default function EfdContribuicoesPage() {
     const { toast } = useToast();
     
     useEffect(() => {
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
         // Default to the previous month
-        const prevMonthDate = new Date();
-        prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+        const now = new Date();
+        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const prevMonth = prevMonthDate.getMonth() + 1;
         const prevYear = prevMonthDate.getFullYear();
         setPeriod(`${String(prevMonth).padStart(2, '0')}/${prevYear}`);
