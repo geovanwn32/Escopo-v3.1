@@ -17,7 +17,6 @@ const formatDate = (date: Date): string => {
 const sanitizeString = (str: string | undefined | null): string => {
     if (!str) return '';
     // Remove unsupported characters and limit length if necessary.
-    // This is a basic sanitization, a more robust one might be needed.
     return str.replace(/\|/g, '').trim();
 }
 
@@ -64,16 +63,19 @@ export async function generateEfdContribuicoesTxt(
     }
 
     // --- 2. BUILD TXT CONTENT ---
-    let txtContent = '';
-    const EOL = '\r\n'; // End of Line for the file
+    const recordCounts: { [key: string]: number } = {};
+    const lines: string[] = [];
 
-    // Helper to add a line
     const addLine = (fields: (string | number | undefined)[]) => {
-        txtContent += '|' + fields.map(f => (f === undefined || f === null) ? '' : f).join('|') + '|' + EOL;
+        const recordType = fields[0] as string;
+        if (recordType) {
+            recordCounts[recordType] = (recordCounts[recordType] || 0) + 1;
+        }
+        lines.push('|' + fields.map(f => (f === undefined || f === null) ? '' : f).join('|') + '|');
     };
-
+    
     // Bloco 0: Abertura, Identificação e Referências
-    const hasMovement = salesLaunches.length > 0 || serviceLaunches.length > 0;
+    const hasMovement = !semMovimento && (salesLaunches.length > 0 || serviceLaunches.length > 0);
     addLine(['0000', '018', '2', formatDate(startDate), formatDate(endDate), sanitizeString(company.razaoSocial), company.cnpj, company.uf, '', '', '', hasMovement ? '0' : '1']);
     addLine(['0001', '0']); // 0 = Bloco com dados informados
     addLine(['0100', sanitizeString(company.razaoSocial), company.cnpj, '', '', '', '', '', '', '', '']);
@@ -81,8 +83,8 @@ export async function generateEfdContribuicoesTxt(
     addLine(['0500', formatDate(startDate), '01']); // Regime de Competência
 
     // Bloco A: Documentos Fiscais - Serviços (NFS-e)
+    addLine(['A001', serviceLaunches.length > 0 ? '0' : '1']);
     if (serviceLaunches.length > 0) {
-        addLine(['A001', '0']);
         serviceLaunches.forEach(launch => {
             const valorTotal = launch.valorServicos || 0;
             const pisValue = launch.valorPis || 0;
@@ -93,66 +95,47 @@ export async function generateEfdContribuicoesTxt(
             ]);
             addLine(['A170', '1', '', launch.discriminacao, formatValue(valorTotal), '0', '', '01', formatValue(valorTotal), '1.65', formatValue(pisValue), '7.60', formatValue(cofinsValue)]);
         });
-    } else {
-        addLine(['A001', '1']);
     }
 
     // Bloco C: Documentos Fiscais - Mercadorias (NF-e)
+    addLine(['C001', salesLaunches.length > 0 ? '0' : '1']);
     if (salesLaunches.length > 0) {
-        addLine(['C001', '0']);
         salesLaunches.forEach(launch => {
              const valorTotal = launch.valorTotalNota || 0;
-             const pisValue = launch.valorPis || 0; // Assuming PIS/COFINS are calculated elsewhere and stored
+             const pisValue = launch.valorPis || 0;
              const cofinsValue = launch.valorCofins || 0;
              addLine([
                 'C100', '1', '0', launch.destinatario?.cnpj, '55', '00', '01', '', launch.chaveNfe, formatDate(launch.date as Date), formatDate(launch.date as Date),
                  formatValue(valorTotal), '0', '0', formatValue(valorTotal), '9', '0', '0', formatValue(pisValue), formatValue(cofinsValue)
              ]);
         });
-    } else {
-        addLine(['C001', '1']);
     }
     
     // Bloco M: Apuração da Contribuição
-    const totalRevenue = salesLaunches.reduce((acc, l) => acc + (l.valorTotalNota || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorServicos || 0), 0);
-    const totalPis = salesLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0);
-    const totalCofins = salesLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
     addLine(['M001', hasMovement ? '0' : '1']);
     if (hasMovement) {
+        const totalRevenue = salesLaunches.reduce((acc, l) => acc + (l.valorTotalNota || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorServicos || 0), 0);
+        const totalPis = salesLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorPis || 0), 0);
+        const totalCofins = salesLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0) + serviceLaunches.reduce((acc, l) => acc + (l.valorCofins || 0), 0);
+        
         addLine(['M200', formatValue(totalPis), '0', '0', '0', '0', '0', formatValue(totalPis)]); // PIS
-        addLine(['M210', '01', formatValue(totalRevenue), '1.65', '0', formatValue(pisValue), '']);
+        addLine(['M210', '01', formatValue(totalRevenue), '1.65', '0', formatValue(totalPis), '']);
+        
         addLine(['M600', formatValue(totalCofins), '0', '0', '0', '0', '0', formatValue(totalCofins)]); // COFINS
-        addLine(['M610', '01', formatValue(totalRevenue), '7.60', '0', formatValue(cofinsValue), '']);
+        addLine(['M610', '01', formatValue(totalRevenue), '7.60', '0', formatValue(totalCofins), '']);
     }
 
     // Bloco 9: Encerramento do Arquivo Digital
     addLine(['9001', '0']);
-    const lineCount = txtContent.split(EOL).length;
-    addLine(['9900', '0000', '1']);
-    addLine(['9900', '0001', '1']);
-    addLine(['9900', '0100', '1']);
-    addLine(['9900', '0140', '1']);
-    addLine(['9900', '0500', '1']);
-    addLine(['9900', 'A001', '1']);
-    if (serviceLaunches.length > 0) {
-        addLine(['9900', 'A100', serviceLaunches.length]);
-        addLine(['9900', 'A170', serviceLaunches.length]);
-    }
-    addLine(['9900', 'C001', '1']);
-    if (salesLaunches.length > 0) {
-         addLine(['9900', 'C100', salesLaunches.length]);
-    }
-    addLine(['9900', 'M001', '1']);
-    if (hasMovement) {
-        addLine(['9900', 'M200', '1']);
-        addLine(['9900', 'M210', '1']);
-        addLine(['9900', 'M600', '1']);
-        addLine(['9900', 'M610', '1']);
-    }
-    addLine(['9900', '9001', '1']);
-    addLine(['9900', '9900', lineCount - 1]); // Total records of 9900
-    addLine(['9999', lineCount]); // Total lines in file
-    
+    const finalRecordCounts: { [key: string]: number } = {...recordCounts}; // Clone counts before adding 9900 records
+    Object.keys(finalRecordCounts).forEach(record => {
+        addLine(['9900', record, finalRecordCounts[record]]);
+    });
+    addLine(['9900', '9900', Object.keys(finalRecordCounts).length + 2]); // +2 for 9900 and 9999
+    addLine(['9900', '9999', 1]);
+    addLine(['9999', lines.length + 1]); // Total lines in file including this one
+
+    const txtContent = lines.join('\r\n');
 
     // --- 3. CREATE AND DOWNLOAD FILE ---
     const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
