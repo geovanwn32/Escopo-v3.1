@@ -117,8 +117,11 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     if (type === 'servico' && (isNfsePadrao || isNfseAbrasf)) {
         const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
         if (!nfseNode) return {};
+        
+        // Prioritize dCompet for service notes
+        const dateString = querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
+        data.date = new Date(dateString);
 
-        data.date = new Date(querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']));
         data.numeroNfse = querySelectorText(nfseNode, ['Numero', 'nNFSe']);
         data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ', 'vlrServicos']) || '0');
         data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
@@ -177,7 +180,10 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         if (!chave) chave = querySelectorText(xmlDoc, ['chNFe']);
         data.chaveNfe = chave.replace(/\D/g, '');
         
-        data.date = new Date(querySelectorText(infNFeNode, ['dCompet', 'dhProc', 'dhEmi', 'dEmi']));
+        // Prioritize dhProc (protocol date) for merchandise notes
+        const dateString = querySelectorText(infNFeNode, ['dhProc', 'dhEmi', 'dEmi']);
+        data.date = new Date(dateString);
+        
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
 
@@ -391,7 +397,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                     </AccordionContent>
@@ -426,7 +432,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
                     </AccordionContent>
@@ -479,4 +485,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
     </>
   );
 }
-
