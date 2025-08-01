@@ -38,8 +38,9 @@ export async function generateEfdContribuicoesTxt(
     const month = parseInt(monthStr, 10);
     const year = parseInt(yearStr, 10);
 
-    const startDate = startOfMonth(new Date(year, month - 1));
-    const endDate = endOfMonth(new Date(year, month - 1));
+    // Correct and safe way to calculate start and end dates
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0); // Day 0 of next month is the last day of the current month
 
     let salesLaunches: Launch[] = [];
     let serviceLaunches: Launch[] = [];
