@@ -1,18 +1,20 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock, ListChecks } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Separator } from '../ui/separator';
+import { Badge } from '../ui/badge';
 
 interface FiscalClosingModalProps {
   isOpen: boolean;
@@ -29,6 +31,8 @@ type FormData = z.infer<typeof closingSchema>;
 
 export function FiscalClosingModal({ isOpen, onClose, userId, companyId }: FiscalClosingModalProps) {
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const { toast } = useToast();
   
   const form = useForm<FormData>({
@@ -37,6 +41,29 @@ export function FiscalClosingModal({ isOpen, onClose, userId, companyId }: Fisca
         period: '',
     },
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchClosedPeriods = async () => {
+        setListLoading(true);
+        try {
+            const closuresRef = collection(db, `users/${userId}/companies/${companyId}/fiscalClosures`);
+            const q = query(closuresRef, orderBy('closedAt', 'desc'));
+            const snapshot = await getDocs(q);
+            const periods = snapshot.docs.map(doc => doc.id.split('-').reverse().join('/'));
+            setClosedPeriods(periods);
+        } catch (error) {
+            console.error("Erro ao buscar períodos fechados:", error);
+            toast({ variant: 'destructive', title: 'Erro ao listar períodos.' });
+        } finally {
+            setListLoading(false);
+        }
+    };
+    
+    fetchClosedPeriods();
+  }, [isOpen, userId, companyId, toast]);
+
 
   const onSubmit = async (values: FormData) => {
     setLoading(true);
@@ -75,6 +102,33 @@ export function FiscalClosingModal({ isOpen, onClose, userId, companyId }: Fisca
             Insira o período (mês/ano) que deseja fechar. Após o fechamento, os lançamentos deste período não poderão ser alterados ou excluídos.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-2">
+            <h4 className="text-sm font-medium flex items-center gap-2"><ListChecks className="h-4 w-4" /> Períodos Já Fechados</h4>
+             <div className="border rounded-md p-3 text-sm h-28 overflow-y-auto">
+                {listLoading ? (
+                    <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>
+                ) : closedPeriods.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                        {closedPeriods.map(p => (
+                            <Badge 
+                                key={p} 
+                                variant="secondary" 
+                                className="font-mono cursor-pointer hover:bg-muted"
+                                onClick={() => form.setValue('period', p)}
+                            >
+                                {p}
+                            </Badge>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">Nenhum período fechado.</div>
+                )}
+            </div>
+        </div>
+
+        <Separator />
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
