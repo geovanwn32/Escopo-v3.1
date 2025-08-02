@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle, FileText } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle, FileText, Beaker } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -26,6 +27,7 @@ import { AdmissionForm } from "@/components/esocial/admission-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const realisticErrors = [
     "Erro de Validação [CBO]: O código '999999' informado no campo de Código Brasileiro de Ocupação é inválido. Verifique a tabela de CBO.",
@@ -385,7 +387,7 @@ function TabEventosNaoPeriodicos({
             />
 
             {activeCompany && userId && (
-                <EmployeeSelectionModal 
+                <EmployeeSelectionModal
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
@@ -798,9 +800,11 @@ export default function EsocialPage() {
         const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, event.id);
 
         try {
+            // Simulate API call delay
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            const isSuccess = Math.random() > 0.3; 
+            // Simulate a higher success rate (e.g., 80% success)
+            const isSuccess = Math.random() > 0.2; 
             if (isSuccess) {
                 await updateDoc(eventRef, { status: 'success' });
                 toast({ title: 'Consulta de Status: Sucesso!', description: 'O evento foi aceito pelo eSocial.' });
@@ -859,6 +863,14 @@ export default function EsocialPage() {
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
             
+            <Alert variant="destructive">
+                <Beaker className="h-4 w-4" />
+                <AlertTitle>Modo de Simulação Ativo</AlertTitle>
+                <AlertDescription>
+                    Esta tela é uma simulação da comunicação com o eSocial. Os eventos são gerados e armazenados, mas não são transmitidos aos servidores do governo.
+                </AlertDescription>
+            </Alert>
+
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
