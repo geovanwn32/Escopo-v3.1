@@ -334,15 +334,15 @@ function TabEventosNaoPeriodicos({
                                                             <AlertDialogContent>
                                                                 <AlertDialogHeader>
                                                                     <AlertDialogTitle>Detalhes do Erro</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
+                                                                <AlertDialogDescription>
                                                                         {event.errorDetails || "Nenhum detalhe de erro foi fornecido."}
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogAction>Fechar</AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogAction>Fechar</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
                                                     )}
                                                     <DropdownMenuSeparator />
                                                     <AlertDialog>
@@ -891,3 +891,5 @@ export default function EsocialPage() {
     );
 
 }
+
+    
