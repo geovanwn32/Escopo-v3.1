@@ -25,6 +25,7 @@ import type { Admission } from "@/types/admission";
 import { AdmissionForm } from "@/components/esocial/admission-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const realisticErrors = [
     "Erro de Validação [CBO]: O código '999999' informado no campo de Código Brasileiro de Ocupação é inválido. Verifique a tabela de CBO.",
@@ -51,14 +52,16 @@ function TabEventosTabela({
     activeCompany,
     onGenerate,
     isGenerating,
-    actionHandlers
+    actionHandlers,
+    establishmentDataExists
 }: {
     events: EsocialEvent[],
     loading: boolean,
     activeCompany: Company | null,
     onGenerate: (eventType: EsocialEventType, period?: string) => void,
     isGenerating: boolean,
-    actionHandlers: any
+    actionHandlers: any,
+    establishmentDataExists: boolean,
 }) {
     const { isProcessing, isCheckingStatus, handleProcess, handleCheckStatus, handleDelete, handleDownload } = actionHandlers;
 
@@ -80,7 +83,27 @@ function TabEventosTabela({
                     <DropdownMenuContent>
                         <DropdownMenuLabel>Eventos de Tabela</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onGenerate('S-1005')}>S-1005 - Estabelecimentos</DropdownMenuItem>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className={cn(!establishmentDataExists && "cursor-not-allowed")}>
+                                        <DropdownMenuItem 
+                                            onClick={() => establishmentDataExists && onGenerate('S-1005')}
+                                            disabled={!establishmentDataExists}
+                                            className={cn(!establishmentDataExists && "text-muted-foreground")}
+                                        >
+                                            S-1005 - Estabelecimentos
+                                        </DropdownMenuItem>
+                                    </div>
+                                </TooltipTrigger>
+                                {!establishmentDataExists && (
+                                    <TooltipContent>
+                                        <p>Preencha a Ficha do Estabelecimento em 'Minha Empresa'.</p>
+                                    </TooltipContent>
+                                )}
+                            </Tooltip>
+                        </TooltipProvider>
+
                         <DropdownMenuItem onClick={() => onGenerate('S-1010')}>S-1010 - Rubricas</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onGenerate('S-1020')}>S-1020 - Lotações Tributárias</DropdownMenuItem>
                     </DropdownMenuContent>
@@ -591,6 +614,7 @@ export default function EsocialPage() {
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [isCheckingStatus, setIsCheckingStatus] = useState<string | null>(null);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+    const [establishmentDataExists, setEstablishmentDataExists] = useState(false);
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -610,14 +634,16 @@ export default function EsocialPage() {
         if (!user || !activeCompany) {
             setLoading(false);
             setAllEvents([]);
+            setEstablishmentDataExists(false);
             return;
         }
 
         setLoading(true);
+
+        // Fetch eSocial events
         const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
         const q = query(eventsRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const unsubscribeEvents = onSnapshot(q, async (snapshot) => {
             const eventsDataPromises = snapshot.docs.map(async (eventDoc) => {
                 const eventData = eventDoc.data() as EsocialEvent;
                 let relatedDocData = null;
@@ -642,14 +668,28 @@ export default function EsocialPage() {
             
             const resolvedEvents = await Promise.all(eventsDataPromises);
             setAllEvents(resolvedEvents);
-            setLoading(false);
+            if (!establishmentDataExists) setLoading(false);
         }, (error) => {
             console.error("Error fetching eSocial events: ", error);
             toast({ variant: "destructive", title: "Erro ao buscar eventos do eSocial" });
+            if (!establishmentDataExists) setLoading(false);
+        });
+
+        // Fetch establishment data to check for existence
+        const establishmentRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocial`, 'establishment');
+        const unsubscribeEstab = onSnapshot(establishmentRef, (docSnap) => {
+            setEstablishmentDataExists(docSnap.exists());
+            if (allEvents.length > 0 || !docSnap.exists()) setLoading(false);
+        }, (error) => {
+            console.error("Error fetching establishment data:", error);
+            setEstablishmentDataExists(false);
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeEvents();
+            unsubscribeEstab();
+        };
     }, [user, activeCompany, toast]);
 
     useEffect(() => {
@@ -824,6 +864,7 @@ export default function EsocialPage() {
                         onGenerate={handleGenerateEvent}
                         isGenerating={isGenerating}
                         actionHandlers={actionHandlers}
+                        establishmentDataExists={establishmentDataExists}
                     />
                 </TabsContent>
                 <TabsContent value="nao-periodicos">

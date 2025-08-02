@@ -78,7 +78,7 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         razaoSocial: data.razaoSocial || "",
         nomeFantasia: data.nomeFantasia || "",
         tipoInscricao: data.tipoInscricao || 'cnpj',
-        inscricao: data.cnpj || data.inscricao || "",
+        inscricao: data.cnpj || data.cpf || data.inscricao || "",
         isMatriz: data.isMatriz !== undefined ? data.isMatriz : true,
         cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
         cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
@@ -590,6 +590,15 @@ export default function MinhaEmpresaPage() {
                             <FormField control={form.control} name="cnaePrincipalDescricao" render={({ field }) => ( <FormItem><FormLabel>Descrição da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
                             <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><div className="relative"><FormControl><Input {...field} /></FormControl><div className="absolute inset-y-0 right-0 flex items-center pr-3">{loadingSintegra ? ( <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />)}</div></div><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="inscricaoMunicipal" render={({ field }) => ( <FormItem><FormLabel>Inscrição Municipal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Configurações EFD Contribuições</CardTitle>
+                            <CardDescription>Parâmetros para a geração do arquivo EFD Contribuições.</CardDescription>
+                        </CardHeader>
+                         <CardContent className="grid gap-4 md:grid-cols-2">
                             <FormField
                                 control={form.control}
                                 name="incidenciaTributaria"
@@ -839,10 +848,14 @@ export default function MinhaEmpresaPage() {
                     
                     <Card>
                         <CardHeader>
-                            <CardTitle>Segurança e Períodos Fiscais</CardTitle>
-                            <CardDescription>Gerencie o fechamento de períodos fiscais para garantir a integridade dos dados.</CardDescription>
+                            <CardTitle>Configurações eSocial</CardTitle>
+                            <CardDescription>Gerencie dados complementares para o eSocial e períodos fiscais.</CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="flex flex-col gap-4">
+                            <Button type="button" onClick={() => setEstablishmentModalOpen(true)}>
+                                <FileKey className="mr-2 h-4 w-4" />
+                                Preencher Ficha do Estabelecimento (S-1005)
+                            </Button>
                             <Button type="button" variant="destructive" onClick={() => setReopenPeriodModalOpen(true)}>
                                 <KeyRound className="mr-2 h-4 w-4" />
                                 Reabrir Período Fiscal Fechado
