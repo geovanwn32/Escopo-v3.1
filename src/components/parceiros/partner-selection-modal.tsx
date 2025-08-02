@@ -1,12 +1,10 @@
 
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, UserCheck } from 'lucide-react';
 import type { Partner, PartnerType } from '@/types/partner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -16,55 +14,28 @@ interface PartnerSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (partner: Partner) => void;
-  userId: string;
-  companyId: string;
+  partners: Partner[];
   partnerType: PartnerType;
 }
 
-export function PartnerSelectionModal({ isOpen, onClose, onSelect, userId, companyId, partnerType }: PartnerSelectionModalProps) {
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [loading, setLoading] = useState(true);
+export function PartnerSelectionModal({ isOpen, onClose, onSelect, partners, partnerType }: PartnerSelectionModalProps) {
+  const [loading, setLoading] = useState(false); // Loading is now managed by the parent page
   const [searchTerm, setSearchTerm] = useState('');
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchPartners = async () => {
-      if (!userId || !companyId) return;
-      setLoading(true);
-      try {
-        const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
-        // Query only by type, and sort client-side to avoid composite index requirement
-        const q = query(partnersRef, where('type', '==', partnerType));
-        const snapshot = await getDocs(q);
-        const partnersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
-        // Sort the data alphabetically by 'razaoSocial' on the client side
-        partnersData.sort((a, b) => a.razaoSocial.localeCompare(b.razaoSocial));
-        setPartners(partnersData);
-      } catch (error) {
-        console.error("Error fetching partners:", error);
-        toast({ variant: 'destructive', title: "Erro ao buscar parceiros", description: "Não foi possível carregar a lista de parceiros." });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isOpen) {
-      fetchPartners();
-    }
-  }, [isOpen, userId, companyId, partnerType, toast]);
 
   const filteredPartners = useMemo(() => {
-    return partners.filter(partner =>
-      partner.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      partner.cpfCnpj.includes(searchTerm.replace(/\D/g, ''))
-    );
-  }, [partners, searchTerm]);
+    return partners
+      .filter(p => p.type === partnerType)
+      .filter(partner =>
+        partner.razaoSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        partner.cpfCnpj.includes(searchTerm.replace(/\D/g, ''))
+      );
+  }, [partners, searchTerm, partnerType]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Selecionar {partnerType === 'cliente' ? 'Cliente' : 'Parceiro'}</DialogTitle>
+          <DialogTitle>Selecionar {partnerType === 'cliente' ? 'Cliente' : 'Fornecedor'}</DialogTitle>
           <DialogDescription>
             Busque e selecione um parceiro.
           </DialogDescription>

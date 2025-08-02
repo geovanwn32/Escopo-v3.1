@@ -1,9 +1,8 @@
 
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,36 +16,12 @@ interface RubricaSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (rubrica: Rubrica) => void;
-  userId: string;
-  companyId: string;
+  rubricas: Rubrica[];
 }
 
-export function RubricaSelectionModal({ isOpen, onClose, onSelect, userId, companyId }: RubricaSelectionModalProps) {
-  const [rubricas, setRubricas] = useState<Rubrica[]>([]);
-  const [loading, setLoading] = useState(true);
+export function RubricaSelectionModal({ isOpen, onClose, onSelect, rubricas }: RubricaSelectionModalProps) {
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchRubricas = async () => {
-      if (!userId || !companyId) return;
-      setLoading(true);
-      try {
-        const rubricasRef = collection(db, `users/${userId}/companies/${companyId}/rubricas`);
-        const q = query(rubricasRef, orderBy('descricao', 'asc'));
-        const snapshot = await getDocs(q);
-        setRubricas(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Rubrica)));
-      } catch (error) {
-        toast({ variant: 'destructive', title: "Erro ao buscar rubricas", description: "Não foi possível carregar a lista de rubricas." });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isOpen) {
-      fetchRubricas();
-    }
-  }, [isOpen, userId, companyId, toast]);
 
   const filteredRubricas = useMemo(() => {
     return rubricas.filter(rubrica =>

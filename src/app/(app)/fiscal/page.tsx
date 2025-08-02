@@ -26,6 +26,9 @@ import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
 import Link from "next/link";
 import type { Orcamento } from '@/types/orcamento';
 import { generateLaunchPdf } from "@/services/launch-report-service";
+import type { Partner } from "@/types/partner";
+import type { Produto } from "@/types/produto";
+import type { Servico } from "@/types/servico";
 
 interface XmlFile {
   file: {
@@ -118,6 +121,11 @@ export default function FiscalPage() {
   const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   
+  // Data for modals
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [products, setProducts] = useState<Produto[]>([]);
+  const [services, setServices] = useState<Servico[]>([]);
+  
   const [xmlNameFilter, setXmlNameFilter] = useState("");
   const [xmlTypeFilter, setXmlTypeFilter] = useState("");
   const [xmlStatusFilter, setXmlStatusFilter] = useState("");
@@ -166,48 +174,62 @@ export default function FiscalPage() {
         setLaunches([]);
         setOrcamentos([]);
         setClosedPeriods([]);
+        setPartners([]);
+        setProducts([]);
+        setServices([]);
         return;
     };
 
     setLoadingData(true);
-    let activeListeners = 3;
+    let activeListeners = 6; // Increased to 6 for the new collections
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) setLoadingData(false);
     }
     
-    // Listener for launches
-    const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-    const qLaunches = query(launchesRef, orderBy('date', 'desc'));
-    const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
-        const launchesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch));
-        setLaunches(launchesData);
-        onDone();
-    }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos" }); onDone(); });
+    // Generic function to create a listener
+    const createListener = (collectionName: string, setData: (data: any[]) => void, toastTitle: string, idField?: string) => {
+        const ref = collection(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`);
+        const q = query(ref, orderBy(idField === 'id' ? '__name__' : 'date', 'desc'));
 
-    // Listener for orcamentos
-    const orcamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`);
-    const qOrcamentos = query(orcamentosRef, orderBy('createdAt', 'desc'));
-    const unsubscribeOrcamentos = onSnapshot(qOrcamentos, (snapshot) => {
-        const orcamentosData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as Orcamento));
-        setOrcamentos(orcamentosData);
-        onDone();
-    }, (error) => { console.error("Error fetching orcamentos: ", error); toast({ variant: "destructive", title: "Erro ao buscar orçamentos" }); onDone(); });
+        return onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
+                for(const field of dateFields) {
+                    if (docData[field] instanceof Timestamp) {
+                        docData[field] = docData[field].toDate();
+                    }
+                }
+                return { id: doc.id, ...docData };
+            });
+            setData(data);
+            onDone();
+        }, (error) => {
+            console.error(`Error fetching ${collectionName}: `, error);
+            toast({ variant: "destructive", title: toastTitle });
+            onDone();
+        });
+    };
 
-
-    // Listener for fiscal closures
-    const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
-    const unsubscribeClosures = onSnapshot(closuresRef, (snapshot) => {
-        const periods = snapshot.docs.map(doc => doc.id); // doc.id is 'YYYY-MM'
+    const unsubscribes = [
+      createListener('launches', setLaunches, "Erro ao buscar lançamentos", "date"),
+      createListener('orcamentos', setOrcamentos, "Erro ao buscar orçamentos", "createdAt"),
+      createListener('partners', setPartners, "Erro ao buscar parceiros", "razaoSocial"),
+      createListener('produtos', setProducts, "Erro ao buscar produtos", "descricao"),
+      createListener('servicos', setServices, "Erro ao buscar serviços", "descricao"),
+      
+      // Listener for fiscal closures
+      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`), (snapshot) => {
+        const periods = snapshot.docs.map(doc => doc.id);
         setClosedPeriods(periods);
         onDone();
-    }, (error) => { console.error("Error fetching closures: ", error); toast({ variant: "destructive", title: "Erro ao buscar períodos fechados" }); onDone(); });
+      }, (error) => { console.error("Error fetching closures: ", error); toast({ variant: "destructive", title: "Erro ao buscar períodos fechados" }); onDone(); })
+    ];
 
 
     return () => {
-        unsubscribeLaunches();
-        unsubscribeClosures();
-        unsubscribeOrcamentos();
+        unsubscribes.forEach(unsub => unsub());
     };
   }, [activeCompany, user, toast]);
 
@@ -972,6 +994,9 @@ endDate.setHours(23,59,59,999);
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
+            partners={partners}
+            products={products}
+            services={services}
         />
       )}
       {isClosingModalOpen && user && activeCompany && (

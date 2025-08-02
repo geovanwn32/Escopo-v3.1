@@ -18,7 +18,6 @@ import { parse, format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Textarea } from '../ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import type { Produto } from '@/types/produto';
 import { upsertProductsFromLaunch } from '@/services/product-service';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -26,7 +25,8 @@ import { PartnerSelectionModal } from '../parceiros/partner-selection-modal';
 import type { Partner } from '@/types/partner';
 import { upsertPartnerFromLaunch } from '@/services/partner-service';
 import type { Orcamento } from '@/types/orcamento';
-
+import type { Produto } from '@/types/produto';
+import type { Servico } from '@/types/servico';
 
 interface XmlFile {
   file: File;
@@ -46,6 +46,9 @@ interface LaunchFormModalProps {
   userId: string;
   company: Company;
   onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
+  partners: Partner[];
+  products: Produto[];
+  services: Servico[];
 }
 
 const partySchema = z.object({
@@ -118,8 +121,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     let dateObj: Date | undefined = undefined;
 
     if (isNFe) {
-        const dateSelectors = ['protNFe infProt dhRecbto', 'infProt dhRecbto', 'dhProc', 'ide dhEmi', 'dEmi'];
-        dateString = querySelectorText(xmlDoc, dateSelectors);
+        const protNode = xmlDoc.querySelector('protNFe infProt');
+        const dateSelectors = protNode ? ['dhRecbto'] : ['ide dhEmi', 'dEmi'];
+        dateString = querySelectorText(protNode || xmlDoc, dateSelectors);
     } else if (nfseNode) {
         const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
         const dateSelectors = ['dCompet', 'DataEmissao', 'dtEmissao'];
@@ -221,7 +225,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     return data;
 }
 
-export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, manualLaunchType, mode, userId, company, onLaunchSuccess }: LaunchFormModalProps) {
+export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, manualLaunchType, mode, userId, company, onLaunchSuccess, partners, products, services }: LaunchFormModalProps) {
   const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
   const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
@@ -547,6 +551,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
             userId={userId}
             companyId={company.id}
             partnerType={partnerTarget === 'emitente' ? 'fornecedor' : 'cliente'}
+            partners={partners}
         />
     )}
     </>

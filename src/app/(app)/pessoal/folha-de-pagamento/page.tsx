@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -38,7 +39,7 @@ import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-mo
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
-import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payroll } from '@/types/payroll';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -76,12 +77,16 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [isLoading, setIsLoading] = useState(!!payrollId);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [currentPayrollId, setCurrentPayrollId] = useState<string | null>(payrollId);
     const [period, setPeriod] = useState<string>('');
     const [status, setStatus] = useState<Payroll['status']>('draft');
     const [calculationResult, setCalculationResult] = useState<PayrollCalculationResult | null>(null);
+
+    // Data for modals
+    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [rubricas, setRubricas] = useState<Rubrica[]>([]);
 
 
     const { user } = useAuth();
@@ -95,6 +100,8 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                 if (companyDataString) {
                     setActiveCompany(JSON.parse(companyDataString));
                 }
+            } else {
+                 setIsLoading(false);
             }
         }
     }, [user]);
@@ -135,17 +142,40 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
     }, []);
 
     useEffect(() => {
-        const fetchPayroll = async () => {
-            if (!payrollId || !user || !activeCompany) {
-                setIsLoading(false);
-                return;
-            };
+        if (!user || !activeCompany) {
+            setIsLoading(false);
+            return;
+        }
 
+        let isMounted = true;
+        let unsubscribes: (() => void)[] = [];
+
+        const fetchData = async () => {
+            if (!isMounted) return;
             setIsLoading(true);
-            try {
+
+            // Fetch Employees
+            const empRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/employees`);
+            const qEmp = query(empRef, orderBy('nomeCompleto'));
+            const unsubEmployees = onSnapshot(qEmp, (snapshot) => {
+                const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), dataAdmissao: doc.data().dataAdmissao.toDate(), dataNascimento: doc.data().dataNascimento.toDate() } as Employee));
+                setEmployees(data);
+            }, (error) => console.error("Error fetching employees:", error));
+            unsubscribes.push(unsubEmployees);
+
+            // Fetch Rubricas
+            const rubricasRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rubricas`);
+            const qRubricas = query(rubricasRef, orderBy('descricao'));
+            const unsubRubricas = onSnapshot(qRubricas, (snapshot) => {
+                 const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Rubrica));
+                 setRubricas(data);
+            }, (error) => console.error("Error fetching rubricas:", error));
+            unsubscribes.push(unsubRubricas);
+
+            // Fetch specific payroll if ID exists
+            if (payrollId) {
                 const payrollRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`, payrollId);
                 const payrollSnap = await getDoc(payrollRef);
-
                 if (payrollSnap.exists()) {
                     const payrollData = payrollSnap.data() as Payroll;
                     
@@ -169,23 +199,21 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                     if (employeeData) {
                       recalculateAndSetState(payrollData.events, employeeData);
                     }
-
                 } else {
                     toast({ variant: 'destructive', title: 'Folha de pagamento não encontrada.' });
                     router.push('/pessoal/folha-de-pagamento');
                 }
-            } catch (error) {
-                toast({ variant: 'destructive', title: 'Erro ao carregar folha de pagamento.' });
-                console.error(error);
-            } finally {
-                setIsLoading(false);
             }
+             setIsLoading(false);
         };
+        
+        fetchData();
 
-        if (payrollId && user && activeCompany) {
-            fetchPayroll();
-        }
-    }, [payrollId, user, activeCompany, toast, router, recalculateAndSetState]);
+        return () => {
+            isMounted = false;
+            unsubscribes.forEach(unsub => unsub());
+        };
+    }, [user, activeCompany, payrollId, toast, router, recalculateAndSetState]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const sanitizedValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
@@ -534,7 +562,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                     </div>
 
                      <div className="flex justify-between items-center bg-muted p-2 rounded-md">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-sm">
                            <p className="text-sm">0 de 0 Registros</p>
                            <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" disabled><ChevronsLeft className="h-4 w-4"/></Button>
@@ -695,8 +723,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                     isOpen={isRubricaModalOpen}
                     onClose={() => setIsRubricaModalOpen(false)}
                     onSelect={handleAddEvent}
-                    userId={user.uid}
-                    companyId={activeCompany.id}
+                    rubricas={rubricas}
                 />
             )}
 
@@ -705,8 +732,7 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setIsEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
-                    userId={user.uid}
-                    companyId={activeCompany.id}
+                    employees={employees}
                 />
             )}
         </div>

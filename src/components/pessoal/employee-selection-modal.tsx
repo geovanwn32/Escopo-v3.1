@@ -1,9 +1,8 @@
 
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -16,41 +15,12 @@ interface EmployeeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (employee: Employee) => void;
-  userId: string;
-  companyId: string;
+  employees: Employee[];
 }
 
-export function EmployeeSelectionModal({ isOpen, onClose, onSelect, userId, companyId }: EmployeeSelectionModalProps) {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+export function EmployeeSelectionModal({ isOpen, onClose, onSelect, employees }: EmployeeSelectionModalProps) {
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchEmployees = async () => {
-      if (!userId || !companyId) return;
-      setLoading(true);
-      try {
-        const employeesRef = collection(db, `users/${userId}/companies/${companyId}/employees`);
-        const q = query(employeesRef, orderBy('nomeCompleto', 'asc'));
-        const snapshot = await getDocs(q);
-        setEmployees(snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            dataAdmissao: doc.data().dataAdmissao.toDate(),
-            dataNascimento: doc.data().dataNascimento.toDate(),
-        } as Employee)));
-      } catch (error) {
-        toast({ variant: 'destructive', title: "Erro ao buscar funcionários", description: "Não foi possível carregar a lista de funcionários." });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isOpen) {
-      fetchEmployees();
-    }
-  }, [isOpen, userId, companyId, toast]);
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(employee =>
@@ -65,7 +35,7 @@ export function EmployeeSelectionModal({ isOpen, onClose, onSelect, userId, comp
         <DialogHeader>
           <DialogTitle>Selecionar Funcionário</DialogTitle>
           <DialogDescription>
-            Busque e selecione um funcionário para calcular a folha.
+            Busque e selecione um funcionário.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
