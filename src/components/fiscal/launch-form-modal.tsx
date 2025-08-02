@@ -111,26 +111,34 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     const data: Partial<FormData> = {};
     
     const isNFe = xmlDoc.querySelector('infNFe');
-    const nfseNode = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta, InfNfse');
-    
-    // --- Intelligent Date Extraction Logic ---
-    let dateString = '';
-    if (isNFe) {
-        // For NF-e, prioritize protocol date, then emission date.
-        dateString = querySelectorText(xmlDoc, ['protNFe infProt dhRecbto', 'infProt dhRecbto', 'dhProc', 'ide dhEmi', 'dEmi']);
-    } else if (nfseNode) {
-        // For NFS-e, prioritize competence date, then emission date.
-        const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
-        dateString = querySelectorText(serviceNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
-    }
+    const nfseNode = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta');
 
+    // --- Intelligent Date Extraction Logic ---
+    let dateString: string | null = null;
+    let dateObj: Date | undefined = undefined;
+
+    if (isNFe) {
+        const dateSelectors = ['protNFe infProt dhRecbto', 'infProt dhRecbto', 'dhProc', 'ide dhEmi', 'dEmi'];
+        dateString = querySelectorText(xmlDoc, dateSelectors);
+    } else if (nfseNode) {
+        const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
+        const dateSelectors = ['dCompet', 'DataEmissao', 'dtEmissao'];
+        dateString = querySelectorText(serviceNode, dateSelectors);
+    }
+    
     if (dateString) {
-        // Attempt to parse the date, handling different potential formats including timezone info.
-        const parsedDate = new Date(dateString);
-        if (isValid(parsedDate)) {
-          data.date = parsedDate;
+        // Handle timezone by removing it, so JavaScript parses it as local time
+        const cleanDateString = dateString.split('T')[0]; // Get only the YYYY-MM-DD part
+        const tempDate = new Date(cleanDateString);
+        // Adjust for timezone offset to prevent day-before errors
+        const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
+        const adjustedDate = new Date(tempDate.getTime() + timezoneOffset);
+
+        if (isValid(adjustedDate)) {
+          dateObj = adjustedDate;
         }
     }
+    data.date = dateObj;
 
 
     if (type === 'servico' && nfseNode) {
@@ -407,28 +415,32 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="date" render={({ field }) => {
+                            <FormField
+                                control={form.control}
+                                name="date"
+                                render={({ field }) => {
                                 const dateValue = field.value;
                                 const formattedDate = dateValue && isValid(new Date(dateValue)) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
                                 return (
                                     <FormItem>
-                                        <FormLabel>Data</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="date"
-                                                value={formattedDate}
-                                                onChange={e => {
-                                                     const newDate = new Date(e.target.value);
-                                                     // Adjust for timezone offset
-                                                     const timezoneOffset = newDate.getTimezoneOffset() * 60000;
-                                                     field.onChange(new Date(newDate.getTime() + timezoneOffset));
-                                                }}
-                                                readOnly={isReadOnly}
-                                            />
-                                        </FormControl>
+                                    <FormLabel>Data</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                        type="date"
+                                        value={formattedDate}
+                                        onChange={(e) => {
+                                            const newDate = new Date(e.target.value);
+                                            // Adjust for timezone offset to prevent day-before errors
+                                            const timezoneOffset = newDate.getTimezoneOffset() * 60000;
+                                            field.onChange(new Date(newDate.getTime() + timezoneOffset));
+                                        }}
+                                        readOnly={isReadOnly}
+                                        />
+                                    </FormControl>
                                     </FormItem>
                                 );
-                            }} />
+                                }}
+                            />
                         </div>
                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                     </AccordionContent>
@@ -463,27 +475,31 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="date" render={({ field }) => {
+                             <FormField
+                                control={form.control}
+                                name="date"
+                                render={({ field }) => {
                                 const dateValue = field.value;
                                 const formattedDate = dateValue && isValid(new Date(dateValue)) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
                                 return (
                                     <FormItem>
-                                        <FormLabel>Data</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="date"
-                                                value={formattedDate}
-                                                onChange={e => {
-                                                     const newDate = new Date(e.target.value);
-                                                     const timezoneOffset = newDate.getTimezoneOffset() * 60000;
-                                                     field.onChange(new Date(newDate.getTime() + timezoneOffset));
-                                                }}
-                                                readOnly={isReadOnly}
-                                            />
-                                        </FormControl>
+                                    <FormLabel>Data</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                        type="date"
+                                        value={formattedDate}
+                                        onChange={(e) => {
+                                            const newDate = new Date(e.target.value);
+                                            const timezoneOffset = newDate.getTimezoneOffset() * 60000;
+                                            field.onChange(new Date(newDate.getTime() + timezoneOffset));
+                                        }}
+                                        readOnly={isReadOnly}
+                                        />
+                                    </FormControl>
                                     </FormItem>
                                 );
-                            }} />
+                                }}
+                            />
                              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
                     </AccordionContent>
