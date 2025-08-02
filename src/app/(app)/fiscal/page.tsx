@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
 import Link from "next/link";
 import type { Orcamento } from '@/types/orcamento';
+import { generateLaunchPdf } from "@/services/launch-report-service";
 
 interface XmlFile {
   file: {
@@ -352,6 +353,18 @@ export default function FiscalPage() {
     setOrcamentoToLaunch(null);
     setIsModalOpen(true);
   };
+  
+  const handleGeneratePdf = (launch: Launch) => {
+    if (!activeCompany) {
+      toast({ variant: 'destructive', title: 'Empresa não selecionada' });
+      return;
+    }
+    try {
+      generateLaunchPdf(company!, launch);
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
+    }
+  }
 
   const handleEditLaunch = (launch: Launch) => {
     setModalMode('edit');
@@ -891,9 +904,13 @@ endDate.setHours(23,59,59,999);
                                             </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => handleGeneratePdf(launch)}>
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                Visualizar PDF
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => handleViewLaunch(launch)}>
                                                 <Eye className="mr-2 h-4 w-4" />
-                                                Visualizar
+                                                Visualizar Detalhes
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => handleEditLaunch(launch)}>
                                                 <Pencil className="mr-2 h-4 w-4" />
