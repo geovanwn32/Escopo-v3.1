@@ -111,38 +111,47 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     const data: Partial<FormData> = {};
     
     const isNFe = xmlDoc.querySelector('infNFe');
-    const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
-    const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta, CompNfse');
+    const nfseNode = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta, InfNfse');
+    
+    // --- Date Extraction Logic ---
+    let dateString = '';
+    if (isNFe) {
+        // NF-e: Prioritize authorization date (dhProc), then emission date (dhEmi)
+        dateString = querySelectorText(xmlDoc, ['protNFe infProt dhRecbto', 'infProt dhRecbto', 'dhProc', 'ide dhEmi', 'dEmi']);
+    } else if (nfseNode) {
+        // NFS-e: Prioritize competence date (dCompet), then emission date
+        dateString = querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
+    }
 
-    if (type === 'servico' && (isNfsePadrao || isNfseAbrasf)) {
-        const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
-        if (!nfseNode) return {};
-        
-        // Prioritize dCompet for service notes
-        const dateString = querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
+    if (dateString) {
         data.date = new Date(dateString);
+    }
 
-        data.numeroNfse = querySelectorText(nfseNode, ['Numero', 'nNFSe']);
-        data.valorServicos = parseFloat(querySelectorText(nfseNode, ['ValorServicos', 'vServ', 'vlrServicos']) || '0');
-        data.valorLiquido = parseFloat(querySelectorText(nfseNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
-        data.discriminacao = querySelectorText(nfseNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']);
+
+    if (type === 'servico' && nfseNode) {
+        const servicoNode = nfseNode.querySelector('InfNfse') || nfseNode;
         
-        let itemLc = querySelectorText(nfseNode, ['ItemListaServico', 'cServico']);
+        data.numeroNfse = querySelectorText(servicoNode, ['Numero', 'nNFSe']);
+        data.valorServicos = parseFloat(querySelectorText(servicoNode, ['ValorServicos', 'vServ', 'vlrServicos']) || '0');
+        data.valorLiquido = parseFloat(querySelectorText(servicoNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
+        data.discriminacao = querySelectorText(servicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']);
+        
+        let itemLc = querySelectorText(servicoNode, ['ItemListaServico', 'cServico']);
         if (!itemLc) {
-            const cTribNac = querySelectorText(nfseNode, ['cTribNac']);
+            const cTribNac = querySelectorText(servicoNode, ['cTribNac']);
             if (cTribNac) {
                 itemLc = cTribNac.substring(0, 4);
             }
         }
         data.itemLc116 = itemLc;
         
-        data.valorPis = parseFloat(querySelectorText(nfseNode, ['ValorPis', 'vPIS']) || '0');
-        data.valorCofins = parseFloat(querySelectorText(nfseNode, ['ValorCofins', 'vCOFINS']) || '0');
-        data.valorIr = parseFloat(querySelectorText(nfseNode, ['ValorIr', 'vIR']) || '0');
-        data.valorInss = parseFloat(querySelectorText(nfseNode, ['ValorInss', 'vINSS']) || '0');
-        data.valorCsll = parseFloat(querySelectorText(nfseNode, ['ValorCsll', 'vCSLL']) || '0');
+        data.valorPis = parseFloat(querySelectorText(servicoNode, ['ValorPis', 'vPIS']) || '0');
+        data.valorCofins = parseFloat(querySelectorText(servicoNode, ['ValorCofins', 'vCOFINS']) || '0');
+        data.valorIr = parseFloat(querySelectorText(servicoNode, ['ValorIr', 'vIR']) || '0');
+        data.valorInss = parseFloat(querySelectorText(servicoNode, ['ValorInss', 'vINSS']) || '0');
+        data.valorCsll = parseFloat(querySelectorText(servicoNode, ['ValorCsll', 'vCSLL']) || '0');
 
-        const prestadorNode = nfseNode.querySelector('PrestadorServico, Prestador, prest');
+        const prestadorNode = servicoNode.querySelector('PrestadorServico, Prestador, prest');
         if (prestadorNode) {
             data.prestador = {
                 nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome', 'xNome']),
@@ -150,7 +159,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
             };
         }
 
-        const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
+        const tomadorNode = servicoNode.querySelector('TomadorServico, Tomador, toma');
         if (tomadorNode) {
             data.tomador = {
                 nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome', 'xNome']),
@@ -179,10 +188,6 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         let chave = infNFeNode ? infNFeNode.getAttribute('Id') || '' : '';
         if (!chave) chave = querySelectorText(xmlDoc, ['chNFe']);
         data.chaveNfe = chave.replace(/\D/g, '');
-        
-        // Prioritize dhProc (protocol date) for merchandise notes
-        const dateString = querySelectorText(infNFeNode, ['dhProc', 'dhEmi', 'dEmi']);
-        data.date = new Date(dateString);
         
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
@@ -399,7 +404,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                             <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                             <FormField control={form.control} name="date" render={({ field }) => {
                                 const dateValue = field.value;
-                                const formattedDate = dateValue && isValid(dateValue) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
+                                const formattedDate = dateValue && isValid(new Date(dateValue)) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
                                 return (
                                     <FormItem>
                                         <FormLabel>Data</FormLabel>
@@ -407,7 +412,12 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                                             <Input
                                                 type="date"
                                                 value={formattedDate}
-                                                onChange={e => field.onChange(new Date(e.target.value))}
+                                                onChange={e => {
+                                                     const newDate = new Date(e.target.value);
+                                                     // Adjust for timezone offset
+                                                     const timezoneOffset = newDate.getTimezoneOffset() * 60000;
+                                                     field.onChange(new Date(newDate.getTime() + timezoneOffset));
+                                                }}
                                                 readOnly={isReadOnly}
                                             />
                                         </FormControl>
@@ -450,7 +460,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                         <div className="grid grid-cols-2 gap-4">
                              <FormField control={form.control} name="date" render={({ field }) => {
                                 const dateValue = field.value;
-                                const formattedDate = dateValue && isValid(dateValue) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
+                                const formattedDate = dateValue && isValid(new Date(dateValue)) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
                                 return (
                                     <FormItem>
                                         <FormLabel>Data</FormLabel>
@@ -458,7 +468,11 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                                             <Input
                                                 type="date"
                                                 value={formattedDate}
-                                                onChange={e => field.onChange(new Date(e.target.value))}
+                                                onChange={e => {
+                                                     const newDate = new Date(e.target.value);
+                                                     const timezoneOffset = newDate.getTimezoneOffset() * 60000;
+                                                     field.onChange(new Date(newDate.getTime() + timezoneOffset));
+                                                }}
                                                 readOnly={isReadOnly}
                                             />
                                         </FormControl>
