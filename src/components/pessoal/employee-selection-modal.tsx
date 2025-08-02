@@ -19,10 +19,10 @@ interface EmployeeSelectionModalProps {
 }
 
 export function EmployeeSelectionModal({ isOpen, onClose, onSelect, employees }: EmployeeSelectionModalProps) {
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredEmployees = useMemo(() => {
+    if (!employees) return [];
     return employees.filter(employee =>
       employee.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
       employee.cpf.includes(searchTerm)
@@ -50,41 +50,37 @@ export function EmployeeSelectionModal({ isOpen, onClose, onSelect, employees }:
             </div>
 
             <div className="border rounded-md max-h-[50vh] overflow-y-auto">
-                {loading ? (
-                    <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin" /></div>
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Cargo</TableHead>
-                                <TableHead className="text-right">Ação</TableHead>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Cargo</TableHead>
+                            <TableHead className="text-right">Ação</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredEmployees.length > 0 ? (
+                            filteredEmployees.map(employee => (
+                            <TableRow key={employee.id}>
+                                <TableCell className="font-medium">{employee.nomeCompleto}</TableCell>
+                                <TableCell>{employee.cargo}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button size="sm" onClick={() => onSelect(employee)}>
+                                        <UserCheck className="mr-2 h-4 w-4"/>
+                                        Selecionar
+                                    </Button>
+                                </TableCell>
                             </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredEmployees.length > 0 ? (
-                                filteredEmployees.map(employee => (
-                                <TableRow key={employee.id}>
-                                    <TableCell className="font-medium">{employee.nomeCompleto}</TableCell>
-                                    <TableCell>{employee.cargo}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button size="sm" onClick={() => onSelect(employee)}>
-                                            <UserCheck className="mr-2 h-4 w-4"/>
-                                            Selecionar
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={3} className="h-24 text-center">
-                                    Nenhum funcionário encontrado.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                )}
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={3} className="h-24 text-center">
+                                Nenhum funcionário encontrado.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
             </div>
         </div>
       </DialogContent>

@@ -214,13 +214,15 @@ function TabEventosNaoPeriodicos({
     loading,
     activeCompany,
     userId,
-    actionHandlers
+    actionHandlers,
+    employees,
 }: {
     events: EsocialEvent[],
     loading: boolean,
     activeCompany: Company | null,
     userId: string | undefined,
-    actionHandlers: any
+    actionHandlers: any,
+    employees: Employee[],
 }) {
     const [isEmployeeModalOpen, setEmployeeModalOpen] = useState(false);
     const [admissionType, setAdmissionType] = useState<'S-2200' | 'S-2190' | null>(null);
@@ -387,8 +389,7 @@ function TabEventosNaoPeriodicos({
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
-                    userId={userId}
-                    companyId={activeCompany.id}
+                    employees={employees}
                 />
             )}
              {activeCompany && userId && selectedEmployee && (
@@ -609,6 +610,7 @@ export default function EsocialPage() {
     const [tableEvents, setTableEvents] = useState<EsocialEvent[]>([]);
     const [admissionEvents, setAdmissionEvents] = useState<EsocialEvent[]>([]);
     const [periodicEvents, setPeriodicEvents] = useState<EsocialEvent[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
@@ -635,10 +637,16 @@ export default function EsocialPage() {
             setLoading(false);
             setAllEvents([]);
             setEstablishmentDataExists(false);
+            setEmployees([]);
             return;
         }
 
         setLoading(true);
+        let activeListeners = 3;
+        const onDone = () => {
+            activeListeners--;
+            if (activeListeners === 0) setLoading(false);
+        }
 
         // Fetch eSocial events
         const eventsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`);
@@ -668,27 +676,54 @@ export default function EsocialPage() {
             
             const resolvedEvents = await Promise.all(eventsDataPromises);
             setAllEvents(resolvedEvents);
-            if (!establishmentDataExists) setLoading(false);
+            onDone();
         }, (error) => {
             console.error("Error fetching eSocial events: ", error);
             toast({ variant: "destructive", title: "Erro ao buscar eventos do eSocial" });
-            if (!establishmentDataExists) setLoading(false);
+            onDone();
         });
 
         // Fetch establishment data to check for existence
         const establishmentRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocial`, 'establishment');
         const unsubscribeEstab = onSnapshot(establishmentRef, (docSnap) => {
             setEstablishmentDataExists(docSnap.exists());
-            if (allEvents.length > 0 || !docSnap.exists()) setLoading(false);
+            onDone();
         }, (error) => {
             console.error("Error fetching establishment data:", error);
             setEstablishmentDataExists(false);
-            setLoading(false);
+            onDone();
+        });
+
+        // Fetch employees
+        const employeesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/employees`);
+        const employeesQuery = query(employeesRef, orderBy('nomeCompleto', 'asc'));
+        const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
+            const employeesData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const dependentes = (data.dependentes || []).map((dep: any) => ({
+                    ...dep,
+                    dataNascimento: (dep.dataNascimento as Timestamp)?.toDate()
+                }));
+                return {
+                    id: doc.id,
+                    ...data,
+                    dataNascimento: (data.dataNascimento as Timestamp)?.toDate(),
+                    dataAdmissao: (data.dataAdmissao as Timestamp)?.toDate(),
+                    dependentes,
+                } as Employee;
+            });
+            setEmployees(employeesData);
+            onDone();
+        }, (error) => {
+            console.error("Error fetching employees:", error);
+            toast({ variant: "destructive", title: "Erro ao buscar funcionários" });
+            onDone();
         });
 
         return () => {
             unsubscribeEvents();
             unsubscribeEstab();
+            unsubscribeEmployees();
         };
     }, [user, activeCompany, toast]);
 
@@ -874,6 +909,7 @@ export default function EsocialPage() {
                         activeCompany={activeCompany}
                         userId={user?.uid}
                         actionHandlers={actionHandlers}
+                        employees={employees}
                      />
                 </TabsContent>
                 <TabsContent value="periodicos">
@@ -891,5 +927,3 @@ export default function EsocialPage() {
     );
 
 }
-
-    
