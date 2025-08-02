@@ -397,7 +397,23 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="date" render={({ field }) => {
+                                const dateValue = field.value;
+                                const formattedDate = dateValue && isValid(dateValue) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
+                                return (
+                                    <FormItem>
+                                        <FormLabel>Data</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="date"
+                                                value={formattedDate}
+                                                onChange={e => field.onChange(new Date(e.target.value))}
+                                                readOnly={isReadOnly}
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                );
+                            }} />
                         </div>
                         <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                     </AccordionContent>
@@ -432,7 +448,23 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionContent className="space-y-4 px-1">
                         <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
-                             <FormField control={form.control} name="date" render={({ field }) => ( <FormItem><FormLabel>Data</FormLabel><FormControl><Input type="date" value={field.value ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={e => field.onChange(new Date(e.target.value))} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                             <FormField control={form.control} name="date" render={({ field }) => {
+                                const dateValue = field.value;
+                                const formattedDate = dateValue && isValid(dateValue) ? format(new Date(dateValue), 'yyyy-MM-dd') : '';
+                                return (
+                                    <FormItem>
+                                        <FormLabel>Data</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="date"
+                                                value={formattedDate}
+                                                onChange={e => field.onChange(new Date(e.target.value))}
+                                                readOnly={isReadOnly}
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                );
+                            }} />
                              <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
                     </AccordionContent>
