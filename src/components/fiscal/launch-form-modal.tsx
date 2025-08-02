@@ -113,18 +113,23 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     const isNFe = xmlDoc.querySelector('infNFe');
     const nfseNode = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta, InfNfse');
     
-    // --- Date Extraction Logic ---
+    // --- Intelligent Date Extraction Logic ---
     let dateString = '';
     if (isNFe) {
-        // NF-e: Prioritize authorization date (dhProc), then emission date (dhEmi)
+        // For NF-e, prioritize protocol date, then emission date.
         dateString = querySelectorText(xmlDoc, ['protNFe infProt dhRecbto', 'infProt dhRecbto', 'dhProc', 'ide dhEmi', 'dEmi']);
     } else if (nfseNode) {
-        // NFS-e: Prioritize competence date (dCompet), then emission date
-        dateString = querySelectorText(nfseNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
+        // For NFS-e, prioritize competence date, then emission date.
+        const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
+        dateString = querySelectorText(serviceNode, ['dCompet', 'DataEmissao', 'dtEmissao']);
     }
 
     if (dateString) {
-        data.date = new Date(dateString);
+        // Attempt to parse the date, handling different potential formats including timezone info.
+        const parsedDate = new Date(dateString);
+        if (isValid(parsedDate)) {
+          data.date = parsedDate;
+        }
     }
 
 
