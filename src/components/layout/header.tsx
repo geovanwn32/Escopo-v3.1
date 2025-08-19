@@ -21,7 +21,7 @@ import { useSidebar } from "../ui/sidebar";
 export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any; onSwitchCompany: () => void; }) {
   const { user } = useAuth();
   const router = useRouter();
-  const { setOpen } = useSidebar();
+  const { open, setOpen } = useSidebar();
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -32,13 +32,13 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
   return (
     <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-card px-4 sm:px-6">
        <div className="flex items-center gap-2">
-            <Menu className="h-6 w-6 md:hidden cursor-pointer" onClick={() => setOpen(true)} />
-            <Button variant="outline" size="sm" onClick={onSwitchCompany}>
-                <Repeat className="mr-2 h-4 w-4" />
-                Trocar Empresa
-            </Button>
+            <Menu className="h-6 w-6 cursor-pointer" onClick={() => setOpen(!open)} />
         </div>
       <div className="flex flex-1 items-center justify-end gap-4">
+         <Button variant="outline" size="sm" onClick={onSwitchCompany} className="hidden sm:inline-flex">
+            <Repeat className="mr-2 h-4 w-4" />
+            Trocar Empresa
+        </Button>
         <div className="text-right hidden sm:block">
             <p className="font-semibold text-sm">{activeCompany?.nomeFantasia || "Nenhuma empresa selecionada"}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
@@ -56,6 +56,10 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
             <DropdownMenuItem onClick={() => router.push('/minha-empresa')}>
               <Settings className="mr-2 h-4 w-4" />
               Minha Empresa
+            </DropdownMenuItem>
+             <DropdownMenuItem onClick={onSwitchCompany}>
+              <Repeat className="mr-2 h-4 w-4" />
+              Trocar Empresa
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
