@@ -88,16 +88,13 @@ export const DesktopSidebar = ({
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar();
+  const { open, animate } = useSidebar();
   return (
     <motion.div
       className={cn(
-        "h-full px-2 py-4 hidden md:flex md:flex-col bg-sidebar border-r flex-shrink-0",
-        "fixed top-0 left-0 z-20", 
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-sidebar-DEFAULT border-r border-sidebar-border z-40",
         className
       )}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
       animate={{
         width: animate ? (open ? "16rem" : "3.75rem") : "16rem",
       }}
@@ -135,7 +132,7 @@ export const MobileSidebar = ({
                 ease: "easeInOut",
               }}
               className={cn(
-                "fixed h-full w-64 inset-0 bg-card p-4 z-50 flex flex-col justify-between md:hidden",
+                "fixed h-full w-64 inset-y-0 left-0 bg-sidebar-DEFAULT border-r border-sidebar-border p-4 z-50 flex flex-col justify-between md:hidden",
                 className
               )}
             >
@@ -163,7 +160,7 @@ export const SidebarLink = ({
   className?: string;
   props?: LinkProps;
 }) => {
-  const { open, animate } = useSidebar();
+  const { open } = useSidebar();
   const pathname = usePathname();
   const isActive = link.href && pathname.startsWith(link.href);
 

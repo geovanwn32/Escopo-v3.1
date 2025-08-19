@@ -30,9 +30,17 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
   };
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-card px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
        <div className="flex items-center gap-2">
-            <Menu className="h-6 w-6 cursor-pointer md:hidden" onClick={() => setOpen(!open)} />
+            <Button
+              variant="outline"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setOpen(!open)}
+            >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Menu</span>
+            </Button>
         </div>
       <div className="flex flex-1 items-center justify-end gap-4">
          <Button variant="outline" size="sm" onClick={onSwitchCompany} className="hidden sm:inline-flex">

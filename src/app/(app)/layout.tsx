@@ -28,8 +28,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { open } = useSidebar();
-
   useEffect(() => {
     if (authLoading) return;
 
@@ -82,7 +80,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   
   if (authLoading || loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
@@ -91,16 +89,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   return (
       <div className="flex min-h-screen w-full bg-background">
         <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
-        <div className={cn(
-          "flex flex-1 flex-col transition-[padding-left] duration-300 ease-in-out",
-          open ? "md:pl-64" : "md:pl-[60px]"
-        )}>
+        <div className="flex flex-1 flex-col">
           <Header
             activeCompany={activeCompany}
             onSwitchCompany={() => setCompanyModalOpen(true)}
           />
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            {children}
+            <div className="mx-auto w-full max-w-none">
+              {children}
+            </div>
           </main>
         </div>
         {user && (
