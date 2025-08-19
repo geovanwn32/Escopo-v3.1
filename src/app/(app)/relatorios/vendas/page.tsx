@@ -13,10 +13,9 @@ import { generateSalesReportPdf } from "@/services/sales-report-service";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import { addDays, startOfMonth } from "date-fns";
 
 
 export default function VendasReportPage() {
@@ -61,6 +60,18 @@ export default function VendasReportPage() {
             toast({ variant: 'destructive', title: 'Erro ao gerar relatório', description: (error as Error).message });
         } finally {
             setIsGenerating(false);
+        }
+    };
+    
+    const setDatePreset = (preset: 'currentMonth' | 'lastMonth' | 'currentYear') => {
+        const now = new Date();
+        if (preset === 'currentMonth') {
+            setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        } else if (preset === 'lastMonth') {
+            const lastMonth = subMonths(now, 1);
+            setDateRange({ from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) });
+        } else if (preset === 'currentYear') {
+            setDateRange({ from: startOfYear(now), to: endOfYear(now) });
         }
     };
 
@@ -121,6 +132,11 @@ export default function VendasReportPage() {
                             />
                             </PopoverContent>
                         </Popover>
+                         <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="ghost" onClick={() => setDatePreset('currentMonth')}>Este Mês</Button>
+                            <Button variant="ghost" onClick={() => setDatePreset('lastMonth')}>Mês Anterior</Button>
+                             <Button variant="ghost" onClick={() => setDatePreset('currentYear')}>Este Ano</Button>
+                        </div>
                     </div>
                     <Button onClick={handleGenerateReport} className="w-full" disabled={isGenerating || !activeCompany}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
