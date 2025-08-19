@@ -88,14 +88,16 @@ export const DesktopSidebar = ({
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
-  const { open, animate } = useSidebar();
+  const { open, setOpen, animate } = useSidebar();
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-sidebar dark:bg-neutral-800 flex-shrink-0",
+        "h-full px-2 py-4 hidden md:flex md:flex-col bg-sidebar border-r flex-shrink-0",
         "fixed top-0 left-0 z-20", 
         className
       )}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
       animate={{
         width: animate ? (open ? "16rem" : "3.75rem") : "16rem",
       }}
@@ -116,27 +118,36 @@ export const MobileSidebar = ({
     <>
       <AnimatePresence>
         {open && (
-          <motion.div
-            initial={{ x: "-100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "-100%", opacity: 0 }}
-            transition={{
-              duration: 0.3,
-              ease: "easeInOut",
-            }}
-            className={cn(
-              "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-[100] flex flex-col justify-between md:hidden",
-              className
-            )}
-          >
-            <div
-              className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 cursor-pointer"
-              onClick={() => setOpen(!open)}
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 z-40 md:hidden"
+              onClick={() => setOpen(false)}
+            />
+            <motion.div
+              initial={{ x: "-100%", opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "-100%", opacity: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: "easeInOut",
+              }}
+              className={cn(
+                "fixed h-full w-64 inset-0 bg-card p-4 z-50 flex flex-col justify-between md:hidden",
+                className
+              )}
             >
-              <X />
-            </div>
-            {children}
-          </motion.div>
+              <div
+                className="absolute right-2 top-2 z-50 text-foreground cursor-pointer"
+                onClick={() => setOpen(!open)}
+              >
+                <X className="h-5 w-5" />
+              </div>
+              {children}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>
@@ -154,26 +165,31 @@ export const SidebarLink = ({
 }) => {
   const { open, animate } = useSidebar();
   const pathname = usePathname();
-  const isActive = link.href && pathname === link.href;
+  const isActive = link.href && pathname.startsWith(link.href);
 
   const content = (
     <>
       {link.icon}
-      <motion.span
-        animate={{
-          display: animate ? (open ? "inline-block" : "none") : "inline-block",
-          opacity: animate ? (open ? 1 : 0) : 1,
-        }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0 ml-2"
-      >
-        {link.label}
-      </motion.span>
+      <AnimatePresence>
+        {open && (
+          <motion.span
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0, transition: { delay: 0.2 } }}
+            exit={{ opacity: 0, x: -10 }}
+            className="text-sidebar-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0 ml-2"
+          >
+            {link.label}
+          </motion.span>
+        )}
+      </AnimatePresence>
     </>
   );
 
   const commonClasses = cn(
-    "flex items-center justify-start gap-2 group/sidebar py-2 w-full",
-    isActive ? "text-primary font-semibold" : "text-sidebar-foreground",
+    "flex items-center justify-start gap-2 group/sidebar py-2 px-3 my-1 w-full rounded-lg",
+    isActive 
+        ? "bg-primary text-primary-foreground font-semibold" 
+        : "text-sidebar-foreground hover:bg-muted",
     className
   );
 

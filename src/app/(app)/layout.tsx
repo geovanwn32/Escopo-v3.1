@@ -89,17 +89,17 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-      <div className="flex min-h-screen w-full bg-neutral-100 dark:bg-neutral-800">
+      <div className="flex min-h-screen w-full bg-background">
         <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
         <div className={cn(
-          "flex flex-1 flex-col overflow-hidden transition-[padding-left] duration-300 ease-in-out",
+          "flex flex-1 flex-col transition-[padding-left] duration-300 ease-in-out",
           open ? "md:pl-64" : "md:pl-[60px]"
         )}>
           <Header
             activeCompany={activeCompany}
             onSwitchCompany={() => setCompanyModalOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             {children}
           </main>
         </div>
