@@ -92,15 +92,10 @@ export const DesktopSidebar = ({
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0",
-        "fixed top-0 left-0 z-20", // Added for fixed positioning
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[60px] flex-shrink-0",
+        "fixed top-0 left-0 z-20", 
         className
       )}
-      animate={{
-        width: animate ? (open ? "300px" : "60px") : "300px",
-      }}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
       {...props}
     >
       {children}
@@ -167,23 +162,23 @@ export const SidebarLink = ({
   className?: string;
   props?: LinkProps;
 }) => {
-  const { open, animate } = useSidebar();
+  const { open } = useSidebar();
   const pathname = usePathname();
   const isActive = link.href && pathname === link.href;
 
   const content = (
-      <>
+      <div className={cn("flex items-center", !open && "justify-center")}>
           {link.icon}
           <motion.span
               animate={{
-                  display: animate ? (open ? "inline-block" : "none") : "inline-block",
-                  opacity: animate ? (open ? 1 : 0) : 1,
+                  display: open ? "inline-block" : "none",
+                  opacity: open ? 1 : 0,
               }}
-              className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+              className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0 ml-2"
           >
               {link.label}
           </motion.span>
-      </>
+      </div>
   );
 
   const commonClasses = cn(

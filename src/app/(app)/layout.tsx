@@ -93,7 +93,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
         <div className={cn(
           "flex flex-1 flex-col overflow-hidden transition-[padding-left]",
-          open ? "md:pl-[300px]" : "md:pl-[60px]"
+          "md:pl-[60px]"
         )}>
           <Header
             activeCompany={activeCompany}

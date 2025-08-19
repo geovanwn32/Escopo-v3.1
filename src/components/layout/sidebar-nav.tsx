@@ -124,9 +124,6 @@ const LogoIcon = () => {
        <div className="h-8 w-8 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
         <BookCheck className="h-6 w-6 text-white" />
       </div>
-      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 mt-1">
-        Escopo
-      </span>
     </Link>
   );
 };
@@ -141,7 +138,7 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
     <Sidebar>
       <SidebarBody className="justify-between gap-10">
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="p-2">
+          <div className="p-2 flex items-center justify-center">
             {open ? <Logo /> : <LogoIcon />}
           </div>
           <div className="mt-8 flex flex-col gap-2">
@@ -166,17 +163,6 @@ export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any,
               </div>
             ))}
           </div>
-        </div>
-        <div>
-           <SidebarLink
-              link={{
-                label: activeCompany?.nomeFantasia || 'N/A',
-                href: "/minha-empresa",
-                icon: (
-                   <Building2 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-                ),
-              }}
-            />
         </div>
       </SidebarBody>
     </Sidebar>
