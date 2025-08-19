@@ -38,62 +38,99 @@ import {
   Landmark,
   FileDigit,
   Scale,
+  Upload,
+  ClipboardList,
+  FileSignature,
+  ArrowUpRightSquare,
+  ArrowDownLeftSquare,
+  LineChart,
+  Gift,
+  SendToBack,
+  UserMinus,
 } from "lucide-react"
-import { useAuth } from "@/lib/auth"
 
-const ADMIN_COMPANY_CNPJ = '00000000000000';
-
-const menuGroups = [
-  {
-    section: "Principal",
-    items: [
-      { href: "/dashboard", icon: <LayoutDashboard className="h-5 w-5 flex-shrink-0" />, label: "Dashboard" },
-      { href: "/fiscal", icon: <FileStack className="h-5 w-5 flex-shrink-0" />, label: "Módulo Fiscal" },
-      { href: "/pessoal", icon: <Users className="h-5 w-5 flex-shrink-0" />, label: "Módulo Pessoal" },
-      { href: "/contabil", icon: <BookCopy className="h-5 w-5 flex-shrink-0" />, label: "Módulo Contábil" },
-      { href: "/financeiro", icon: <Landmark className="h-5 w-5 flex-shrink-0" />, label: "Módulo Financeiro" },
-    ],
-  },
-  {
-    section: "Cadastros",
-    items: [
-      { href: "/parceiros", icon: <Handshake className="h-5 w-5 flex-shrink-0" />, label: "Parceiros" },
-      { href: "/funcionarios", icon: <UserCog className="h-5 w-5 flex-shrink-0" />, label: "Funcionários" },
-      { href: "/socios", icon: <Briefcase className="h-5 w-5 flex-shrink-0" />, label: "Sócios" },
-      { href: "/produtos", icon: <Package className="h-5 w-5 flex-shrink-0" />, label: "Produtos" },
-      { href: "/servicos", icon: <Wrench className="h-5 w-5 flex-shrink-0" />, label: "Serviços" },
-      { href: "/aliquotas", icon: <Percent className="h-5 w-5 flex-shrink-0" />, label: "Alíquotas" },
-      { href: "/rubricas", icon: <FileText className="h-5 w-5 flex-shrink-0" />, label: "Rubricas" },
-      { href: "/fichas", icon: <BookUser className="h-5 w-5 flex-shrink-0" />, label: "Fichas" },
-    ],
-  },
-  {
-    section: "Conectividade",
-    items: [
-        { href: "/esocial", icon: <Share2 className="h-5 w-5 flex-shrink-0" />, label: "eSocial" },
-        { href: "/pgdas", icon: <Calculator className="h-5 w-5 flex-shrink-0" />, label: "PGDAS" },
-        { href: "/efd-contribuicoes", icon: <FileDigit className="h-5 w-5 flex-shrink-0" />, label: "EFD Contribuições" },
-        { href: "/fiscal/apuracao", icon: <Scale className="h-5 w-5 flex-shrink-0" />, label: "Apuração" },
-    ],
-  },
-   {
-    section: "Utilitários",
-    items: [
-        { href: "/utilitarios/eventos", icon: <Calendar className="h-5 w-5 flex-shrink-0" />, label: "Agenda" },
-        { href: "/utilitarios/links", icon: <LinkIcon className="h-5 w-5 flex-shrink-0" />, label: "Links Úteis" },
-        { href: "/utilitarios/arquivos", icon: <Archive className="h-5 w-5 flex-shrink-0" />, label: "Arquivos" },
-    ],
-  },
-  {
-    section: "Sistema",
-    items: [
-      { href: "/relatorios", icon: <BarChart3 className="h-5 w-5 flex-shrink-0" />, label: "Relatórios" },
-      { href: "/minha-empresa", icon: <Building2 className="h-5 w-5 flex-shrink-0" />, label: "Minha Empresa" },
-      { href: "/configuracoes", icon: <Settings className="h-5 w-5 flex-shrink-0" />, label: "Configurações" },
-      { href: "/admin", icon: <Shield className="h-5 w-5 flex-shrink-0" />, label: "Admin", adminOnly: true },
-    ],
-  },
+const fiscalLinks = [
+    { href: "/fiscal/orcamento", icon: <FileSignature />, label: "Orçamentos" },
+    { href: "/fiscal", icon: <FileStack />, label: "Lançamentos Fiscais" },
+    { href: "/fiscal/apuracao", icon: <Scale />, label: "Apuração de Impostos" },
+    { href: "/fiscal/inventario", icon: <ClipboardList />, label: "Processar Inventário" },
+    { href: "/fiscal/calculo-inventario", icon: <Calculator />, label: "Calcular Inventário" },
 ];
+
+const pessoalLinks = [
+    { href: "/pessoal/folha-de-pagamento", icon: <ClipboardList />, label: "Folha de Pagamento" },
+    { href: "/pessoal/rci", icon: <FileText />, label: "RCI (Pró-labore)" },
+    { href: "/pessoal/decimo-terceiro", icon: <Gift />, label: "13º Salário" },
+    { href: "/pessoal/ferias", icon: <SendToBack />, label: "Férias" },
+    { href: "/pessoal/rescisao", icon: <UserMinus />, label: "Rescisão" },
+    { href: "/pessoal/resumo-folha", icon: <BookUser />, label: "Resumo da Folha" },
+];
+
+const contabilLinks = [
+    { href: "/contabil/plano-de-contas", icon: <BookCopy />, label: "Plano de Contas" },
+    { href: "/contabil/lancamentos", icon: <FileText />, label: "Lançamentos" },
+    { href: "/contabil/importacao-extrato", icon: <Upload />, label: "Importar Extrato (IA)" },
+    { href: "/contabil/conciliacao", icon: <Scale />, label: "Conciliação" },
+    { href: "/contabil/relatorios-contabeis", icon: <BarChart3 />, label: "Relatórios Contábeis" },
+];
+
+const financeiroLinks = [
+    { href: "/financeiro/contas-a-receber", icon: <ArrowUpRightSquare />, label: "Contas a Receber" },
+    { href: "/financeiro/contas-a-pagar", icon: <ArrowDownLeftSquare />, label: "Contas a Pagar" },
+    { href: "/financeiro/fluxo-de-caixa", icon: <LineChart />, label: "Fluxo de Caixa" },
+    { href: "/financeiro/conciliacao", icon: <Scale />, label: "Conciliação Bancária" },
+];
+
+const cadastroLinks = [
+    { href: "/parceiros", icon: <Handshake />, label: "Parceiros" },
+    { href: "/funcionarios", icon: <UserCog />, label: "Funcionários" },
+    { href: "/socios", icon: <Briefcase />, label: "Sócios" },
+    { href: "/produtos", icon: <Package />, label: "Produtos" },
+    { href: "/servicos", icon: <Wrench />, label: "Serviços" },
+    { href: "/aliquotas", icon: <Percent />, label: "Alíquotas" },
+    { href: "/rubricas", icon: <FileText />, label: "Rubricas" },
+    { href: "/fichas", icon: <BookUser />, label: "Fichas" },
+];
+
+const conectividadeLinks = [
+    { href: "/esocial", icon: <Share2 />, label: "eSocial" },
+    { href: "/pgdas", icon: <Calculator />, label: "PGDAS" },
+    { href: "/efd-contribuicoes", icon: <FileDigit />, label: "EFD Contribuições" },
+];
+
+const utilitariosLinks = [
+    { href: "/utilitarios/eventos", icon: <Calendar />, label: "Agenda" },
+    { href: "/utilitarios/links", icon: <LinkIcon />, label: "Links Úteis" },
+    { href: "/utilitarios/arquivos", icon: <Archive />, label: "Arquivos" },
+];
+
+const sistemaLinks = [
+    { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
+    { href: "/minha-empresa", icon: <Building2 />, label: "Minha Empresa" },
+    { href: "/configuracoes", icon: <Settings />, label: "Configurações" },
+    { href: "/admin", icon: <Shield />, label: "Admin", adminOnly: true },
+];
+
+export const mainNavLinks = [
+  { href: "/fiscal", icon: <FileStack />, label: "Fiscal" },
+  { href: "/pessoal", icon: <Users />, label: "Pessoal" },
+  { href: "/contabil", icon: <BookCopy />, label: "Contábil" },
+  { href: "/financeiro", icon: <Landmark />, label: "Financeiro" },
+  { href: "/parceiros", icon: <Handshake />, label: "Cadastros" },
+];
+
+const getLinksForPath = (pathname: string) => {
+    if (pathname.startsWith('/fiscal')) return { title: 'Fiscal', links: fiscalLinks };
+    if (pathname.startsWith('/pessoal')) return { title: 'Pessoal', links: pessoalLinks };
+    if (pathname.startsWith('/contabil')) return { title: 'Contábil', links: contabilLinks };
+    if (pathname.startsWith('/financeiro')) return { title: 'Financeiro', links: financeiroLinks };
+    if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes')) return { title: 'Conectividade', links: conectividadeLinks };
+    if (pathname.startsWith('/parceiros') || pathname.startsWith('/funcionarios') || pathname.startsWith('/socios') || pathname.startsWith('/produtos') || pathname.startsWith('/servicos') || pathname.startsWith('/aliquotas') || pathname.startsWith('/rubricas') || pathname.startsWith('/fichas')) return { title: 'Cadastros', links: cadastroLinks };
+    if (pathname.startsWith('/utilitarios')) return { title: 'Utilitários', links: utilitariosLinks };
+    if (pathname.startsWith('/relatorios') || pathname.startsWith('/minha-empresa') || pathname.startsWith('/configuracoes') || pathname.startsWith('/admin')) return { title: 'Sistema', links: sistemaLinks };
+    return { title: 'Navegação', links: [] };
+}
+
 
 const Logo = () => {
   return (
@@ -115,56 +152,39 @@ const Logo = () => {
   );
 };
 
-const LogoIcon = () => {
-  return (
-    <Link
-      href="/dashboard"
-      className="font-normal flex flex-col items-center justify-center text-sm text-black py-1 relative z-20"
-    >
-       <div className="h-8 w-8 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0 flex items-center justify-center">
-        <BookCheck className="h-6 w-6 text-white" />
-      </div>
-    </Link>
-  );
-};
 
+export function SidebarNav({ onHelpClick }: { onHelpClick: () => void }) {
+  const pathname = usePathname();
+  const { title, links } = getLinksForPath(pathname);
 
-export function SidebarNav({ activeCompany, onHelpClick }: { activeCompany: any, onHelpClick: () => void }) {
-  const { open } = useSidebar();
-
-  const isAdminCompany = activeCompany?.cnpj === ADMIN_COMPANY_CNPJ;
+  if (links.length === 0) {
+      return null; // Don't render sidebar for dashboard or unhandled routes
+  }
 
   return (
     <Sidebar>
-      <SidebarBody className="justify-between gap-10">
+      <SidebarBody className="justify-between">
         <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="p-2 flex items-center justify-center">
-            {open ? <Logo /> : <LogoIcon />}
+          <div className="p-4">
+             <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
           </div>
-          <div className="mt-8 flex flex-col gap-2">
-            {menuGroups.map((group) => (
-              <div key={group.section} className="px-2">
-                {open && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.section}</span>}
-                {group.items.map((link) => {
-                  if (link.adminOnly && !isAdminCompany) {
-                    return null;
-                  }
-                  return <SidebarLink key={link.label} link={link} />
-                })}
-                 {group.section === 'Sistema' && (
-                    <SidebarLink
-                      link={{
-                        label: 'Ajuda',
-                        onClick: onHelpClick,
-                        icon: <LifeBuoy className="h-5 w-5 flex-shrink-0" />,
-                      }}
-                    />
-                 )}
-              </div>
+          <div className="mt-4 flex flex-col gap-2 px-2">
+            {links.map((link) => (
+              <SidebarLink key={link.label} link={link} />
             ))}
           </div>
+        </div>
+        <div className="p-2 border-t">
+             <SidebarLink
+                link={{
+                label: 'Ajuda e Suporte',
+                onClick: onHelpClick,
+                icon: <LifeBuoy className="h-5 w-5 flex-shrink-0" />,
+                }}
+            />
         </div>
       </SidebarBody>
     </Sidebar>
   );
 }
+

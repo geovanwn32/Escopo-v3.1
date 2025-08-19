@@ -2,8 +2,9 @@
 "use client";
 
 import { signOut } from "firebase/auth";
-import { LogOut, Repeat, UserCircle, Settings, Menu } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -16,11 +17,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "../ui/sidebar";
-
+import { cn } from "@/lib/utils";
+import { mainNavLinks } from "./sidebar-nav"; // Import main navigation links
 
 export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any; onSwitchCompany: () => void; }) {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { open, setOpen } = useSidebar();
 
   const handleLogout = async () => {
@@ -30,17 +33,37 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
        <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
-              className="md:hidden"
+              className="md:hidden" // Only show on mobile
               onClick={() => setOpen(!open)}
             >
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">Toggle Menu</span>
             </Button>
+            <nav className="hidden items-center gap-2 text-sm font-medium md:flex">
+                <Link href="/dashboard" className={cn("flex items-center gap-2 rounded-md px-3 py-2 transition-colors", pathname.startsWith('/dashboard') ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                    <LayoutDashboard className="h-4 w-4"/> Dashboard
+                </Link>
+                {mainNavLinks.map((link) => (
+                     <Link
+                        key={link.label}
+                        href={link.href}
+                        className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
+                        pathname.startsWith(link.href)
+                            ? "bg-muted text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                    >
+                        {link.icon && React.cloneElement(link.icon, { className: 'h-4 w-4' })}
+                        {link.label}
+                    </Link>
+                ))}
+            </nav>
         </div>
       <div className="flex flex-1 items-center justify-end gap-4">
          <Button variant="outline" size="sm" onClick={onSwitchCompany} className="hidden sm:inline-flex">

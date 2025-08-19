@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
-import { SidebarProvider, useSidebar } from '@/components/ui/sidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Header } from '@/components/layout/header';
 import { useAuth } from '@/lib/auth';
@@ -13,7 +13,6 @@ import { CompanySelectionModal } from '@/components/company-selection-modal';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { HelpModal } from '@/components/layout/help-modal';
-import { cn } from '@/lib/utils';
 import type { AppUser } from '@/types/user';
 
 
@@ -87,8 +86,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-      <div className="flex min-h-screen w-full bg-background">
-        <SidebarNav activeCompany={activeCompany} onHelpClick={() => setIsHelpModalOpen(true)} />
+      <div className="flex min-h-screen w-full">
+        <SidebarNav onHelpClick={() => setIsHelpModalOpen(true)} />
         <div className="flex flex-1 flex-col">
           <Header
             activeCompany={activeCompany}
