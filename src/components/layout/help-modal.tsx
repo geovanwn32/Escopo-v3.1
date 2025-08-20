@@ -9,13 +9,14 @@ import { useAuth } from '@/lib/auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { LifeBuoy, Mail, ExternalLink, Send, Loader2 } from 'lucide-react';
+import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User } from 'lucide-react';
 import Link from 'next/link';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '../ui/form';
 import type { Company } from '@/types/company';
-import { createSupportTicket } from '@/services/ticket-service';
+import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
+import ReactMarkdown from 'react-markdown';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -24,9 +25,13 @@ interface HelpModalProps {
 }
 
 const messageSchema = z.object({
-  problemLocation: z.string().min(1, 'O local do problema é obrigatório.'),
-  description: z.string().min(10, 'A descrição deve ter pelo menos 10 caracteres.'),
+  question: z.string().min(1, 'Digite sua pergunta.'),
 });
+
+interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -36,49 +41,31 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   const form = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
     defaultValues: {
-      problemLocation: '',
-      description: '',
+      question: '',
     },
   });
 
   const onSubmit = async (values: z.infer<typeof messageSchema>) => {
-    if (!user || !activeCompany) {
-      toast({ variant: 'destructive', title: "Erro", description: "Usuário ou empresa não identificada." });
-      return;
-    }
     setLoading(true);
+    const userMessage: ChatMessage = { role: 'user', content: values.question };
+    setChatHistory(prev => [...prev, userMessage]);
+    form.reset();
     
     try {
-      const ticketNumber = await createSupportTicket({
-        requesterName: user.displayName || user.email || 'Usuário Anônimo',
-        requesterUid: user.uid,
-        requesterCompanyId: activeCompany.id,
-        requesterCompanyName: activeCompany.nomeFantasia,
-        problemLocation: values.problemLocation,
-        description: values.description,
-      });
-      
-      toast({
-        title: "Chamado Aberto com Sucesso!",
-        description: `Seu ticket de suporte nº ${ticketNumber} foi registrado.`,
-      });
-      setSubmitted(true);
-      form.reset();
+      const result = await askSupportAssistant({ question: values.question });
+      const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
+      setChatHistory(prev => [...prev, assistantMessage]);
     } catch(error) {
-       console.error("Error creating ticket:", error);
-       toast({
-        variant: "destructive",
-        title: "Erro ao Abrir Chamado",
-        description: "Não foi possível registrar sua solicitação. Tente novamente.",
-      });
+       console.error("Error asking assistant:", error);
+       const errorMessage: ChatMessage = { role: 'assistant', content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.' };
+       setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -87,11 +74,8 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const handleClose = () => {
     onClose();
     setTimeout(() => {
-        setSubmitted(false);
-        form.reset({
-             problemLocation: '',
-             description: '',
-        });
+        setChatHistory([]);
+        form.reset();
     }, 300);
   };
 
@@ -105,31 +89,48 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             Central de Ajuda e Suporte
           </DialogTitle>
           <DialogDescription>
-            Precisa de ajuda? Abra um chamado de suporte detalhando o seu problema.
+            Faça uma pergunta ao nosso assistente de IA ou entre em contato com o suporte.
           </DialogDescription>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-            <div className="space-y-4">
-                <h3 className="font-semibold">Abrir Chamado de Suporte</h3>
-                {submitted ? (
-                     <div className="flex flex-col items-center justify-center text-center p-8 space-y-4 h-full bg-muted rounded-lg">
-                        <Mail className="h-12 w-12 text-green-500" />
-                        <h3 className="text-xl font-bold">Chamado Enviado!</h3>
-                        <p className="text-muted-foreground">Obrigado pelo seu contato. Nossa equipe analisará sua solicitação em breve.</p>
-                    </div>
-                ) : (
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                             <FormField control={form.control} name="problemLocation" render={({ field }) => (<FormItem><FormLabel>Onde ocorre o problema?</FormLabel><FormControl><Input {...field} placeholder="Ex: Módulo Fiscal > Lançamentos" /></FormControl><FormMessage /></FormItem> )} />
-                             <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Descrição do Problema</FormLabel><FormControl><Textarea rows={6} {...field} placeholder="Descreva o problema em detalhes. Se houver alguma mensagem de erro, por favor, inclua aqui." /></FormControl><FormMessage /></FormItem> )} />
-                             <Button type="submit" disabled={loading || !activeCompany} className="w-full">
-                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
-                                Enviar Chamado
+            <div className="space-y-4 flex flex-col">
+                <h3 className="font-semibold flex items-center gap-2"><Bot /> Assistente Virtual</h3>
+                <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4">
+                     {chatHistory.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                            <p>Faça uma pergunta sobre o sistema.</p>
+                            <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
+                        </div>
+                     ) : (
+                        chatHistory.map((msg, index) => (
+                            <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                                {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
+                                <div className={`prose prose-sm max-w-full rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                                {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
+                            </div>
+                        ))
+                     )}
+                     {loading && (
+                        <div className="flex items-start gap-3">
+                           <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
+                           <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin"/>
+                            <span>Pensando...</span>
+                           </div>
+                        </div>
+                     )}
+                </ScrollArea>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-2">
+                            <FormField control={form.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} /></FormControl><FormMessage /></FormItem> )} />
+                            <Button type="submit" disabled={loading} size="icon">
+                                <Send className="h-4 w-4"/>
                             </Button>
-                        </form>
-                    </Form>
-                )}
+                    </form>
+                </Form>
             </div>
              <div className="space-y-4">
                 <h3 className="font-semibold">Recursos Úteis</h3>
