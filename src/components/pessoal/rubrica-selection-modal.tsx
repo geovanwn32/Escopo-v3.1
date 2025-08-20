@@ -24,6 +24,7 @@ export function RubricaSelectionModal({ isOpen, onClose, onSelect, rubricas }: R
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredRubricas = useMemo(() => {
+    if (!rubricas) return []; // Retorna um array vazio se rubricas for undefined
     return rubricas.filter(rubrica =>
       rubrica.descricao.toLowerCase().includes(searchTerm.toLowerCase()) ||
       rubrica.codigo.toLowerCase().includes(searchTerm.toLowerCase())
@@ -98,3 +99,4 @@ export function RubricaSelectionModal({ isOpen, onClose, onSelect, rubricas }: R
     </Dialog>
   );
 }
+
