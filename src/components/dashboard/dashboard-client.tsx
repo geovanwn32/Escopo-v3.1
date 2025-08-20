@@ -22,9 +22,10 @@ import {
   PieChart,
   Users,
   Plane,
+  Bot
 } from "lucide-react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -38,6 +39,8 @@ import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "../utilitarios/event-form-modal"
 import { Button } from "../ui/button"
 import type { Vacation } from "@/types/vacation"
+import { analyzeFinancials, type FinancialAnalystInput, type FinancialAnalystOutput } from "@/ai/flows/financial-analyst-flow"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 
 interface Launch {
   id: string;
@@ -90,13 +93,15 @@ export function DashboardClientWrapper() {
 function DashboardClient() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const [activeCompany, setActiveCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [launches, setLaunches] = useState<Launch[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [vacations, setVacations] = useState<Vacation[]>([]);
+  const [financialAnalysis, setFinancialAnalysis] = useState<string | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(true);
 
 
   // Calendar State
@@ -119,13 +124,17 @@ function DashboardClient() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const companyId = sessionStorage.getItem('activeCompanyId');
-      setActiveCompanyId(companyId);
+      const companyDataString = companyId ? sessionStorage.getItem(`company_${companyId}`) : null;
+      if (companyDataString) {
+          setActiveCompany(JSON.parse(companyDataString));
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (!user || !activeCompanyId) {
+    if (!user || !activeCompany?.id) {
       setLoading(false);
+      setLoadingAnalysis(false);
       setLaunches([]);
       setEmployeesCount(0);
       setProductsCount(0);
@@ -136,11 +145,11 @@ function DashboardClient() {
 
     setLoading(true);
 
-    const launchesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/launches`), orderBy('date', 'desc'));
-    const employeesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/employees`), where('ativo', '==', true));
-    const productsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/produtos`));
-    const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/events`), orderBy('date', 'asc'));
-    const vacationsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompanyId}/vacations`), where('startDate', '>=', startOfDay(new Date())));
+    const launchesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`), orderBy('date', 'desc'));
+    const employeesQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/employees`), where('ativo', '==', true));
+    const productsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`));
+    const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/events`), orderBy('date', 'asc'));
+    const vacationsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`), where('startDate', '>=', startOfDay(new Date())));
 
     const unsubscribes = [
       onSnapshot(launchesQuery, (snapshot) => {
@@ -166,7 +175,7 @@ function DashboardClient() {
     Promise.all(unsubscribes.map(unsub => new Promise(res => setTimeout(res, 0)))).finally(() => setLoading(false));
 
     return () => unsubscribes.forEach(unsub => unsub());
-  }, [user, activeCompanyId, toast]);
+  }, [user, activeCompany, toast]);
 
   const { totalEntradas, totalSaidas, chartData } = useMemo(() => {
     let totalEntradas = 0;
@@ -206,6 +215,35 @@ function DashboardClient() {
 
     return { totalEntradas, totalSaidas, chartData: newChartData };
   }, [launches]);
+  
+  const getFinancialAnalysis = useCallback(async () => {
+    if (!activeCompany || chartData.length === 0 || chartData.every(d => d.entradas === 0 && d.saidas === 0)) {
+        setLoadingAnalysis(false);
+        return;
+    }
+    setLoadingAnalysis(true);
+    try {
+        const input: FinancialAnalystInput = {
+            companyName: activeCompany.nomeFantasia,
+            data: chartData,
+        };
+        const result = await analyzeFinancials(input);
+        setFinancialAnalysis(result.analysis);
+    } catch (error) {
+        console.error("Error fetching financial analysis:", error);
+        setFinancialAnalysis(null);
+    } finally {
+        setLoadingAnalysis(false);
+    }
+  }, [activeCompany, chartData]);
+
+  useEffect(() => {
+    // Fetch analysis only when chartData is populated and company is set
+    if (!loading && activeCompany) {
+        getFinancialAnalysis();
+    }
+  }, [loading, activeCompany, getFinancialAnalysis]);
+
 
   const stats: StatCard[] = [
     { title: "Total de Entradas (Receitas)", amount: formatCurrency(totalEntradas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
@@ -271,6 +309,33 @@ function DashboardClient() {
           </Card>
         ))}
       </div>
+      
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Bot className="h-6 w-6 text-primary" />
+                    Análise Financeira com IA
+                </CardTitle>
+                 <CardDescription>Resumo inteligente da saúde financeira da sua empresa nos últimos meses.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {loadingAnalysis ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Analisando dados financeiros...</span>
+                    </div>
+                ) : financialAnalysis ? (
+                    <Alert>
+                        <AlertTitle>Insight Rápido</AlertTitle>
+                        <AlertDescription>
+                            {financialAnalysis}
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                    <p className="text-sm text-muted-foreground">Não há dados suficientes para gerar uma análise. Adicione lançamentos de entrada e saída para começar.</p>
+                )}
+            </CardContent>
+        </Card>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <div className="col-span-4 flex flex-col gap-6">
@@ -378,12 +443,12 @@ function DashboardClient() {
         </div>
       </div>
     </div>
-    {user && activeCompanyId && (
+    {user && activeCompany?.id && (
         <EventFormModal
             isOpen={isEventModalOpen}
             onClose={closeEventModal}
             userId={user.uid}
-            companyId={activeCompanyId}
+            companyId={activeCompany.id}
             event={null}
             selectedDate={selectedEventDate}
         />
@@ -391,5 +456,3 @@ function DashboardClient() {
     </>
   )
 }
-
-    
