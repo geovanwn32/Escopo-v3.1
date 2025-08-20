@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { signOut } from "firebase/auth";
 import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
