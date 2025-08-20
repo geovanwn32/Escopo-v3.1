@@ -81,7 +81,7 @@ const formatCurrency = (value: number) => {
 }
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const PIE_CHART_COLORS = ['#dc2626', '#16a34a']; // red-600, green-600
+const PIE_CHART_COLORS = ['#16a34a', '#dc2626']; // green-600, red-600
 
 export function DashboardClientWrapper() {
   return <DashboardClient />;
@@ -183,18 +183,18 @@ function DashboardClient() {
     launches.forEach(l => {
         const value = l.valorLiquido || l.valorTotalNota || 0;
         if (l.type === 'entrada') {
-            totalEntradas += value;
-        } else if (l.type === 'saida' || l.type === 'servico') {
             totalSaidas += value;
+        } else if (l.type === 'saida' || l.type === 'servico') {
+            totalEntradas += value;
         }
         
         const launchDate = l.date;
         const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
         if (monthlyTotals[key]) {
             if (l.type === 'entrada') {
-                monthlyTotals[key].entradas += value;
-            } else if (l.type === 'saida' || l.type === 'servico') {
                 monthlyTotals[key].saidas += value;
+            } else if (l.type === 'saida' || l.type === 'servico') {
+                monthlyTotals[key].entradas += value;
             }
         }
     });
@@ -208,8 +208,8 @@ function DashboardClient() {
   }, [launches]);
 
   const stats: StatCard[] = [
-    { title: "Total de Entradas (Despesas)", amount: formatCurrency(totalEntradas), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
-    { title: "Total de Saídas (Receitas)", amount: formatCurrency(totalSaidas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Total de Entradas (Receitas)", amount: formatCurrency(totalEntradas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Total de Saídas (Despesas)", amount: formatCurrency(totalSaidas), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
     { title: "Funcionários Ativos", amount: employeesCount.toString(), icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
     { title: "Produtos Cadastrados", amount: productsCount.toString(), icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
   ];
@@ -247,8 +247,8 @@ function DashboardClient() {
 
    const pieChartData = useMemo(() => {
     return [
-      { name: 'Entradas (Despesas)', value: totalEntradas },
-      { name: 'Saídas (Receitas)', value: totalSaidas },
+      { name: 'Receitas', value: totalEntradas },
+      { name: 'Despesas', value: totalSaidas },
     ];
   }, [totalEntradas, totalSaidas]);
 
@@ -293,8 +293,8 @@ function DashboardClient() {
                             <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
-                            <Bar dataKey="saidas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Saídas (Receitas)" />
-                            <Bar dataKey="entradas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Entradas (Despesas)" />
+                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" />
+                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
@@ -391,3 +391,5 @@ function DashboardClient() {
     </>
   )
 }
+
+    
