@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -10,16 +9,48 @@ import { Loader2, Search, UserCheck } from 'lucide-react';
 import type { Employee } from '@/types/employee';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Button } from '../ui/button';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface EmployeeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (employee: Employee) => void;
-  employees: Employee[];
+  userId: string;
+  companyId: string;
 }
 
-export function EmployeeSelectionModal({ isOpen, onClose, onSelect, employees }: EmployeeSelectionModalProps) {
+export function EmployeeSelectionModal({ isOpen, onClose, onSelect, userId, companyId }: EmployeeSelectionModalProps) {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isOpen || !userId || !companyId) return;
+
+    setLoading(true);
+    const employeesRef = collection(db, `users/${userId}/companies/${companyId}/employees`);
+    const q = query(employeesRef, where('ativo', '==', true), orderBy('nomeCompleto', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const employeesData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            dataAdmissao: (doc.data().dataAdmissao as any).toDate(),
+            dataNascimento: (doc.data().dataNascimento as any).toDate(),
+        } as Employee));
+        setEmployees(employeesData);
+        setLoading(false);
+    }, (error) => {
+        console.error("Erro ao buscar funcionários:", error);
+        toast({ variant: 'destructive', title: "Erro ao buscar funcionários" });
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+}, [isOpen, userId, companyId, toast]);
+
 
   const filteredEmployees = useMemo(() => {
     if (!employees) return [];
@@ -50,37 +81,41 @@ export function EmployeeSelectionModal({ isOpen, onClose, onSelect, employees }:
             </div>
 
             <div className="border rounded-md max-h-[50vh] overflow-y-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Cargo</TableHead>
-                            <TableHead className="text-right">Ação</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredEmployees.length > 0 ? (
-                            filteredEmployees.map(employee => (
-                            <TableRow key={employee.id}>
-                                <TableCell className="font-medium">{employee.nomeCompleto}</TableCell>
-                                <TableCell>{employee.cargo}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button size="sm" onClick={() => onSelect(employee)}>
-                                        <UserCheck className="mr-2 h-4 w-4"/>
-                                        Selecionar
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                            ))
-                        ) : (
+                {loading ? (
+                    <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin" /></div>
+                ) : (
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center">
-                                Nenhum funcionário encontrado.
-                                </TableCell>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Cargo</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredEmployees.length > 0 ? (
+                                filteredEmployees.map(employee => (
+                                <TableRow key={employee.id}>
+                                    <TableCell className="font-medium">{employee.nomeCompleto}</TableCell>
+                                    <TableCell>{employee.cargo}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button size="sm" onClick={() => onSelect(employee)}>
+                                            <UserCheck className="mr-2 h-4 w-4"/>
+                                            Selecionar
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="h-24 text-center">
+                                    Nenhum funcionário encontrado.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                )}
             </div>
         </div>
       </DialogContent>

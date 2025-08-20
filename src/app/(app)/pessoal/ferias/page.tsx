@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculateVacation, VacationResult } from '@/services/vacation-service';
@@ -119,6 +119,8 @@ function VacationPage({ vacationId, router }: { vacationId: string | null, route
         };
         if (vacationId && user && activeCompany) {
             fetchVacation();
+        } else {
+            setIsLoading(false);
         }
     }, [vacationId, user, activeCompany, toast, router]);
     
@@ -214,7 +216,7 @@ function VacationPage({ vacationId, router }: { vacationId: string | null, route
                 const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
                 const docRef = await addDoc(vacationsRef, { ...vacationData, createdAt: serverTimestamp() });
                 setCurrentVacationId(docRef.id);
-                // router.replace(`/pessoal/ferias?id=${docRef.id}`, { scroll: false });
+                router.replace(`/pessoal/ferias?id=${docRef.id}`, { scroll: false });
                 toast({ title: `Cálculo de férias salvo com sucesso!` });
             }
         } catch (error) {

@@ -142,38 +142,40 @@ export default function MinhaEmpresaPage() {
     const logoUrl = form.watch('logoUrl');
 
     useEffect(() => {
-        const companyId = sessionStorage.getItem('activeCompanyId');
-        if (companyId && user) {
-            setActiveCompanyId(companyId);
-            const fetchCompanyData = async () => {
-                const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
-                const establishmentRef = doc(db, `users/${user.uid}/companies/${companyId}/esocial`, 'establishment');
-                
-                const [companySnap, establishmentSnap] = await Promise.all([getDoc(companyRef), getDoc(establishmentRef)]);
-
-                if (companySnap.exists()) {
-                    const data = companySnap.data();
-                    const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
-                    let formattedInscricao = inscricaoValue || "";
-                    if (inscricaoValue) {
-                         if (data.tipoInscricao === 'cnpj' || (!data.tipoInscricao && inscricaoValue?.length > 11)) {
-                             formattedInscricao = inscricaoValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
-                        } else if (data.tipoInscricao === 'cpf') {
-                             formattedInscricao = inscricaoValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-                        }
-                    }
+        if (typeof window !== 'undefined') {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (companyId && user) {
+                setActiveCompanyId(companyId);
+                const fetchCompanyData = async () => {
+                    const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
+                    const establishmentRef = doc(db, `users/${user.uid}/companies/${companyId}/esocial`, 'establishment');
                     
-                    const safeData = ensureSafeData({ ...data, inscricao: formattedInscricao });
-                    form.reset(safeData);
-                }
-                if (establishmentSnap.exists()) {
-                    setEstablishmentData(establishmentSnap.data() as EstablishmentData);
-                }
+                    const [companySnap, establishmentSnap] = await Promise.all([getDoc(companyRef), getDoc(establishmentRef)]);
+
+                    if (companySnap.exists()) {
+                        const data = companySnap.data();
+                        const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
+                        let formattedInscricao = inscricaoValue || "";
+                        if (inscricaoValue) {
+                            if (data.tipoInscricao === 'cnpj' || (!data.tipoInscricao && inscricaoValue?.length > 11)) {
+                                formattedInscricao = inscricaoValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+                            } else if (data.tipoInscricao === 'cpf') {
+                                formattedInscricao = inscricaoValue.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+                            }
+                        }
+                        
+                        const safeData = ensureSafeData({ ...data, inscricao: formattedInscricao });
+                        form.reset(safeData);
+                    }
+                    if (establishmentSnap.exists()) {
+                        setEstablishmentData(establishmentSnap.data() as EstablishmentData);
+                    }
+                    setLoadingPage(false);
+                };
+                fetchCompanyData();
+            } else {
                 setLoadingPage(false);
-            };
-            fetchCompanyData();
-        } else {
-             setLoadingPage(false);
+            }
         }
     }, [user, form]);
     

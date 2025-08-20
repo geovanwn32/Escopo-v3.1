@@ -114,9 +114,9 @@ export default function FluxoDeCaixaPage() {
         }
         if (filterDate?.to && dateMatch) {
             const launchDate = new Date(launch.date);
-            launchDate.setHours(23,59,59,999);
+            launchDate.setHours(0,0,0,0);
             const endDate = new Date(filterDate.to);
-endDate.setHours(23,59,59,999);
+            endDate.setHours(0,0,0,0);
             dateMatch = launchDate <= endDate;
         }
 

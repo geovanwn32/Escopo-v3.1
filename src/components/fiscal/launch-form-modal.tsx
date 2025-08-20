@@ -27,6 +27,7 @@ import { upsertPartnerFromLaunch } from '@/services/partner-service';
 import type { Orcamento } from '@/types/orcamento';
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
+import { FileText } from 'lucide-react';
 
 interface XmlFile {
   file: File;
@@ -247,7 +248,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
       let initialData: Partial<FormData> = {};
       if (mode === 'create') {
         if (xmlFile) {
-          initialData = parseXmlAdvanced(xmlFile.content, xmlFile.type);
+          initialData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
           initialData.type = xmlFile.type;
           initialData.fileName = xmlFile.file.name;
           initialData.status = xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal';
@@ -407,7 +408,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                   <span>Tipo:</span>
                   <Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge>
               </div>
-              {(xmlFile || orcamento) && <p>Arquivo: <span className="font-semibold">{form.getValues('fileName')}</span></p>}
+              {(xmlFile || orcamento || launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
             </div>
           </DialogDescription>
         </DialogHeader>

@@ -32,7 +32,7 @@ const partnerSchema = z.object({
   cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório").refine(val => {
     const cleaned = val.replace(/\D/g, '');
     return cleaned.length === 11 || cleaned.length === 14;
-  }, "CPF/CNPJ inválido").transform(val => val.replace(/\D/g, '')),
+  }, "CPF/CNPJ inválido"),
   inscricaoEstadual: z.string().optional(),
   
   // Address
@@ -126,7 +126,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   const onSubmit = async (values: FormData) => {
     setLoading(true);
     try {
-      const dataToSave = { ...values, type: partnerType };
+      const dataToSave = { ...values, type: partnerType, cpfCnpj: values.cpfCnpj.replace(/\D/g, '') };
       
       if (mode === 'create') {
         const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
