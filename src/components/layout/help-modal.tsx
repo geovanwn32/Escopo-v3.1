@@ -10,13 +10,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User } from 'lucide-react';
+import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User, Ticket } from 'lucide-react';
 import Link from 'next/link';
-import { Form, FormControl, FormField, FormItem, FormMessage } from '../ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '../ui/form';
 import type { Company } from '@/types/company';
 import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '../ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Textarea } from '../ui/textarea';
+import { createSupportTicket } from '@/services/ticket-service';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -26,6 +29,11 @@ interface HelpModalProps {
 
 const messageSchema = z.object({
   question: z.string().min(1, 'Digite sua pergunta.'),
+});
+
+const ticketSchema = z.object({
+  problemLocation: z.string().min(1, 'A localização do problema é obrigatória.'),
+  description: z.string().min(10, 'Descreva o problema com pelo menos 10 caracteres.'),
 });
 
 interface ChatMessage {
@@ -41,22 +49,27 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
-  const form = useForm<z.infer<typeof messageSchema>>({
+  const chatForm = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
-    defaultValues: {
-      question: '',
-    },
+    defaultValues: { question: '' },
+  });
+  
+  const ticketForm = useForm<z.infer<typeof ticketSchema>>({
+    resolver: zodResolver(ticketSchema),
+    defaultValues: { problemLocation: '', description: '' },
   });
 
-  const onSubmit = async (values: z.infer<typeof messageSchema>) => {
+  const onChatSubmit = async (values: z.infer<typeof messageSchema>) => {
     setLoading(true);
     const userMessage: ChatMessage = { role: 'user', content: values.question };
     setChatHistory(prev => [...prev, userMessage]);
-    form.reset();
+    chatForm.reset();
     
     try {
       const result = await askSupportAssistant({ question: values.question });
@@ -71,11 +84,40 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     }
   };
 
+  const onTicketSubmit = async (values: z.infer<typeof ticketSchema>) => {
+    if (!user || !activeCompany) {
+        toast({ variant: 'destructive', title: 'Erro', description: 'Usuário ou empresa não autenticados.'});
+        return;
+    }
+
+    setIsSubmittingTicket(true);
+    try {
+        const ticketNumber = await createSupportTicket({
+            requesterName: user.email!,
+            requesterUid: user.uid,
+            requesterCompanyId: activeCompany.id,
+            requesterCompanyName: activeCompany.nomeFantasia,
+            ...values,
+        });
+        toast({
+            title: `Chamado #${ticketNumber} Aberto!`,
+            description: 'Nossa equipe de suporte entrará em contato em breve.'
+        });
+        ticketForm.reset();
+    } catch(error) {
+         console.error("Error creating ticket:", error);
+         toast({ variant: 'destructive', title: 'Erro ao Abrir Chamado', description: 'Não foi possível registrar sua solicitação. Tente novamente.'});
+    } finally {
+        setIsSubmittingTicket(false);
+    }
+  };
+
   const handleClose = () => {
     onClose();
     setTimeout(() => {
         setChatHistory([]);
-        form.reset();
+        chatForm.reset();
+        ticketForm.reset();
     }, 300);
   };
 
@@ -89,83 +131,74 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             Central de Ajuda e Suporte
           </DialogTitle>
           <DialogDescription>
-            Faça uma pergunta ao nosso assistente de IA ou entre em contato com o suporte.
+            Tire suas dúvidas com nosso assistente de IA ou abra um chamado de suporte para nossa equipe.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-            <div className="space-y-4 flex flex-col">
-                <h3 className="font-semibold flex items-center gap-2"><Bot /> Assistente Virtual</h3>
-                <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4">
-                     {chatHistory.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                            <p>Faça uma pergunta sobre o sistema.</p>
-                            <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
-                        </div>
-                     ) : (
-                        chatHistory.map((msg, index) => (
-                            <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                                {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
-                                <div className={`prose prose-sm max-w-full rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                </div>
-                                {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
+        <Tabs defaultValue="assistant" className="w-full pt-2">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="assistant"><Bot className="mr-2 h-4 w-4"/>Assistente Virtual</TabsTrigger>
+                <TabsTrigger value="ticket"><Ticket className="mr-2 h-4 w-4"/>Abrir Chamado</TabsTrigger>
+            </TabsList>
+            <TabsContent value="assistant" className="mt-4">
+                <div className="space-y-4 flex flex-col">
+                    <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4">
+                        {chatHistory.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                                <p>Faça uma pergunta sobre o sistema.</p>
+                                <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
                             </div>
-                        ))
-                     )}
-                     {loading && (
-                        <div className="flex items-start gap-3">
-                           <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
-                           <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin"/>
-                            <span>Pensando...</span>
-                           </div>
-                        </div>
-                     )}
-                </ScrollArea>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-2">
-                            <FormField control={form.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} /></FormControl><FormMessage /></FormItem> )} />
-                            <Button type="submit" disabled={loading} size="icon">
-                                <Send className="h-4 w-4"/>
-                            </Button>
-                    </form>
-                </Form>
-            </div>
-             <div className="space-y-4">
-                <h3 className="font-semibold">Recursos Úteis</h3>
-                 <div className="p-4 border rounded-lg bg-muted/50">
-                    <h4 className="font-semibold mb-2">Documentação</h4>
-                    <p className="text-sm text-muted-foreground mb-3">
-                        Ainda não temos uma documentação completa, mas estamos trabalhando nisso. Em breve, você encontrará guias detalhados e tutoriais aqui.
-                    </p>
-                    <Button variant="outline" disabled>
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        Acessar Documentação (Em Breve)
-                    </Button>
+                        ) : (
+                            chatHistory.map((msg, index) => (
+                                <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                                    {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
+                                    <div className={`prose prose-sm max-w-full rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                    </div>
+                                    {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
+                                </div>
+                            ))
+                        )}
+                        {loading && (
+                            <div className="flex items-start gap-3">
+                            <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
+                            <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin"/>
+                                <span>Pensando...</span>
+                            </div>
+                            </div>
+                        )}
+                    </ScrollArea>
+                    <Form {...chatForm}>
+                        <form onSubmit={chatForm.handleSubmit(onChatSubmit)} className="flex items-start gap-2">
+                                <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} /></FormControl><FormMessage /></FormItem> )} />
+                                <Button type="submit" disabled={loading} size="icon">
+                                    <Send className="h-4 w-4"/>
+                                </Button>
+                        </form>
+                    </Form>
                 </div>
-                <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
-                    <h4 className="font-semibold mb-2">Contatos de Suporte</h4>
+            </TabsContent>
+            <TabsContent value="ticket" className="mt-4">
+                <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        Para questões urgentes, entre em contato conosco diretamente.
+                        Se o assistente não resolveu ou se você encontrou um erro, preencha o formulário abaixo para que nossa equipe possa te ajudar.
                     </p>
-                     <Button asChild className="w-full">
-                        <Link href="mailto:Geovanisilvaoliveira447@gmail.com">
-                            <Mail className="mr-2 h-4 w-4" />
-                            Geovanisilvaoliveira447@gmail.com
-                        </Link>
-                    </Button>
-                    <Button asChild variant="secondary" className="w-full">
-                        <Link href="https://wa.me/5562998554529" target="_blank">
-                            <WhatsAppIcon className="mr-2 h-4 w-4" />
-                            WhatsApp: (62) 99855-4529
-                        </Link>
-                    </Button>
+                    <Form {...ticketForm}>
+                        <form onSubmit={ticketForm.handleSubmit(onTicketSubmit)} className="space-y-4">
+                             <FormField control={ticketForm.control} name="problemLocation" render={({ field }) => ( <FormItem><FormLabel>Módulo/Tela com Problema</FormLabel><FormControl><Input {...field} placeholder="Ex: Módulo Fiscal > Lançamentos" /></FormControl><FormMessage /></FormItem> )} />
+                             <FormField control={ticketForm.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Descrição Detalhada do Problema</FormLabel><FormControl><Textarea {...field} placeholder="Descreva o que aconteceu, o que você esperava que acontecesse e quaisquer mensagens de erro que apareceram." rows={5} /></FormControl><FormMessage /></FormItem> )} />
+                            <Button type="submit" className="w-full" disabled={isSubmittingTicket}>
+                                {isSubmittingTicket && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Enviar Chamado para Suporte
+                            </Button>
+                        </form>
+                    </Form>
                 </div>
-             </div>
-        </div>
+            </TabsContent>
+        </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="pt-4">
           <Button variant="outline" onClick={handleClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
