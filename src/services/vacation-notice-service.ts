@@ -33,21 +33,17 @@ function addHeader(doc: jsPDF, company: Company) {
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
+    doc.text(company.razaoSocial.toUpperCase(), pageWidth / 2, y, { align: 'center' });
     y += 5;
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
+    const companyAddress = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''} - ${company.cidade || ''}/${company.uf || ''}`;
+    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
     y += 4;
-    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
+    doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
     y += 4;
-    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
-    doc.text(address, pageWidth - 14, y, { align: 'right' });
-    y += 4;
-    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
-     y += 4;
-    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth / 2, y, { align: 'center' });
     
     return y + 5;
 }
