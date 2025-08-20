@@ -48,13 +48,6 @@ export function generateContractPdf(company: Company, employee: Employee) {
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTRATO INDIVIDUAL DE TRABALHO', pageWidth / 2, y, { align: 'center' });
-  y += 8;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
-  doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
-  y += 5;
-  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
   y += 10;
   
   doc.setFontSize(10);
@@ -65,6 +58,8 @@ export function generateContractPdf(company: Company, employee: Employee) {
   doc.setFont('helvetica', 'bold');
   doc.text('IDENTIFICAÇÃO DAS PARTES', 14, y);
   y += 5;
+  const companyAddress = `${company.logradouro || ''}, ${company.numero || 'S/N'}${company.complemento ? ` - ${company.complemento}` : ''}, ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
+
   autoTable(doc, {
       startY: y,
       theme: 'grid',
@@ -76,6 +71,7 @@ export function generateContractPdf(company: Company, employee: Employee) {
           [{ content: 'Razão Social:', styles: { fontStyle: 'bold' } }, company.razaoSocial],
           [{ content: 'CNPJ:', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
           [{ content: 'Endereço:', styles: { fontStyle: 'bold' } }, companyAddress],
+          [{ content: 'Telefone:', styles: { fontStyle: 'bold' } }, company.telefone || ''],
       ],
       columnStyles: { 0: { cellWidth: 40 } }
   });

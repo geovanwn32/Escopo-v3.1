@@ -1,5 +1,4 @@
 
-
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Company } from '@/types/company';
@@ -21,25 +20,40 @@ const formatCnpj = (cnpj?: string): string => {
     return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
+function addHeader(doc: jsPDF, company: Company) {
+    const pageWidth = doc.internal.pageSize.width;
+    let y = 15;
+    
+    if (company.logoUrl) {
+        try { doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15); }
+        catch(e) { console.error("Could not add logo to PDF:", e); }
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
+    doc.text(address, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
+     y += 4;
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
+    
+    return y + 5;
+}
+
 export function generateQuotePdf(company: Company, partner: Partner, quoteData: Orcamento) {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
-  let y = 15;
-
-  // --- HEADER ---
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(company.nomeFantasia.toUpperCase(), pageWidth / 2, y, { align: 'center' });
-  y += 6;
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const companyAddress = `${company.logradouro || ''}, ${company.numero || 'S/N'}${company.complemento ? ` - ${company.complemento}` : ''}, ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
-  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
-  y += 5;
-  doc.setDrawColor(150);
-  doc.line(14, y, pageWidth - 14, y);
-  y += 8;
+  let y = addHeader(doc, company);
 
   // --- QUOTE NUMBER ---
   const quoteNumberText = `Nº ${String(quoteData.quoteNumber).padStart(4, '0')}`;
@@ -158,12 +172,6 @@ export function generateQuotePdf(company: Company, partner: Partner, quoteData: 
   y += 4;
   doc.setFontSize(8);
   doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
-
-  y = doc.internal.pageSize.height - 8;
-  doc.line(14, y, pageWidth - 14, y);
-  y += 4;
-  doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
-
 
   // Open the PDF in a new tab
   doc.output('dataurlnewwindow');

@@ -40,10 +40,40 @@ const getPartnerName = (launch: Launch): string => {
     }
   };
 
+function addHeader(doc: jsPDF, company: Company) {
+    const pageWidth = doc.internal.pageSize.width;
+    let y = 15;
+    
+    if (company.logoUrl) {
+        try { doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15); }
+        catch(e) { console.error("Could not add logo to PDF:", e); }
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
+    doc.text(address, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
+     y += 4;
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
+    
+    return y + 5;
+}
+
 export async function generateSalesReportPdf(userId: string, company: Company, dateRange: DateRange) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
-    let y = 15;
+    let y = addHeader(doc, company);
     
     if (!dateRange.from || !dateRange.to) {
         throw new Error("Período de datas inválido.");
@@ -78,8 +108,6 @@ export async function generateSalesReportPdf(userId: string, company: Company, d
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Período: ${formatDate(dateRange.from)} a ${formatDate(dateRange.to)}`, pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
     y += 10;
     
     let totalSalesValue = 0;

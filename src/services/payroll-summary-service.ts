@@ -51,11 +51,41 @@ const getEventName = (item: any): string => {
     return 'Lançamento';
 };
 
+function addHeader(doc: jsPDF, company: Company) {
+    const pageWidth = doc.internal.pageSize.width;
+    let y = 15;
+    
+    if (company.logoUrl) {
+        try { doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15); }
+        catch(e) { console.error("Could not add logo to PDF:", e); }
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
+    doc.text(address, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
+     y += 4;
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
+    
+    return y + 5;
+}
+
 
 export async function generatePayrollSummaryPdf(userId: string, company: Company, period: Period) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
-    let y = 15;
+    let y = addHeader(doc, company);
     
     const primaryColor = [51, 145, 255]; 
     const destructiveColor = [220, 38, 38]; 
@@ -102,17 +132,10 @@ export async function generatePayrollSummaryPdf(userId: string, company: Company
     });
 
     // --- PDF GENERATION ---
-    // Header
+    // Title
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`Resumo da Folha de Pagamento - ${String(period.month).padStart(2, '0')}/${period.year}`, pageWidth / 2, y, { align: 'center' });
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    const companyAddress = `${company.logradouro || ''}, ${company.numero || ''} - ${company.bairro || ''}, ${company.cidade || ''} - ${company.uf || ''}`;
-    doc.text(`${company.razaoSocial} | CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text(companyAddress, pageWidth / 2, y, { align: 'center' });
     y += 10;
     
     let grandTotalProventos = 0;
