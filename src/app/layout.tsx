@@ -22,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
-      <body className="font-body antialiased">
+    <html lang="pt-BR" className={inter.variable} >
+      <body className="font-body antialiased" suppressHydrationWarning>
         <AuthProvider>
           <ThemeProvider
             attribute="class"
