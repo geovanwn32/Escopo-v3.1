@@ -21,7 +21,7 @@ export interface Company {
     nomeFantasia: string;
     razaoSocial: string;
     cnpj: string;
-    isMatriz?: boolean;
+    tipoEstabelecimento?: 'matriz' | 'filial';
     logradouro?: string;
     numero?: string;
     bairro?: string;

@@ -30,7 +30,7 @@ const companySchema = z.object({
   nomeFantasia: z.string().optional(),
   tipoInscricao: z.enum(['cnpj', 'cpf']),
   inscricao: z.string().min(1, "CNPJ/CPF é obrigatório"),
-  isMatriz: z.boolean().default(true),
+  tipoEstabelecimento: z.enum(['matriz', 'filial']).default('matriz'),
   cnaePrincipalCodigo: z.string().optional(),
   cnaePrincipalDescricao: z.string().optional(),
   regimeTributario: z.string().optional(),
@@ -80,7 +80,7 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         nomeFantasia: data.nomeFantasia || "",
         tipoInscricao: data.tipoInscricao || 'cnpj',
         inscricao: data.cnpj || data.cpf || data.inscricao || "",
-        isMatriz: data.isMatriz !== undefined ? data.isMatriz : true,
+        tipoEstabelecimento: data.tipoEstabelecimento || (data.isMatriz ? 'matriz' : 'filial'),
         cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
         cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
         regimeTributario: data.regimeTributario || "",
@@ -524,21 +524,31 @@ export default function MinhaEmpresaPage() {
                             />
                             <FormField
                                 control={form.control}
-                                name="isMatriz"
+                                name="tipoEstabelecimento"
                                 render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 md:col-span-2">
-                                    <div className="space-y-0.5">
-                                    <FormLabel className="text-base">Estabelecimento Matriz</FormLabel>
-                                    <FormDescription>
-                                        Marque se este CNPJ/CPF corresponde à matriz da empresa.
-                                    </FormDescription>
-                                    </div>
+                                <FormItem className="space-y-3 md:col-span-2">
+                                    <FormLabel>Tipo de Estabelecimento</FormLabel>
                                     <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
+                                        <RadioGroup
+                                        onValueChange={field.onChange}
+                                        value={field.value}
+                                        className="flex flex-col space-y-2 rounded-lg border p-4"
+                                        >
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <RadioGroupItem value="matriz" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">Matriz</FormLabel>
+                                            </FormItem>
+                                            <FormItem className="flex items-center space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <RadioGroupItem value="filial" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">Filial</FormLabel>
+                                            </FormItem>
+                                        </RadioGroup>
                                     </FormControl>
+                                    <FormMessage />
                                 </FormItem>
                                 )}
                             />
