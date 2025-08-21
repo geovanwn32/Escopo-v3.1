@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
@@ -60,6 +60,7 @@ const formatCpfCnpj = (value: string = '') => {
       .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
   }
   return cleaned
+    .slice(0, 14)
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
@@ -70,6 +71,7 @@ const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})
 
 function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
   const [loading, setLoading] = useState(false);
+  const [loadingCnpj, setLoadingCnpj] = useState(false);
   const { toast } = useToast();
   
   const mode = partner ? 'edit' : 'create';
@@ -122,6 +124,43 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
         setLoading(false);
     }
   };
+  
+    const handleCnpjLookup = async () => {
+        const cnpjValue = form.getValues("cpfCnpj");
+        const cleanedCnpj = cnpjValue.replace(/\D/g, '');
+
+        if (cleanedCnpj.length !== 14) {
+            toast({ variant: "destructive", title: "CNPJ Inválido", description: "A busca automática funciona apenas com CNPJs de 14 dígitos." });
+            return;
+        }
+
+        setLoadingCnpj(true);
+        try {
+            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+            if (!response.ok) throw new Error('CNPJ não encontrado ou API indisponível.');
+            
+            const data = await response.json();
+            form.setValue("razaoSocial", data.razao_social || "");
+            form.setValue("nomeFantasia", data.nome_fantasia || "");
+            form.setValue("cep", formatCep(data.cep || ""));
+            form.setValue("logradouro", data.logradouro || "");
+            form.setValue("numero", data.numero || "");
+            form.setValue("complemento", data.complemento || "");
+            form.setValue("bairro", data.bairro || "");
+            form.setValue("cidade", data.municipio || "");
+            form.setValue("uf", data.uf || "");
+            form.setValue("telefone", data.ddd_telefone_1 || "");
+            form.setValue("email", data.email || "");
+
+            toast({ title: "Dados do Parceiro Carregados!", description: "Os campos foram preenchidos com as informações da BrasilAPI." });
+            
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro ao buscar CNPJ", description: (error as Error).message });
+        } finally {
+            setLoadingCnpj(false);
+        }
+    };
+
 
   const onSubmit = async (values: FormData) => {
     setLoading(true);
@@ -151,6 +190,9 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     fornecedor: 'Fornecedor',
     transportadora: 'Transportadora',
   }[partnerType];
+  
+  const isCnpj = form.watch('cpfCnpj').replace(/\D/g, '').length > 11;
+
 
   return (
     <>
@@ -171,7 +213,24 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                   <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( <FormItem><FormLabel>CPF / CNPJ</FormLabel><FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl><FormMessage /></FormItem> )} />
+                      <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( 
+                        <FormItem>
+                            <FormLabel>CPF / CNPJ</FormLabel>
+                            <div className="relative">
+                                <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl>
+                                {isCnpj && (
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                        {loadingCnpj ? (
+                                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                        ) : (
+                                            <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <FormMessage />
+                        </FormItem> 
+                      )} />
                       <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   </div>
               </TabsContent>
@@ -198,9 +257,9 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             </div>
           </Tabs>
           <DialogFooter className="pt-6">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? <Loader2 className="animate-spin" /> : <Save />}
+            <Button type="button" variant="ghost" onClick={onClose} disabled={loading || loadingCnpj}>Cancelar</Button>
+            <Button type="submit" disabled={loading || loadingCnpj}>
+              {(loading || loadingCnpj) && <Loader2 className="animate-spin mr-2" />}
               {mode === 'create' ? `Salvar ${typeLabel}` : 'Salvar Alterações'}
             </Button>
           </DialogFooter>
