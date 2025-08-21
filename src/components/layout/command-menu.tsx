@@ -2,20 +2,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  Calculator,
-  Calendar,
-  FileStack,
-  Settings,
-  User,
-  LayoutDashboard,
-  Users,
-  BookCopy,
-  Landmark,
-  Handshake,
-  BarChart3,
-  LifeBuoy
-} from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import {
   CommandDialog,
@@ -27,32 +14,24 @@ import {
   CommandSeparator,
 } from "@/components/ui/command"
 import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
-import { useRouter } from "next/navigation"
 
-export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: boolean) => void }) {
+// Helper function to create a unique value for each command item
+const createCommandValue = (group: string, label: string) => `${group}:${label}`
+
+export function CommandMenu({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) {
   const router = useRouter()
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || e.key === "/") {
-        if (
-          (e.target instanceof HTMLElement && e.target.isContentEditable) ||
-          e.target instanceof HTMLInputElement ||
-          e.target instanceof HTMLTextAreaElement ||
-          e.target instanceof HTMLSelectElement
-        ) {
-          return
-        }
-
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         setOpen((open) => !open)
       }
     }
-
     document.addEventListener("keydown", down)
     return () => document.removeEventListener("keydown", down)
   }, [setOpen])
-  
+
   const runCommand = React.useCallback((command: () => unknown) => {
     setOpen(false)
     command()
@@ -70,24 +49,26 @@ export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: 
     { heading: 'Sistema', links: sistemaLinks.filter(l => !l.adminOnly) }, // hide admin link from command
   ];
 
-
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="Digite um comando ou busque uma página..." />
       <CommandList>
         <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
         {commandGroups.map(group => (
+          group.links.length > 0 && (
             <CommandGroup key={group.heading} heading={group.heading}>
               {group.links.map(link => (
                 <CommandItem
-                  key={link.href}
-                  value={`${group.heading} ${link.label}`}
+                  key={link.href || link.label}
+                  value={createCommandValue(group.heading, link.label)}
                   onSelect={() => {
-                    if (link.href) {
-                      runCommand(() => router.push(link.href!))
-                    } else if (link.onClick) {
-                      runCommand(link.onClick)
-                    }
+                    runCommand(() => {
+                      if (link.href) {
+                        router.push(link.href);
+                      } else if (link.onClick) {
+                        link.onClick();
+                      }
+                    });
                   }}
                 >
                   {React.cloneElement(link.icon as React.ReactElement, { className: "mr-2 h-4 w-4" })}
@@ -95,6 +76,7 @@ export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: 
                 </CommandItem>
               ))}
             </CommandGroup>
+          )
         ))}
       </CommandList>
     </CommandDialog>
