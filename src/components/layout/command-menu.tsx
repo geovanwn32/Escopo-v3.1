@@ -11,7 +11,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command"
 import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
 import { DialogTitle } from "@radix-ui/react-dialog"
@@ -30,49 +29,32 @@ const commandGroups = [
 
 function CommandMenuContent({ setOpen }: { setOpen: (open: boolean) => void }) {
   const router = useRouter();
-  const [routeToNavigate, setRouteToNavigate] = React.useState<string | null>(null);
-  const [actionToRun, setActionToRun] = React.useState<(() => void) | null>(null);
 
-  React.useEffect(() => {
-    if (routeToNavigate) {
-      router.push(routeToNavigate);
-      setOpen(false);
-    }
-  }, [routeToNavigate, router, setOpen]);
-  
-  React.useEffect(() => {
-    if (actionToRun) {
-      actionToRun();
-      setOpen(false);
-    }
-  }, [actionToRun, setOpen]);
+  const runCommand = React.useCallback((command: () => unknown) => {
+    setOpen(false)
+    command()
+  }, [setOpen])
 
   return (
     <>
       <CommandInput placeholder="Digite um comando ou busque uma página..." />
       <CommandList>
         <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
-        {commandGroups.map((group, groupIndex) => (
-          group.links.length > 0 && (
-            <CommandGroup key={`${group.heading}-${groupIndex}`} heading={group.heading}>
-              {group.links.map((link) => (
-                <CommandItem
-                  key={link.href || link.label}
-                  value={`${group.heading}-${link.label}`}
-                  onSelect={() => {
-                    if (link.href) {
-                      setRouteToNavigate(link.href);
-                    } else if (link.onClick) {
-                      setActionToRun(() => link.onClick!);
-                    }
-                  }}
-                >
-                  {React.cloneElement(link.icon as React.ReactElement, { className: "mr-2 h-4 w-4" })}
-                  <span>{link.label}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          )
+        {commandGroups.map((group) => (
+          <CommandGroup key={group.heading} heading={group.heading}>
+            {group.links.map((link) => (
+              <CommandItem
+                key={link.href}
+                value={`${group.heading}-${link.label}`}
+                onSelect={() => {
+                  runCommand(() => router.push(link.href as string))
+                }}
+              >
+                {React.cloneElement(link.icon as React.ReactElement, { className: "mr-2 h-4 w-4" })}
+                <span>{link.label}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
         ))}
       </CommandList>
     </>
