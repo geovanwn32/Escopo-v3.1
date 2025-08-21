@@ -11,13 +11,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command"
 import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
 
 // Helper function to create a unique value for each command item
 const createCommandValue = (group: string, label: string) => `${group}:${label}`
 
-export function CommandMenu({ open, setOpen }: { open: boolean; setOpen: (open: boolean) => void }) {
+export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: boolean) => void }) {
   const router = useRouter()
 
   React.useEffect(() => {
@@ -47,6 +48,7 @@ export function CommandMenu({ open, setOpen }: { open: boolean; setOpen: (open: 
     { heading: 'Utilitários', links: utilitariosLinks },
     { heading: 'Sistema', links: sistemaLinks.filter(l => !l.adminOnly) }, // hide admin link from command
   ];
+
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
