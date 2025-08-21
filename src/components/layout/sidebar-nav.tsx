@@ -49,7 +49,7 @@ import {
   UserMinus,
 } from "lucide-react"
 
-const fiscalLinks = [
+export const fiscalLinks = [
     { href: "/fiscal/orcamento", icon: <FileSignature />, label: "Orçamentos" },
     { href: "/fiscal", icon: <FileStack />, label: "Lançamentos Fiscais" },
     { href: "/fiscal/apuracao", icon: <Scale />, label: "Apuração de Impostos" },
@@ -57,7 +57,7 @@ const fiscalLinks = [
     { href: "/fiscal/calculo-inventario", icon: <Calculator />, label: "Calcular Inventário" },
 ];
 
-const pessoalLinks = [
+export const pessoalLinks = [
     { href: "/pessoal/folha-de-pagamento", icon: <ClipboardList />, label: "Folha de Pagamento" },
     { href: "/pessoal/rci", icon: <FileText />, label: "RCI (Pró-labore)" },
     { href: "/pessoal/decimo-terceiro", icon: <Gift />, label: "13º Salário" },
@@ -66,7 +66,7 @@ const pessoalLinks = [
     { href: "/pessoal/resumo-folha", icon: <BookUser />, label: "Resumo da Folha" },
 ];
 
-const contabilLinks = [
+export const contabilLinks = [
     { href: "/contabil/plano-de-contas", icon: <BookCopy />, label: "Plano de Contas" },
     { href: "/contabil/lancamentos", icon: <FileText />, label: "Lançamentos" },
     { href: "/contabil/importacao-extrato", icon: <Upload />, label: "Importar Extrato (IA)" },
@@ -74,14 +74,14 @@ const contabilLinks = [
     { href: "/contabil/relatorios-contabeis", icon: <BarChart3 />, label: "Relatórios Contábeis" },
 ];
 
-const financeiroLinks = [
+export const financeiroLinks = [
     { href: "/financeiro/contas-a-receber", icon: <ArrowUpRightSquare />, label: "Contas a Receber" },
     { href: "/financeiro/contas-a-pagar", icon: <ArrowDownLeftSquare />, label: "Contas a Pagar" },
     { href: "/financeiro/fluxo-de-caixa", icon: <LineChart />, label: "Fluxo de Caixa" },
     { href: "/financeiro/conciliacao", icon: <Scale />, label: "Conciliação Bancária" },
 ];
 
-const cadastroLinks = [
+export const cadastroLinks = [
     { href: "/parceiros", icon: <Handshake />, label: "Parceiros" },
     { href: "/funcionarios", icon: <UserCog />, label: "Funcionários" },
     { href: "/socios", icon: <Briefcase />, label: "Sócios" },
@@ -92,19 +92,19 @@ const cadastroLinks = [
     { href: "/fichas", icon: <BookUser />, label: "Fichas" },
 ];
 
-const conectividadeLinks = [
+export const conectividadeLinks = [
     { href: "/esocial", icon: <Share2 />, label: "eSocial" },
     { href: "/pgdas", icon: <Calculator />, label: "PGDAS" },
     { href: "/efd-contribuicoes", icon: <FileDigit />, label: "EFD Contribuições" },
 ];
 
-const utilitariosLinks = [
+export const utilitariosLinks = [
     { href: "/utilitarios/eventos", icon: <Calendar />, label: "Agenda" },
     { href: "/utilitarios/links", icon: <LinkIcon />, label: "Links Úteis" },
     { href: "/utilitarios/arquivos", icon: <Archive />, label: "Arquivos" },
 ];
 
-const sistemaLinks = [
+export const sistemaLinks = [
     { href: "/minha-empresa", icon: <Building2 />, label: "Minha Empresa" },
     { href: "/configuracoes", icon: <Settings />, label: "Configurações" },
     { href: "/admin", icon: <Shield />, label: "Admin", adminOnly: true },
@@ -127,7 +127,7 @@ const getLinksForPath = (pathname: string) => {
     if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes')) return { title: 'Conectividade', links: conectividadeLinks };
     if (pathname.startsWith('/parceiros') || pathname.startsWith('/funcionarios') || pathname.startsWith('/socios') || pathname.startsWith('/produtos') || pathname.startsWith('/servicos') || pathname.startsWith('/aliquotas') || pathname.startsWith('/rubricas') || pathname.startsWith('/fichas')) return { title: 'Cadastros', links: cadastroLinks };
     if (pathname.startsWith('/utilitarios')) return { title: 'Utilitários', links: utilitariosLinks };
-    if (pathname.startsWith('/relatorios') || pathname.startsWith('/minha-empresa') || pathname.startsWith('/configuracoes') || pathname.startsWith('/admin')) return { title: 'Sistema', links: sistemaLinks };
+    if (pathname.startsWith('/minha-empresa') || pathname.startsWith('/configuracoes') || pathname.startsWith('/admin')) return { title: 'Sistema', links: sistemaLinks };
     return { title: 'Navegação', links: [] };
 }
 
