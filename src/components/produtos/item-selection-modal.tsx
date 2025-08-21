@@ -112,6 +112,7 @@ export function ItemSelectionModal({ isOpen, onClose, onSelect, userId, companyI
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10"
+                    autoFocus
                 />
             </div>
 

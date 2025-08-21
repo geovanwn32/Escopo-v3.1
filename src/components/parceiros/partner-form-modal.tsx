@@ -210,7 +210,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             </TabsList>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               <TabsContent value="identity" className="space-y-4">
-                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} autoFocus /></FormControl><FormMessage /></FormItem> )} />
                   <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                   <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( 

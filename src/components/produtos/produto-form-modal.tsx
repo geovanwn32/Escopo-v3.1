@@ -112,7 +112,7 @@ export function ProdutoFormModal({ isOpen, onClose, userId, companyId, produto }
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
-             <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição do Produto</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+             <FormField control={form.control} name="descricao" render={({ field }) => ( <FormItem><FormLabel>Descrição do Produto</FormLabel><FormControl><Input {...field} autoFocus /></FormControl><FormMessage /></FormItem> )} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="codigo" render={({ field }) => ( <FormItem><FormLabel>Código/SKU</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="valorUnitario" render={({ field }) => ( <FormItem><FormLabel>Valor Unitário (R$)</FormLabel><FormControl><Input {...field} onChange={e => {
