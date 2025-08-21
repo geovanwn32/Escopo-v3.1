@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X } from "lucide-react";
+import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X, Archive } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
@@ -23,6 +23,7 @@ import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import { BackupModal } from "@/components/empresa/backup-modal";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -126,6 +127,7 @@ export default function MinhaEmpresaPage() {
     const [establishmentData, setEstablishmentData] = useState<EstablishmentData | null>(null);
     const [isEstablishmentModalOpen, setEstablishmentModalOpen] = useState(false);
     const [isReopenPeriodModalOpen, setReopenPeriodModalOpen] = useState(false);
+    const [isBackupModalOpen, setBackupModalOpen] = useState(false);
 
     // Logo upload state
     const [isDragging, setIsDragging] = useState(false);
@@ -850,13 +852,17 @@ export default function MinhaEmpresaPage() {
                     
                     <Card>
                         <CardHeader>
-                            <CardTitle>Configurações eSocial</CardTitle>
-                            <CardDescription>Gerencie dados complementares para o eSocial e períodos fiscais.</CardDescription>
+                            <CardTitle>Configurações Avançadas</CardTitle>
+                            <CardDescription>Gerencie dados do eSocial, períodos fiscais e backups.</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-col gap-4">
                             <Button type="button" onClick={() => setEstablishmentModalOpen(true)}>
                                 <FileKey className="mr-2 h-4 w-4" />
                                 Preencher Ficha do Estabelecimento (S-1005)
+                            </Button>
+                             <Button type="button" variant="outline" onClick={() => setBackupModalOpen(true)}>
+                                <Archive className="mr-2 h-4 w-4" />
+                                Backup e Restauração de Dados
                             </Button>
                             <Button type="button" variant="destructive" onClick={() => setReopenPeriodModalOpen(true)}>
                                 <KeyRound className="mr-2 h-4 w-4" />
@@ -888,6 +894,14 @@ export default function MinhaEmpresaPage() {
             <ReopenPeriodModal
                 isOpen={isReopenPeriodModalOpen}
                 onClose={() => setReopenPeriodModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompanyId}
+            />
+        )}
+        {user && activeCompanyId && (
+            <BackupModal
+                isOpen={isBackupModalOpen}
+                onClose={() => setBackupModalOpen(false)}
                 userId={user.uid}
                 companyId={activeCompanyId}
             />
