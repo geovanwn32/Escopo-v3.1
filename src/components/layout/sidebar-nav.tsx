@@ -117,6 +117,7 @@ export const mainNavLinks = [
   { href: "/contabil", icon: <BookCopy />, label: "Contábil" },
   { href: "/financeiro", icon: <Landmark />, label: "Financeiro" },
   { href: "/parceiros", icon: <Handshake />, label: "Cadastros" },
+  { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
 ];
 
 const getLinksForPath = (pathname: string) => {
@@ -187,4 +188,3 @@ export function SidebarNav({ onHelpClick }: { onHelpClick: () => void }) {
     </Sidebar>
   );
 }
-
