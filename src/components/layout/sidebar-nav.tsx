@@ -105,7 +105,6 @@ const utilitariosLinks = [
 ];
 
 const sistemaLinks = [
-    { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
     { href: "/minha-empresa", icon: <Building2 />, label: "Minha Empresa" },
     { href: "/configuracoes", icon: <Settings />, label: "Configurações" },
     { href: "/admin", icon: <Shield />, label: "Admin", adminOnly: true },
