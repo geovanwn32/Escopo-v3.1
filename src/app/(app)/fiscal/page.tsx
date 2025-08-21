@@ -181,20 +181,21 @@ export default function FiscalPage() {
     };
 
     setLoadingData(true);
-    let activeListeners = 6; // Increased to 6 for the new collections
+    let activeListeners = 6;
     const onDone = () => {
         activeListeners--;
         if (activeListeners === 0) setLoadingData(false);
     }
     
     // Generic function to create a listener
-    const createListener = (collectionName: string, setData: (data: any[]) => void, toastTitle: string, idField?: string) => {
+    const createListener = (collectionName: string, setData: (data: any[]) => void, toastTitle: string, orderByField: string = 'date') => {
         const ref = collection(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`);
-        const q = query(ref, orderBy(idField === 'id' ? '__name__' : 'date', 'desc'));
+        const q = query(ref, orderBy(orderByField, 'desc'));
 
         return onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
                 const docData = doc.data();
+                // Convert all known timestamp fields to Date objects
                 const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
                 for(const field of dateFields) {
                     if (docData[field] instanceof Timestamp) {
