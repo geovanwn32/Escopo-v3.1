@@ -41,6 +41,7 @@ import { Button } from "../ui/button"
 import type { Vacation } from "@/types/vacation"
 import { analyzeFinancials, type FinancialAnalystInput, type FinancialAnalystOutput } from "@/ai/flows/financial-analyst-flow"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { CalendarCard } from "./calendar-card"
 
 interface Launch {
   id: string;
@@ -388,26 +389,7 @@ function DashboardClient() {
             </Card>
         </div>
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-6">
-             <Card>
-                <CardHeader>
-                    <CardTitle>Calendário de Eventos</CardTitle>
-                    <CardDescription>Clique em um dia para adicionar um evento.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Calendar
-                    mode="single"
-                    month={month}
-                    onMonthChange={setMonth}
-                    selected={date}
-                    onSelect={setDate}
-                    onDayClick={handleDayClick}
-                    className="p-0"
-                    locale={ptBR}
-                    modifiers={{ scheduled: upcomingEvents.map(e => e.date as Date) }}
-                    modifiersClassNames={{ scheduled: 'bg-primary/20 rounded-full' }}
-                    />
-                </CardContent>
-            </Card>
+             <CalendarCard />
             <Card>
               <CardHeader>
                 <CardTitle>Próximos Eventos</CardTitle>
