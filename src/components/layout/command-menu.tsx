@@ -15,9 +15,6 @@ import {
 } from "@/components/ui/command"
 import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
 
-// Helper function to create a unique value for each command item
-const createCommandValue = (group: string, label: string) => `${group}:${label}`
-
 export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: boolean) => void }) {
   const router = useRouter()
 
@@ -32,10 +29,11 @@ export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: 
     return () => document.removeEventListener("keydown", down)
   }, [setOpen])
 
-  const runCommand = React.useCallback((command: () => unknown) => {
+
+  const runCommand = (callback: () => unknown) => {
     setOpen(false)
-    command()
-  }, [setOpen])
+    callback()
+  }
 
   const commandGroups = [
     { heading: 'Navegação Principal', links: mainNavLinks },
@@ -61,14 +59,11 @@ export function CommandMenu({ open, setOpen }: { open: boolean, setOpen: (open: 
               {group.links.map(link => (
                 <CommandItem
                   key={link.href || link.label}
-                  value={createCommandValue(group.heading, link.label)}
+                  value={`${group.heading}-${link.label}`}
                   onSelect={() => {
                     runCommand(() => {
-                      if (link.href) {
-                        router.push(link.href);
-                      } else if (link.onClick) {
-                        link.onClick();
-                      }
+                        if (link.href) router.push(link.href)
+                        else if (link.onClick) link.onClick()
                     });
                   }}
                 >
