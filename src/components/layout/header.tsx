@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { signOut } from "firebase/auth";
-import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard } from "lucide-react";
+import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
@@ -20,12 +20,15 @@ import {
 import { useSidebar } from "../ui/sidebar";
 import { cn } from "@/lib/utils";
 import { mainNavLinks } from "./sidebar-nav"; // Import main navigation links
+import { CommandMenu } from "./command-menu";
 
 export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any; onSwitchCompany: () => void; }) {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
+  const [isCommandMenuOpen, setIsCommandMenuOpen] = React.useState(false);
+
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -66,7 +69,16 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
                 ))}
             </nav>
         </div>
-      <div className="flex flex-1 items-center justify-end gap-4">
+      <div className="flex flex-1 items-center justify-end gap-2 md:gap-4">
+         <Button variant="outline" size="sm" className="relative w-full justify-start text-muted-foreground sm:w-auto" onClick={() => setIsCommandMenuOpen(true)}>
+          <Search className="mr-2 h-4 w-4" />
+          <span className="hidden sm:inline-block">Buscar...</span>
+          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+            <span className="text-xs">⌘</span>K
+          </kbd>
+        </Button>
+        <CommandMenu open={isCommandMenuOpen} setOpen={setIsCommandMenuOpen} />
+
          <Button variant="outline" size="sm" onClick={onSwitchCompany} className="hidden sm:inline-flex">
             <Repeat className="mr-2 h-4 w-4" />
             Trocar Empresa
