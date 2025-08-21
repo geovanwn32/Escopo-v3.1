@@ -11,6 +11,7 @@ import { Loader2, Archive, HardDriveDownload, Trash2, ShieldCheck } from 'lucide
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 
 interface BackupModalProps {
