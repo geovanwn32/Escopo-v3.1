@@ -549,10 +549,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
             isOpen={isPartnerModalOpen}
             onClose={() => setPartnerModalOpen(false)}
             onSelect={handleSelectPartner}
-            userId={userId}
-            companyId={company.id}
-            partnerType={partnerTarget === 'emitente' ? 'fornecedor' : 'cliente'}
             partners={partners}
+            partnerType={partnerTarget === 'emitente' ? 'fornecedor' : 'cliente'}
         />
     )}
     </>

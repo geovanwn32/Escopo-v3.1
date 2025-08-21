@@ -23,6 +23,7 @@ export function PartnerSelectionModal({ isOpen, onClose, onSelect, partners, par
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredPartners = useMemo(() => {
+    if (!partners) return [];
     return partners
       .filter(p => p.type === partnerType)
       .filter(partner =>

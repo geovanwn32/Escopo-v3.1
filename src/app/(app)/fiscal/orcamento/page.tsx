@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc, getCountFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, doc, setDoc, serverTimestamp, getDoc, getCountFromServer, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,7 @@ function OrcamentoPage() {
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
     const [isItemModalOpen, setItemModalOpen] = useState(false);
     const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
+    const [partners, setPartners] = useState<Partner[]>([]);
 
     const { user } = useAuth();
     const { toast } = useToast();
@@ -102,6 +103,27 @@ function OrcamentoPage() {
             }
         }
     }, [user]);
+
+    // Fetch partners when company is active
+    useEffect(() => {
+        if (!user || !activeCompany) {
+            setPartners([]);
+            return;
+        }
+
+        const partnersRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/partners`);
+        const q = query(partnersRef, orderBy('razaoSocial', 'asc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const partnersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
+            setPartners(partnersData);
+        }, (error) => {
+            console.error("Error fetching partners: ", error);
+            toast({ variant: "destructive", title: "Erro ao buscar parceiros." });
+        });
+
+        return () => unsubscribe();
+    }, [user, activeCompany, toast]);
 
     const loadOrcamento = useCallback(async (id: string, company: Company) => {
         if (!user) return;
@@ -359,8 +381,7 @@ function OrcamentoPage() {
                     isOpen={isPartnerModalOpen}
                     onClose={() => setPartnerModalOpen(false)}
                     onSelect={handleSelectPartner}
-                    userId={user.uid}
-                    companyId={activeCompany.id}
+                    partners={partners}
                     partnerType='cliente'
                 />
             )}
