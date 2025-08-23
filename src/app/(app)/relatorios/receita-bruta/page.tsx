@@ -12,9 +12,11 @@ import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
 import { generateGrossRevenueReportPdf } from "@/services/gross-revenue-report-service";
+import { DateInput } from "@/components/ui/date-input";
 
 export default function ReceitaBrutaReportPage() {
     const [period, setPeriod] = useState<string>('');
+    const [signatureDate, setSignatureDate] = useState<Date>(new Date());
     const [isGenerating, setIsGenerating] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
 
@@ -59,9 +61,14 @@ export default function ReceitaBrutaReportPage() {
             return;
         }
 
+        if (!signatureDate) {
+            toast({ variant: 'destructive', title: 'Data de assinatura inválida', description: 'Por favor, selecione uma data para a assinatura.' });
+            return;
+        }
+
         setIsGenerating(true);
         try {
-            await generateGrossRevenueReportPdf(user.uid, activeCompany, period);
+            await generateGrossRevenueReportPdf(user.uid, activeCompany, period, signatureDate);
         } catch (error) {
             console.error("Erro ao gerar relatório de receita bruta:", error);
             toast({ variant: 'destructive', title: 'Erro ao gerar relatório', description: (error as Error).message });
@@ -89,15 +96,24 @@ export default function ReceitaBrutaReportPage() {
                     <CardDescription>Selecione o período de competência para gerar o relatório consolidado de receitas.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="period">Período de Competência (MM/AAAA)</Label>
-                        <Input 
-                            id="period" 
-                            placeholder="Ex: 07/2024" 
-                            value={period} 
-                            onChange={handlePeriodChange} 
-                            maxLength={7} 
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="period">Período de Competência (MM/AAAA)</Label>
+                            <Input 
+                                id="period" 
+                                placeholder="Ex: 07/2024" 
+                                value={period} 
+                                onChange={handlePeriodChange} 
+                                maxLength={7} 
+                            />
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="signatureDate">Data de Assinatura</Label>
+                            <DateInput 
+                                value={signatureDate}
+                                onChange={(date) => setSignatureDate(date || new Date())}
+                            />
+                        </div>
                     </div>
                     <Button onClick={handleGenerateReport} className="w-full" disabled={isGenerating || !activeCompany}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}

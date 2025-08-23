@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
@@ -48,7 +48,7 @@ function addHeader(doc: jsPDF, company: Company) {
     return y + 5;
 }
 
-export async function generateGrossRevenueReportPdf(userId: string, company: Company, period: string) {
+export async function generateGrossRevenueReportPdf(userId: string, company: Company, period: string, signatureDate: Date) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
@@ -151,9 +151,8 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     
     y = (doc as any).lastAutoTable.finalY + 15;
     
-    const today = new Date();
     doc.setFontSize(10);
-    doc.text(`${company.cidade || ''}, ${format(today, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
+    doc.text(`${company.cidade || ''}, ${format(signatureDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
     y += 15;
     doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
     doc.text('Assinatura do Responsável', pageWidth / 2, y + 4, { align: 'center' });
