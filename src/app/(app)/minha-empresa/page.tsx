@@ -496,6 +496,7 @@ export default function MinhaEmpresaPage() {
                                                 <Input 
                                                     {...field}
                                                     placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                                                    onBlur={tipoInscricao === 'cnpj' ? handleCnpjLookup : undefined}
                                                     onChange={(e) => {
                                                         const { value } = e.target;
                                                         if (tipoInscricao === 'cnpj') {
@@ -505,7 +506,7 @@ export default function MinhaEmpresaPage() {
                                                         }
                                                         field.onChange(e);
                                                     }}
-                                                    onBlur={tipoInscricao === 'cnpj' ? handleCnpjLookup : undefined}
+                                                    
                                                 />
                                             </FormControl>
                                             {tipoInscricao === 'cnpj' && (

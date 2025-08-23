@@ -21,7 +21,7 @@ import { doc, setDoc } from 'firebase/firestore';
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
-  cnpj: z.string().length(18, "CNPJ deve ter 14 dígitos.").transform(val => val.replace(/[^\d]/g, '')),
+  cnpj: z.string().min(18, "CNPJ deve ter 14 dígitos.").transform(val => val.replace(/[^\d]/g, '')),
 });
 
 
@@ -32,10 +32,16 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
   const [isCreating, setIsCreating] = useState(false);
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loadingCnpj, setLoadingCnpj] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof companySchema>>({
     resolver: zodResolver(companySchema),
+    defaultValues: {
+      cnpj: '',
+      razaoSocial: '',
+      nomeFantasia: '',
+    }
   });
 
   const fetchCompanies = async () => {
@@ -64,6 +70,29 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
       (company.cnpj && company.cnpj.includes(searchTerm.replace(/\D/g, '')))
     );
   }, [companies, searchTerm]);
+  
+  const handleCnpjLookup = async () => {
+    const cnpj = form.getValues('cnpj');
+    const cleanedCnpj = cnpj.replace(/\D/g, '');
+    if (cleanedCnpj.length !== 14) {
+      toast({ variant: 'destructive', title: 'CNPJ inválido' });
+      return;
+    }
+    setLoadingCnpj(true);
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+      if (!response.ok) throw new Error('CNPJ não encontrado ou API indisponível.');
+      const data = await response.json();
+      form.setValue('razaoSocial', data.razao_social || '');
+      form.setValue('nomeFantasia', data.nome_fantasia || data.razao_social || '');
+      toast({ title: 'Dados do CNPJ preenchidos!' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
+    } finally {
+      setLoadingCnpj(false);
+    }
+  };
+
 
   const handleCreateOrUpdateCompany = async (values: z.infer<typeof companySchema>) => {
     setIsSubmitting(true);
@@ -78,7 +107,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
         await createCompanyWithDefaults(userId, values);
         toast({ title: "Empresa criada com sucesso!", description: "Um plano de contas padrão foi adicionado." });
       }
-      form.reset();
+      form.reset({ cnpj: '', razaoSocial: '', nomeFantasia: ''});
       setIsCreating(false);
       setEditingCompany(null);
       await fetchCompanies();
@@ -128,13 +157,40 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
         {isCreating || editingCompany ? (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleCreateOrUpdateCompany)} className="space-y-4 py-4">
-              <FormField control={form.control} name="nomeFantasia" render={({ field }) => (<FormItem><FormLabel>Nome Fantasia</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField
+                control={form.control}
+                name="cnpj"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CNPJ</FormLabel>
+                    <div className="relative">
+                      <FormControl>
+                        <Input
+                          {...field}
+                          onBlur={handleCnpjLookup}
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            e.target.value = value
+                              .replace(/\D/g, '')
+                              .replace(/(\d{2})(\d)/, '$1.$2')
+                              .replace(/(\d{3})(\d)/, '$1.$2')
+                              .replace(/(\d{3})(\d)/, '$1/$2')
+                              .replace(/(\d{4})(\d{2})/, '$1-$2')
+                              .replace(/(-\d{2})\d+?$/, '$1');
+                            field.onChange(e);
+                          }}
+                        />
+                      </FormControl>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        {loadingCnpj ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5 text-muted-foreground" />}
+                      </div>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField control={form.control} name="razaoSocial" render={({ field }) => (<FormItem><FormLabel>Razão Social</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-              <FormField control={form.control} name="cnpj" render={({ field }) => (<FormItem><FormLabel>CNPJ</FormLabel><FormControl><Input {...field} onChange={(e) => {
-                const { value } = e.target;
-                e.target.value = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
-                field.onChange(e);
-              }} /></FormControl><FormMessage /></FormItem>)} />
+              <FormField control={form.control} name="nomeFantasia" render={({ field }) => (<FormItem><FormLabel>Nome Fantasia</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setEditingCompany(null); }} disabled={isSubmitting}>Cancelar</Button>
                 <Button type="submit" disabled={isSubmitting}>
@@ -208,7 +264,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
               </div>
             )}
             <DialogFooter className="mt-4">
-              <Button onClick={() => { setIsCreating(true); setEditingCompany(null); form.reset(); }} className="w-full">
+              <Button onClick={() => { setIsCreating(true); setEditingCompany(null); form.reset({ cnpj: '', razaoSocial: '', nomeFantasia: ''}); }} className="w-full">
                 <PlusCircle className="mr-2 h-4 w-4" /> Cadastrar Nova Empresa
               </Button>
             </DialogFooter>
