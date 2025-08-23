@@ -30,6 +30,7 @@ const companySchema = z.object({
   nomeFantasia: z.string().optional(),
   tipoInscricao: z.enum(['cnpj', 'cpf']),
   inscricao: z.string().min(1, "CNPJ/CPF é obrigatório"),
+  ativo: z.boolean().default(true),
   tipoEstabelecimento: z.enum(['matriz', 'filial']).default('matriz'),
   cnaePrincipalCodigo: z.string().optional(),
   cnaePrincipalDescricao: z.string().optional(),
@@ -80,6 +81,7 @@ const ensureSafeData = (data: any): Partial<CompanyFormData> => {
         nomeFantasia: data.nomeFantasia || "",
         tipoInscricao: data.tipoInscricao || 'cnpj',
         inscricao: data.cnpj || data.cpf || data.inscricao || "",
+        ativo: data.ativo ?? true,
         tipoEstabelecimento: data.tipoEstabelecimento || (data.isMatriz ? 'matriz' : 'filial'),
         cnaePrincipalCodigo: data.cnaePrincipalCodigo || "",
         cnaePrincipalDescricao: data.cnaePrincipalDescricao || "",
@@ -527,13 +529,13 @@ export default function MinhaEmpresaPage() {
                                 control={form.control}
                                 name="tipoEstabelecimento"
                                 render={({ field }) => (
-                                <FormItem className="space-y-3 md:col-span-2">
+                                <FormItem className="space-y-3">
                                     <FormLabel>Tipo de Estabelecimento</FormLabel>
                                     <FormControl>
                                         <RadioGroup
                                         onValueChange={field.onChange}
                                         value={field.value}
-                                        className="flex flex-col space-y-2 rounded-lg border p-4"
+                                        className="flex flex-row space-x-4 rounded-lg border p-4"
                                         >
                                             <FormItem className="flex items-center space-x-3 space-y-0">
                                                 <FormControl>
@@ -550,6 +552,26 @@ export default function MinhaEmpresaPage() {
                                         </RadioGroup>
                                     </FormControl>
                                     <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="ativo"
+                                render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                    <div className="space-y-0.5">
+                                    <FormLabel className="text-base">Empresa Ativa</FormLabel>
+                                    <FormDescription>
+                                        Empresas inativas não aparecerão em listas de seleção.
+                                    </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                    <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                    />
+                                    </FormControl>
                                 </FormItem>
                                 )}
                             />
