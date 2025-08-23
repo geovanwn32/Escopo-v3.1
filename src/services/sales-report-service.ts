@@ -86,14 +86,14 @@ export async function generateSalesReportPdf(userId: string, company: Company, d
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
     const q = query(launchesRef,
         where('date', '>=', startDate),
-        where('date', '<=', endDate),
-        orderBy('date', 'desc')
+        where('date', '<=', endDate)
     );
 
     const snapshot = await getDocs(q);
     const sales = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Launch))
-        .filter(launch => launch.type === 'saida' || launch.type === 'servico');
+        .filter(launch => (launch.type === 'saida' || launch.type === 'servico') && launch.status !== 'Cancelado')
+        .sort((a,b) => ((b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
 
 
     if (sales.length === 0) {
