@@ -1,11 +1,20 @@
 
+"use client";
+
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, ShoppingCart, Users, Package, FileText } from "lucide-react";
+import { TrendingUp, ShoppingCart, Users, Package, FileText, Banknote } from "lucide-react";
 import Link from "next/link";
 
 export default function RelatoriosPage() {
     const reportCards = [
+        {
+            href: "/relatorios/receita-bruta",
+            title: 'Relatório de Receita Bruta',
+            description: 'Gere o relatório mensal de receitas para o Simples Nacional.',
+            icon: Banknote,
+            buttonText: 'Gerar Relatório'
+        },
         { 
             href: "/relatorios/vendas",
             title: 'Relatório de Vendas',
@@ -46,7 +55,7 @@ export default function RelatoriosPage() {
           <CardDescription>Selecione um dos relatórios abaixo para extrair informações importantes do sistema.</CardDescription>
         </CardHeader>
         <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {reportCards.map((card) => (
                     <Card key={card.href} className="flex flex-col">
                         <CardHeader className="items-center text-center">
