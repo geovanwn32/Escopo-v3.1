@@ -1,11 +1,11 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp, startOfMonth, endOfMonth } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
-import { format, getMonth, getYear } from 'date-fns';
+import { format, getMonth, getYear, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const formatCurrency = (value: number | undefined | null): string => {
