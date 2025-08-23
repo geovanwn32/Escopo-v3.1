@@ -18,6 +18,36 @@ const formatCnpj = (cnpj: string): string => {
     return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 };
 
+function addHeader(doc: jsPDF, company: Company) {
+    const pageWidth = doc.internal.pageSize.width;
+    let y = 15;
+    
+    if (company.logoUrl) {
+        try { doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15); }
+        catch(e) { console.error("Could not add logo to PDF:", e); }
+    }
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
+    y += 5;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
+    doc.text(address, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
+     y += 4;
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
+    
+    return y + 5;
+}
+
 export async function generateGrossRevenueReportPdf(userId: string, company: Company, period: string) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
@@ -31,14 +61,12 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     const endDate = endOfMonth(new Date(year, month - 1));
 
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-    // Query only by date to avoid composite index
     const q = query(launchesRef,
         where('date', '>=', Timestamp.fromDate(startDate)),
         where('date', '<=', Timestamp.fromDate(endDate))
     );
     const snapshot = await getDocs(q);
     
-    // Filter for status and type in memory
     const launches = snapshot.docs
         .map(doc => doc.data() as Launch)
         .filter(launch => launch.status === 'Normal');
@@ -59,22 +87,28 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     const grandTotal = totalCommerce + totalIndustry + totalService;
     
     // --- 2. PDF GENERATION ---
+    let y = addHeader(doc, company);
+
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO MENSAL DAS RECEITAS BRUTAS', pageWidth / 2, 15, { align: 'center' });
+    doc.text('RELATÓRIO MENSAL DAS RECEITAS BRUTAS', pageWidth / 2, y, { align: 'center' });
+    y += 10;
 
     // Company and Period Info
     autoTable(doc, {
-        startY: 20,
+        startY: y,
         theme: 'grid',
-        styles: { fontSize: 9, cellPadding: 1 },
+        styles: { fontSize: 9, cellPadding: 1.5 },
         body: [
             [{ content: 'EMPRESA:', styles: { fontStyle: 'bold' } }, { content: `${company.cnpj.slice(0, 8)} ${company.razaoSocial}`, colSpan: 3 }],
             [{ content: 'CNPJ:', styles: { fontStyle: 'bold' } }, { content: formatCnpj(company.cnpj), colSpan: 3 }],
             [{ content: 'Período de apuração:', styles: { fontStyle: 'bold' } }, { content: 'MÊS', styles: { fontStyle: 'bold', halign: 'center' } }, { content: 'ANO', styles: { fontStyle: 'bold', halign: 'center' } }],
-            ['', { content: format(startDate, 'MMMM', { locale: ptBR }).toUpperCase(), styles: { halign: 'center' } }, { content: getYear(startDate), styles: { halign: 'center' } }]
+            ['', { content: format(startDate, 'MMMM', { locale: ptBR }).toUpperCase(), styles: { halign: 'center' } }, { content: getYear(startDate).toString(), styles: { halign: 'center' } }]
         ],
+        columnStyles: { 0: { cellWidth: 45 } }
     });
+
+    y = (doc as any).lastAutoTable.finalY + 5;
 
     const reportData = [
         [{ content: 'RECEITA BRUTA MENSAL - REVENDA DE MERCADORIAS (COMÉRCIO)', colSpan: 2, styles: { fillColor: [220, 220, 220], fontStyle: 'bold' } }],
@@ -98,26 +132,31 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     autoTable(doc, {
         body: reportData,
         theme: 'grid',
-        startY: (doc as any).lastAutoTable.finalY,
-        columnStyles: { 1: { halign: 'right' } }
+        startY: y,
+        columnStyles: { 1: { halign: 'right' } },
+        styles: { fontSize: 9, cellPadding: 1.5 }
     });
 
-    const today = new Date();
+    y = (doc as any).lastAutoTable.finalY + 10;
+    
     autoTable(doc, {
+        startY: y,
+        theme: 'plain',
+        styles: { fontSize: 8 },
         body: [
-            [{ content: 'LOCAL E DATA:', styles: { fontStyle: 'bold', valign: 'middle'} }, { content: `${format(today, 'd')}`, styles: { halign: 'center'} }, { content: `${format(today, 'MMMM', {locale: ptBR}).toUpperCase()}`, styles: { halign: 'center'}}, { content: `${format(today, 'yyyy')}`, styles: { halign: 'center'}}, { content: 'ASSINATURA', styles: { fontStyle: 'bold', valign: 'middle'}}],
-            [{ content: `${company.cidade || ''}`, colSpan: 4}, '']
-        ],
-        theme: 'grid',
-        startY: (doc as any).lastAutoTable.finalY,
+            ['Os documentos fiscais comprobatórios das entradas de mercadorias e serviços tomados referentes ao período;'],
+            ['As notas fiscais relativas às operações ou prestações realizadas eventualmente emitidas.']
+        ]
     });
     
-    let y = (doc as any).lastAutoTable.finalY + 5;
-    doc.setFontSize(8);
-    doc.text('Os documentos fiscais comprobatórios das entradas de mercadorias e serviços tomados referentes ao período;', 14, y);
-    y += 4;
-    doc.text('As notas fiscais relativas às operações ou prestações realizadas eventualmente emitidas.', 14, y);
-
+    y = (doc as any).lastAutoTable.finalY + 15;
+    
+    const today = new Date();
+    doc.setFontSize(10);
+    doc.text(`${company.cidade || ''}, ${format(today, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageWidth / 2, y, { align: 'center' });
+    y += 15;
+    doc.line(pageWidth / 2 - 40, y, pageWidth / 2 + 40, y);
+    doc.text('Assinatura do Responsável', pageWidth / 2, y + 4, { align: 'center' });
 
     doc.output('dataurlnewwindow');
 }
