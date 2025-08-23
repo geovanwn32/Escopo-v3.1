@@ -225,13 +225,13 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
 
   // Auto-calculate totals for NF-e
   useEffect(() => {
-    if (watchedFormValues.produtos) {
+    if (watchedFormValues.type !== 'servico' && watchedFormValues.produtos) {
       const newTotalProdutos = watchedFormValues.produtos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
       setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
       // Simple total for now. Can be expanded with IPI, etc.
       setValue('valorTotalNota', parseFloat(newTotalProdutos.toFixed(2)));
     }
-  }, [watchedFormValues.produtos, setValue]);
+  }, [watchedFormValues.produtos, watchedFormValues.type, setValue]);
 
   // Auto-calculate net value for NFS-e
   useEffect(() => {
@@ -267,6 +267,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   };
 
   const isReadOnly = mode === 'view';
+  const modalKey = launch?.id || xmlFile?.file.name || manualLaunchType || 'new';
+
 
   const formatCnpj = (cnpj?: string | null) => {
     if (!cnpj) return '';
@@ -306,7 +308,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
       }
       form.reset({ ...defaultLaunchValues, ...initialData });
     }
-  }, [isOpen, xmlFile, launch, manualLaunchType, orcamento, mode, company, form]);
+  }, [isOpen, xmlFile, launch, orcamento, manualLaunchType, mode, company, form]);
 
    const handleSelectPartner = (partner: Partner) => {
     if (!partnerTarget) return;
@@ -375,7 +377,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-4xl" key={modalKey}>
         <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)}>
         <DialogHeader>
@@ -470,7 +472,10 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                         {form.getValues('type') === 'servico' ? (
                           <FormField control={form.control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         ) : (
-                          <FormField control={form.control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                          <>
+                           <FormField control={form.control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                           <FormField control={form.control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                          </>
                         )}
                     </AccordionContent>
                 </AccordionItem>
@@ -496,4 +501,3 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
     </>
   );
 }
-
