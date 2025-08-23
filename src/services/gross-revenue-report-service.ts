@@ -61,14 +61,17 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     const endDate = endOfMonth(new Date(year, month - 1));
 
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+    // Query only by date range to avoid composite index
     const q = query(launchesRef,
         where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        where('status', '==', 'Normal')
+        where('date', '<=', Timestamp.fromDate(endDate))
     );
     const snapshot = await getDocs(q);
     
-    const launches = snapshot.docs.map(doc => doc.data() as Launch);
+    // Filter for status in memory
+    const launches = snapshot.docs
+        .map(doc => doc.data() as Launch)
+        .filter(launch => launch.status === 'Normal');
     
     const commerceRevenue = launches
         .filter(l => l.type === 'saida')
