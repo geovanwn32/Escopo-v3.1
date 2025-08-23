@@ -58,11 +58,11 @@ const partySchema = z.object({
 }).optional().nullable();
 
 const productSchema = z.object({
-    codigo: z.string(),
-    descricao: z.string(),
-    ncm: z.string(),
-    cfop: z.string(),
-    valorUnitario: z.number(),
+    codigo: z.string().optional(),
+    descricao: z.string().optional(),
+    ncm: z.string().optional(),
+    cfop: z.string().optional(),
+    valorUnitario: z.number().optional(),
 }).partial();
 
 const launchSchema = z.object({
@@ -149,10 +149,10 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     if (type === 'servico' && nfseNode) {
         const servicoNode = nfseNode.querySelector('InfNfse') || nfseNode;
         
-        data.numeroNfse = querySelectorText(servicoNode, ['Numero', 'nNFSe']);
+        data.numeroNfse = querySelectorText(servicoNode, ['Numero', 'nNFSe']) || '';
         data.valorServicos = parseFloat(querySelectorText(servicoNode, ['ValorServicos', 'vServ', 'vlrServicos']) || '0');
         data.valorLiquido = parseFloat(querySelectorText(servicoNode, ['ValorLiquidoNfse', 'vLiq', 'vNF']) || '0');
-        data.discriminacao = querySelectorText(servicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']);
+        data.discriminacao = querySelectorText(servicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']) || '';
         
         let itemLc = querySelectorText(servicoNode, ['ItemListaServico', 'cServico']);
         if (!itemLc) {
@@ -161,7 +161,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                 itemLc = cTribNac.substring(0, 4);
             }
         }
-        data.itemLc116 = itemLc;
+        data.itemLc116 = itemLc || '';
         
         data.valorPis = parseFloat(querySelectorText(servicoNode, ['ValorPis', 'vPIS']) || '0');
         data.valorCofins = parseFloat(querySelectorText(servicoNode, ['ValorCofins', 'vCOFINS']) || '0');
@@ -170,42 +170,35 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.valorCsll = parseFloat(querySelectorText(servicoNode, ['ValorCsll', 'vCSLL']) || '0');
 
         const prestadorNode = servicoNode.querySelector('PrestadorServico, Prestador, prest');
-        if (prestadorNode) {
-            data.prestador = {
-                nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome', 'xNome']),
-                cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj'])
-            };
-        }
+        data.prestador = {
+            nome: querySelectorText(prestadorNode, ['RazaoSocial', 'Nome', 'xNome']) || '',
+            cnpj: querySelectorText(prestadorNode, ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj']) || ''
+        };
 
         const tomadorNode = servicoNode.querySelector('TomadorServico, Tomador, toma');
-        if (tomadorNode) {
-            data.tomador = {
-                nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome', 'xNome']),
-                cnpj: querySelectorText(tomadorNode, ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF'])
-            };
-        }
+        data.tomador = {
+            nome: querySelectorText(tomadorNode, ['RazaoSocial', 'Nome', 'xNome']) || '',
+            cnpj: querySelectorText(tomadorNode, ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF']) || ''
+        };
         
     } else if (isNFe) {
         const emitNode = xmlDoc.querySelector('emit');
         const destNode = xmlDoc.querySelector('dest');
         
-        if (emitNode) {
-            data.emitente = {
-                nome: querySelectorText(emitNode, ['xNome']),
-                cnpj: querySelectorText(emitNode, ['CNPJ', 'CPF'])
-            };
-        }
-        if (destNode) {
-            data.destinatario = {
-                nome: querySelectorText(destNode, ['xNome']),
-                cnpj: querySelectorText(destNode, ['CNPJ', 'CPF'])
-            };
-        }
+        data.emitente = {
+            nome: querySelectorText(emitNode, ['xNome']) || '',
+            cnpj: querySelectorText(emitNode, ['CNPJ', 'CPF']) || ''
+        };
+        
+        data.destinatario = {
+            nome: querySelectorText(destNode, ['xNome']) || '',
+            cnpj: querySelectorText(destNode, ['CNPJ', 'CPF']) || ''
+        };
         
         const infNFeNode = xmlDoc.querySelector('infNFe');
         let chave = infNFeNode ? infNFeNode.getAttribute('Id') || '' : '';
         if (!chave) chave = querySelectorText(xmlDoc, ['chNFe']);
-        data.chaveNfe = chave.replace(/\D/g, '');
+        data.chaveNfe = chave.replace(/\D/g, '') || '';
         
         data.valorProdutos = parseFloat(querySelectorText(xmlDoc, ['vProd']) || '0');
         data.valorTotalNota = parseFloat(querySelectorText(xmlDoc, ['vNF']) || '0');
@@ -214,10 +207,10 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
             const prodNode = det.querySelector('prod');
             if (!prodNode) return {};
             return {
-                codigo: querySelectorText(prodNode, ['cProd']),
-                descricao: querySelectorText(prodNode, ['xProd']),
-                ncm: querySelectorText(prodNode, ['NCM']),
-                cfop: querySelectorText(prodNode, ['CFOP']),
+                codigo: querySelectorText(prodNode, ['cProd']) || '',
+                descricao: querySelectorText(prodNode, ['xProd']) || '',
+                ncm: querySelectorText(prodNode, ['NCM']) || '',
+                cfop: querySelectorText(prodNode, ['CFOP']) || '',
                 valorUnitario: parseFloat(querySelectorText(prodNode, ['vUnCom']) || '0'),
             };
         }).filter(p => p.codigo);
@@ -230,7 +223,33 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
   const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
-  const form = useForm<FormData>({ resolver: zodResolver(launchSchema) });
+  const form = useForm<FormData>({ 
+    resolver: zodResolver(launchSchema),
+    defaultValues: {
+        fileName: '',
+        type: '',
+        status: 'Normal',
+        date: new Date(),
+        chaveNfe: '',
+        numeroNfse: '',
+        prestador: { nome: '', cnpj: '' },
+        tomador: { nome: '', cnpj: '' },
+        discriminacao: '',
+        itemLc116: '',
+        valorServicos: 0,
+        valorPis: 0,
+        valorCofins: 0,
+        valorIr: 0,
+        valorInss: 0,
+        valorCsll: 0,
+        valorLiquido: 0,
+        emitente: { nome: '', cnpj: '' },
+        destinatario: { nome: '', cnpj: '' },
+        valorProdutos: 0,
+        valorTotalNota: 0,
+        produtos: [],
+    }
+  });
   const isReadOnly = mode === 'view';
 
   const formatCnpj = (cnpj?: string) => {
@@ -419,7 +438,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionTrigger>Informações Gerais</AccordionTrigger>
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da NFS-e</FormLabel><FormControl><Input {...field} value={field.value ?? ''} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                             <FormField
                                 control={form.control}
                                 name="date"
@@ -455,20 +474,20 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                 <AccordionItem value="service">
                     <AccordionTrigger>Serviços e Impostos</AccordionTrigger>
                     <AccordionContent className="space-y-4 px-1">
-                        <FormField control={form.control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} value={field.value ?? ''} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} value={field.value ?? ''} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                         <div className="grid grid-cols-3 gap-4">
-                            <FormField control={form.control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                         <div className="grid grid-cols-3 gap-4">
-                            <FormField control={form.control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                     </AccordionContent>
                 </AccordionItem>
@@ -478,7 +497,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                 <AccordionItem value="general">
                     <AccordionTrigger>Informações Gerais</AccordionTrigger>
                     <AccordionContent className="space-y-4 px-1">
-                        <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
+                        <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave da NF-e</FormLabel><FormControl><Input {...field} value={field.value ?? ''} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
                         <div className="grid grid-cols-2 gap-4">
                              <FormField
                                 control={form.control}
@@ -515,8 +534,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                     <AccordionTrigger>Produtos e Valores</AccordionTrigger>
                     <AccordionContent className="space-y-4 px-1">
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                         </div>
                         {form.getValues('produtos') && form.getValues('produtos').length > 0 && (
                             <div className="mt-4 space-y-2">
