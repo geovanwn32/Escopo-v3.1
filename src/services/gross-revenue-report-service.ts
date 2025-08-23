@@ -1,11 +1,11 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, startOfMonth, endOfMonth } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
-import { format, getMonth, getYear, startOfMonth, endOfMonth } from 'date-fns';
+import { format, getYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const formatCurrency = (value: number | undefined | null): string => {
@@ -31,13 +31,17 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     const endDate = endOfMonth(new Date(year, month - 1));
 
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+    // Query only by date to avoid composite index
     const q = query(launchesRef,
         where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        where('status', '==', 'Normal')
+        where('date', '<=', Timestamp.fromDate(endDate))
     );
     const snapshot = await getDocs(q);
-    const launches = snapshot.docs.map(doc => doc.data() as Launch);
+    
+    // Filter for status and type in memory
+    const launches = snapshot.docs
+        .map(doc => doc.data() as Launch)
+        .filter(launch => launch.status === 'Normal');
     
     const commerceRevenue = launches
         .filter(l => l.type === 'saida')
