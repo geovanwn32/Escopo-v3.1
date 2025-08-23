@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
 import type { Launch } from '@/app/(app)/fiscal/page';
@@ -63,13 +63,12 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
     const q = query(launchesRef,
         where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
+        where('date', '<=', Timestamp.fromDate(endDate)),
+        where('status', '==', 'Normal')
     );
     const snapshot = await getDocs(q);
     
-    const launches = snapshot.docs
-        .map(doc => doc.data() as Launch)
-        .filter(launch => launch.status === 'Normal');
+    const launches = snapshot.docs.map(doc => doc.data() as Launch);
     
     const commerceRevenue = launches
         .filter(l => l.type === 'saida')
@@ -77,7 +76,7 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
 
     const serviceRevenue = launches
         .filter(l => l.type === 'servico')
-        .reduce((sum, l) => sum + (l.valorLiquido || 0), 0);
+        .reduce((sum, l) => sum + (l.valorLiquido || l.valorTotalNota || 0), 0);
         
     const industryRevenue = 0; // Assuming no industrial launches for now.
 
