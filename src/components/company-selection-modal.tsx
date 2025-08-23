@@ -17,6 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Card, CardContent } from './ui/card';
 import { createCompanyWithDefaults } from '@/services/company-creation-service';
 import { doc, setDoc } from 'firebase/firestore';
+import { Badge } from './ui/badge';
+import { cn } from '@/lib/utils';
 
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
@@ -245,7 +247,12 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
                                         </AlertDialog>
                                     </div>
                                     <Building2 className="w-8 h-8 text-muted-foreground mb-3" />
-                                    <p className="font-semibold text-card-foreground truncate">{company.nomeFantasia}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold text-card-foreground truncate">{company.nomeFantasia}</p>
+                                        <Badge variant={company.ativo === false ? 'secondary' : 'success'}>
+                                            {company.ativo === false ? 'Inativa' : 'Ativa'}
+                                        </Badge>
+                                    </div>
                                     <p className="text-sm text-muted-foreground font-mono">{company.cnpj?.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") || 'CNPJ não informado'}</p>
                                 </div>
                                 <Button className="w-full mt-4" variant="secondary" onClick={() => onCompanySelect(company)}>
