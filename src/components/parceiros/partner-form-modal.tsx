@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -80,39 +81,37 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     resolver: zodResolver(partnerSchema),
     defaultValues: mode === 'create'
         ? {
-            razaoSocial: '',
-            nomeFantasia: '',
-            cpfCnpj: '',
-            inscricaoEstadual: '',
-            cep: '',
-            logradouro: '',
-            numero: '',
-            complemento: '',
-            bairro: '',
-            cidade: '',
-            uf: '',
-            email: '',
-            telefone: '',
+            razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
+            cep: '', logradouro: '', numero: '', complemento: '',
+            bairro: '', cidade: '', uf: '', email: '', telefone: '',
           }
         : {
             ...partner,
-            cpfCnpj: formatCpfCnpj(partner?.cpfCnpj),
+            razaoSocial: partner?.razaoSocial || '',
+            nomeFantasia: partner?.nomeFantasia || '',
+            cpfCnpj: formatCpfCnpj(partner?.cpfCnpj || ''),
+            inscricaoEstadual: partner?.inscricaoEstadual || '',
             cep: partner?.cep ? formatCep(partner.cep) : '',
+            logradouro: partner?.logradouro || '',
+            numero: partner?.numero || '',
+            complemento: partner?.complemento || '',
+            bairro: partner?.bairro || '',
+            cidade: partner?.cidade || '',
+            uf: partner?.uf || '',
+            email: partner?.email || '',
+            telefone: partner?.telefone || '',
         }
   });
-
 
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
     if (cleanedCep.length !== 8) return;
-
     setLoading(true);
     try {
         const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
         if (!response.ok) throw new Error('CEP não encontrado');
         const data = await response.json();
         if (data.erro) throw new Error('CEP inválido');
-
         form.setValue('logradouro', data.logradouro);
         form.setValue('bairro', data.bairro);
         form.setValue('cidade', data.localidade);
@@ -128,17 +127,14 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     const handleCnpjLookup = async () => {
         const cnpjValue = form.getValues("cpfCnpj");
         const cleanedCnpj = cnpjValue.replace(/\D/g, '');
-
         if (cleanedCnpj.length !== 14) {
             toast({ variant: "destructive", title: "CNPJ Inválido", description: "A busca automática funciona apenas com CNPJs de 14 dígitos." });
             return;
         }
-
         setLoadingCnpj(true);
         try {
             const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
             if (!response.ok) throw new Error('CNPJ não encontrado ou API indisponível.');
-            
             const data = await response.json();
             form.setValue("razaoSocial", data.razao_social || "");
             form.setValue("nomeFantasia", data.nome_fantasia || "");
@@ -151,9 +147,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             form.setValue("uf", data.uf || "");
             form.setValue("telefone", data.ddd_telefone_1 || "");
             form.setValue("email", data.email || "");
-
             toast({ title: "Dados do Parceiro Carregados!", description: "Os campos foram preenchidos com as informações da BrasilAPI." });
-            
         } catch (error) {
             toast({ variant: "destructive", title: "Erro ao buscar CNPJ", description: (error as Error).message });
         } finally {
@@ -161,12 +155,10 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
         }
     };
 
-
   const onSubmit = async (values: FormData) => {
     setLoading(true);
     try {
       const dataToSave = { ...values, type: partnerType, cpfCnpj: values.cpfCnpj.replace(/\D/g, '') };
-      
       if (mode === 'create') {
         const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
         await addDoc(partnersRef, dataToSave);
@@ -220,11 +212,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                                 <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl>
                                 {isCnpj && (
                                     <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        {loadingCnpj ? (
-                                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                        ) : (
-                                            <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
-                                        )}
+                                        {loadingCnpj ? (<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />)}
                                     </div>
                                 )}
                             </div>

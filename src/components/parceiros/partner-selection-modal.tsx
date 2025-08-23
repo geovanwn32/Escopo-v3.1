@@ -5,6 +5,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, UserCheck } from 'lucide-react';
 import type { Partner, PartnerType } from '@/types/partner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -36,7 +37,7 @@ export function PartnerSelectionModal({ isOpen, onClose, onSelect, partners, par
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Selecionar {partnerType === 'cliente' ? 'Cliente' : 'Fornecedor'}</DialogTitle>
+          <DialogTitle>Selecionar {partnerType === 'cliente' ? 'Cliente' : partnerType === 'fornecedor' ? 'Fornecedor' : 'Parceiro'}</DialogTitle>
           <DialogDescription>
             Busque e selecione um parceiro.
           </DialogDescription>
