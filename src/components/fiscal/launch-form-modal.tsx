@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, PlusCircle, Trash2 } from 'lucide-react';
 import { Launch, Company } from '@/app/(app)/fiscal/page';
 import { parse, format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
@@ -28,6 +28,7 @@ import type { Orcamento } from '@/types/orcamento';
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import { FileText } from 'lucide-react';
+import { Separator } from '../ui/separator';
 
 interface XmlFile {
   file: File;
@@ -58,12 +59,14 @@ const partySchema = z.object({
 }).optional().nullable();
 
 const productSchema = z.object({
-    codigo: z.string().optional(),
-    descricao: z.string().optional(),
-    ncm: z.string().optional(),
-    cfop: z.string().optional(),
-    valorUnitario: z.number().optional(),
-}).partial();
+    codigo: z.string().optional().nullable(),
+    descricao: z.string().optional().nullable(),
+    ncm: z.string().optional().nullable(),
+    cfop: z.string().optional().nullable(),
+    quantidade: z.coerce.number().default(1),
+    valorUnitario: z.coerce.number().default(0),
+    valorTotal: z.coerce.number().default(0),
+});
 
 const launchSchema = z.object({
   fileName: z.string().default(''),
@@ -81,24 +84,24 @@ const launchSchema = z.object({
   tomador: partySchema,
   discriminacao: z.string().optional().nullable(),
   itemLc116: z.string().optional().nullable(),
-  valorServicos: z.number().optional().nullable(),
-  valorLiquido: z.number().optional().nullable(),
+  valorServicos: z.coerce.number().optional().nullable(),
+  valorLiquido: z.coerce.number().optional().nullable(),
   
   // NF-e specific
   emitente: partySchema,
   destinatario: partySchema,
-  valorProdutos: z.number().optional().nullable(),
-  valorTotalNota: z.number().optional().nullable(),
+  valorProdutos: z.coerce.number().optional().nullable(),
+  valorTotalNota: z.coerce.number().optional().nullable(),
   produtos: z.array(productSchema).optional(),
 
   // Taxes
-  valorPis: z.number().optional().nullable(),
-  valorCofins: z.number().optional().nullable(),
-  valorCsll: z.number().optional().nullable(),
-  valorIr: z.number().optional().nullable(),
-  valorInss: z.number().optional().nullable(),
-  valorIcms: z.number().optional().nullable(),
-  valorIpi: z.number().optional().nullable(),
+  valorPis: z.coerce.number().optional().nullable(),
+  valorCofins: z.coerce.number().optional().nullable(),
+  valorCsll: z.coerce.number().optional().nullable(),
+  valorIr: z.coerce.number().optional().nullable(),
+  valorInss: z.coerce.number().optional().nullable(),
+  valorIcms: z.coerce.number().optional().nullable(),
+  valorIpi: z.coerce.number().optional().nullable(),
 });
 
 type FormData = z.infer<typeof launchSchema>;
@@ -169,8 +172,8 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.prestador = { nome: querySelectorText(servicoNode.querySelector('PrestadorServico, Prestador, prest'), ['RazaoSocial', 'Nome', 'xNome']), cnpj: querySelectorText(servicoNode.querySelector('PrestadorServico, Prestador, prest'), ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj']) };
         data.tomador = { nome: querySelectorText(servicoNode.querySelector('TomadorServico, Tomador, toma'), ['RazaoSocial', 'Nome', 'xNome']), cnpj: querySelectorText(servicoNode.querySelector('TomadorServico, Tomador, toma'), ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF']) };
     } else if (isNFe) {
-        data.emitente = { nome: querySelectorText(xmlDoc.querySelector('emit'), ['xNome']), cnpj: querySelectorText(xmlDoc.querySelector('emit'), ['CNPJ', 'CPF']) };
-        data.destinatario = { nome: querySelectorText(xmlDoc.querySelector('dest'), ['xNome']), cnpj: querySelectorText(xmlDoc.querySelector('dest'), ['CNPJ', 'CPF']) };
+        data.emitente = { nome: querySelectorText(xmlDoc.querySelector('emit'), ['xNome']) || '', cnpj: querySelectorText(xmlDoc.querySelector('emit'), ['CNPJ', 'CPF']) || '' };
+        data.destinatario = { nome: querySelectorText(xmlDoc.querySelector('dest'), ['xNome']) || '', cnpj: querySelectorText(xmlDoc.querySelector('dest'), ['CNPJ', 'CPF']) || '' };
         data.chaveNfe = (xmlDoc.querySelector('infNFe')?.getAttribute('Id') || '').replace(/\D/g, '') || querySelectorText(xmlDoc, ['chNFe']).replace(/\D/g, '');
         data.valorProdutos = getTax(['total ICMSTot vProd']);
         data.valorTotalNota = getTax(['total ICMSTot vNF']);
@@ -183,7 +186,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
             descricao: querySelectorText(det.querySelector('prod'), ['xProd']) || '',
             ncm: querySelectorText(det.querySelector('prod'), ['NCM']) || '',
             cfop: querySelectorText(det.querySelector('prod'), ['CFOP']) || '',
+            quantidade: parseFloat(querySelectorText(det.querySelector('prod'), ['qCom']) || '1'),
             valorUnitario: parseFloat(querySelectorText(det.querySelector('prod'), ['vUnCom']) || '0'),
+            valorTotal: parseFloat(querySelectorText(det.querySelector('prod'), ['vProd']) || '0'),
         })).filter(p => p.codigo);
     }
     
@@ -207,9 +212,33 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
     resolver: zodResolver(launchSchema),
     defaultValues: defaultLaunchValues
   });
+  const { control, setValue, getValues } = form;
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "produtos",
+  });
+  
+  const watchedProducts = useWatch({ control, name: 'produtos' });
+
+  // Auto-calculate totals
+  useEffect(() => {
+    if (watchedProducts) {
+      const newTotalProdutos = watchedProducts.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+      setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
+      setValue('valorTotalNota', parseFloat(newTotalProdutos.toFixed(2))); // Simplified, can be expanded later
+    }
+  }, [watchedProducts, setValue]);
+
+  const updateProductTotal = (index: number) => {
+    const product = getValues(`produtos.${index}`);
+    const total = (product.quantidade || 0) * (product.valorUnitario || 0);
+    setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
+  };
+
   const isReadOnly = mode === 'view';
 
-  const formatCnpj = (cnpj?: string) => {
+  const formatCnpj = (cnpj?: string | null) => {
     if (!cnpj) return '';
     const cleaned = cnpj.replace(/\D/g, '');
     if (cleaned.length === 11) return cleaned.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
@@ -237,7 +266,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
             initialData = { type, date: new Date(), fileName: `Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`, status: 'Normal',
                 discriminacao: orcamento.items.map(i => `${i.quantity}x ${i.description}`).join('; '),
                 valorServicos: orcamento.total, valorTotalNota: orcamento.total, valorLiquido: orcamento.total,
-                produtos: orcamento.items.filter(i => i.type === 'produto').map(p => ({ codigo: p.id, descricao: p.description, valorUnitario: p.unitPrice, ncm: '', cfop: '' }))
+                produtos: orcamento.items.filter(i => i.type === 'produto').map(p => ({ codigo: p.id, descricao: p.description, valorUnitario: p.unitPrice, ncm: '', cfop: '', quantidade: p.quantity, valorTotal: p.total }))
             };
             if(type === 'servico') initialData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
             else initialData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
@@ -316,7 +345,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl">
         <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)}>
         <DialogHeader>
@@ -372,9 +401,29 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
                  <AccordionItem value="products">
                     <AccordionTrigger>Produtos e Valores</AccordionTrigger>
                     <AccordionContent className="space-y-4 px-1">
+                         {fields.map((item, index) => (
+                            <div key={item.id} className="p-3 border rounded-md bg-muted/50 relative">
+                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                    <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} value={field.value ?? ''} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                    <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => (<FormItem className="col-span-9"><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} value={field.value ?? ''} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                    <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                    <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                    <FormField control={control} name={`produtos.${index}.valorTotal`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input type="number" {...field} readOnly className="font-semibold"/></FormControl></FormItem>)} />
+                                    <div className="col-span-3 flex justify-end">
+                                      {!isReadOnly && <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>}
+                                    </div>
+                                </div>
+                            </div>
+                         ))}
+                         {!isReadOnly && (
+                            <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({ codigo: '', descricao: '', ncm: '', cfop: '', quantidade: 1, valorUnitario: 0, valorTotal: 0 })}>
+                                <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Produto
+                            </Button>
+                         )}
+                        <Separator className="my-4"/>
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor Total dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly /></FormControl></FormItem> )} />
+                            <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? 0} readOnly /></FormControl></FormItem> )} />
                         </div>
                     </AccordionContent>
                 </AccordionItem>

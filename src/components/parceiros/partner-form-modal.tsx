@@ -70,6 +70,12 @@ const formatCpfCnpj = (value: string = '') => {
 
 const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, "$1-$2");
 
+const defaultFormValues: FormData = {
+    razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
+    cep: '', logradouro: '', numero: '', complemento: '',
+    bairro: '', cidade: '', uf: '', email: '', telefone: '',
+};
+
 function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
   const [loading, setLoading] = useState(false);
   const [loadingCnpj, setLoadingCnpj] = useState(false);
@@ -80,11 +86,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   const form = useForm<FormData>({
     resolver: zodResolver(partnerSchema),
     defaultValues: mode === 'create'
-        ? {
-            razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
-            cep: '', logradouro: '', numero: '', complemento: '',
-            bairro: '', cidade: '', uf: '', email: '', telefone: '',
-          }
+        ? defaultFormValues
         : {
             ...partner,
             razaoSocial: partner?.razaoSocial || '',
@@ -202,14 +204,14 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             </TabsList>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               <TabsContent value="identity" className="space-y-4">
-                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} autoFocus /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} autoFocus value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                   <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( 
                         <FormItem>
                             <FormLabel>CPF / CNPJ</FormLabel>
                             <div className="relative">
-                                <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl>
+                                <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} value={field.value || ''} /></FormControl>
                                 {isCnpj && (
                                     <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                                         {loadingCnpj ? (<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />)}
@@ -219,28 +221,28 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                             <FormMessage />
                         </FormItem> 
                       )} />
-                      <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                      <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                   </div>
               </TabsContent>
               <TabsContent value="address" className="space-y-4">
                  <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {
                      field.onChange(formatCep(e.target.value));
                      if(e.target.value.replace(/\D/g, '').length === 8) handleCepLookup(e.target.value);
-                  }} maxLength={9} /></FormControl><FormMessage /></FormItem> )} />
+                  }} maxLength={9} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                  <div className="grid grid-cols-3 gap-4">
-                    <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                  </div>
-                 <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                 <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                  <div className="grid grid-cols-3 gap-4">
-                    <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
                  </div>
               </TabsContent>
               <TabsContent value="contact" className="space-y-4">
-                  <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input type="email" {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone (Opcional)</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem> )} />
               </TabsContent>
             </div>
           </Tabs>
