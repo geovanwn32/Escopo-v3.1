@@ -102,8 +102,6 @@ export async function generateGrossRevenueReportPdf(userId: string, company: Com
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 1.5 },
         body: [
-            [{ content: 'EMPRESA:', styles: { fontStyle: 'bold' } }, { content: `${company.cnpj.slice(0, 8)} ${company.razaoSocial}`, colSpan: 3 }],
-            [{ content: 'CNPJ:', styles: { fontStyle: 'bold' } }, { content: formatCnpj(company.cnpj), colSpan: 3 }],
             [{ content: 'Período de apuração:', styles: { fontStyle: 'bold' } }, { content: 'MÊS', styles: { fontStyle: 'bold', halign: 'center' } }, { content: 'ANO', styles: { fontStyle: 'bold', halign: 'center' } }],
             ['', { content: format(startDate, 'MMMM', { locale: ptBR }).toUpperCase(), styles: { halign: 'center' } }, { content: getYear(startDate).toString(), styles: { halign: 'center' } }]
         ],
