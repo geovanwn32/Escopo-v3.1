@@ -31,17 +31,24 @@ const produtoSchema = z.object({
   valorUnitario: z.string().transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0, "Valor deve ser positivo")),
 });
 
+const defaultValues = {
+    codigo: '',
+    descricao: '',
+    ncm: '',
+    cfop: '',
+    valorUnitario: 0,
+};
+
 export function ProdutoFormModal({ isOpen, onClose, userId, companyId, produto }: ProdutoFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const modalKey = produto?.id || 'new-produto';
+  
   const form = useForm<z.infer<typeof produtoSchema>>({
     resolver: zodResolver(produtoSchema),
     defaultValues: {
-        codigo: '',
-        descricao: '',
-        ncm: '',
-        cfop: '',
-        valorUnitario: 0,
+        ...defaultValues,
+        valorUnitario: String(defaultValues.valorUnitario),
     },
   });
 
@@ -56,11 +63,8 @@ export function ProdutoFormModal({ isOpen, onClose, userId, companyId, produto }
             });
         } else {
             form.reset({
-                codigo: '',
-                descricao: '',
-                ncm: '',
-                cfop: '',
-                valorUnitario: 0,
+                ...defaultValues,
+                valorUnitario: String(defaultValues.valorUnitario),
             });
         }
     }
@@ -103,7 +107,7 @@ export function ProdutoFormModal({ isOpen, onClose, userId, companyId, produto }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" key={modalKey}>
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Produto' : 'Alterar Produto'}</DialogTitle>
           <DialogDescription>

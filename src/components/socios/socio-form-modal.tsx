@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -70,24 +70,30 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
     
     const form = useForm<FormData>({
         resolver: zodResolver(socioSchema),
-        defaultValues: mode === 'create'
-            ? {
-                nacionalidade: "Brasileiro(a)",
-                profissao: "Sócio",
-                estadoCivil: "solteiro",
-                participacao: "100",
-                proLabore: "0",
-                isAdministrador: true,
-              }
-            : {
+    });
+
+     useEffect(() => {
+        if (socio) {
+            form.reset({
                 ...socio,
                 cpf: formatCpf(socio?.cpf || ''),
                 cep: formatCep(socio?.cep || ''),
                 participacao: String(socio?.participacao || ''),
                 proLabore: String(socio?.proLabore || ''),
                 isAdministrador: socio?.isAdministrador ?? false,
-              },
-    });
+            });
+        } else {
+            form.reset({
+                nacionalidade: "Brasileiro(a)",
+                profissao: "Sócio",
+                estadoCivil: "solteiro",
+                participacao: "100",
+                proLabore: "0",
+                isAdministrador: true,
+            });
+        }
+    }, [socio, form]);
+
 
     const handleCepLookup = async (cep: string) => {
         const cleanedCep = cep.replace(/\D/g, '');

@@ -42,19 +42,24 @@ function AliquotaForm({ userId, companyId, aliquota, esfera, onClose }: Omit<Ali
   
   const form = useForm<FormData>({
     resolver: zodResolver(aliquotaSchema),
-    defaultValues: mode === 'create' 
-      ? {
+  });
+
+  useEffect(() => {
+    if(mode === 'create') {
+        form.reset({
           esfera: esfera,
           nomeDoImposto: '',
           descricao: '',
           aliquota: 0,
           itemLc: '',
-        }
-      : {
+        });
+    } else if (aliquota) {
+        form.reset({
           ...aliquota,
-          aliquota: String(aliquota?.aliquota || 0),
-        },
-  });
+          aliquota: String(aliquota.aliquota || 0),
+        });
+    }
+  }, [aliquota, esfera, mode, form]);
 
   const title = {
     municipal: 'Imposto Municipal',
@@ -124,11 +129,13 @@ function AliquotaForm({ userId, companyId, aliquota, esfera, onClose }: Omit<Ali
 
 
 export function AliquotaFormModal({ isOpen, onClose, ...props }: AliquotaFormModalProps) {
+  const modalKey = `${props.aliquota?.id || 'new'}-${props.esfera}`;
+  
   if (!isOpen) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" key={modalKey}>
         <AliquotaForm onClose={onClose} {...props} />
       </DialogContent>
     </Dialog>

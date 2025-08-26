@@ -50,13 +50,22 @@ export function ContaContabilFormModal({ isOpen, onClose, userId, companyId, con
   
   const form = useForm<FormData>({
     resolver: zodResolver(contaSchema),
-    defaultValues: conta ? {
-        ...conta,
-        natureza: conta.natureza.replace(' ', '_') as FormData['natureza'],
-    } : defaultValues,
   });
 
   const mode = conta ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (isOpen) {
+      if (conta) {
+        form.reset({
+            ...conta,
+            natureza: conta.natureza.replace(' ', '_') as FormData['natureza'],
+        });
+      } else {
+        form.reset(defaultValues);
+      }
+    }
+  }, [isOpen, conta, form]);
 
   const onSubmit = async (values: FormData, andClose: boolean) => {
     setLoading(true);

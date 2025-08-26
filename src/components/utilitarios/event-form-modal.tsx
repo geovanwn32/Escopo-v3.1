@@ -36,6 +36,8 @@ const eventSchema = z.object({
 export function EventFormModal({ isOpen, onClose, userId, companyId, event, selectedDate }: EventFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const modalKey = event?.id || selectedDate?.toISOString() || 'new-event';
+
   const form = useForm<z.infer<typeof eventSchema>>({
     resolver: zodResolver(eventSchema),
   });
@@ -96,7 +98,7 @@ export function EventFormModal({ isOpen, onClose, userId, companyId, event, sele
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" key={modalKey}>
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Agendar Novo Evento' : 'Alterar Evento'}</DialogTitle>
           <DialogDescription>

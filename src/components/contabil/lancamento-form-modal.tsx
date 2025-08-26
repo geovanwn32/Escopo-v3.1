@@ -57,17 +57,6 @@ export function LancamentoFormModal({ isOpen, onClose, userId, companyId, lancam
   
   const form = useForm<FormData>({
     resolver: zodResolver(lancamentoSchema),
-    defaultValues: lancamento ? {
-        ...lancamento,
-        partidas: lancamento.partidas.map(p => ({ ...p, valor: String(p.valor) })) as any,
-    } : {
-        data: new Date(),
-        descricao: '',
-        partidas: [
-            { contaId: '', tipo: 'debito', valor: 0 },
-            { contaId: '', tipo: 'credito', valor: 0 },
-        ]
-    },
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -77,11 +66,32 @@ export function LancamentoFormModal({ isOpen, onClose, userId, companyId, lancam
 
   const partidas = useWatch({ control: form.control, name: 'partidas' });
 
-  const totalDebito = partidas.filter(p => p.tipo === 'debito').reduce((acc, p) => acc + Number(String(p.valor).replace(/,/, '.') || 0), 0);
-  const totalCredito = partidas.filter(p => p.tipo === 'credito').reduce((acc, p) => acc + Number(String(p.valor).replace(/,/, '.') || 0), 0);
+  const totalDebito = partidas.reduce((acc, p) => p.tipo === 'debito' ? acc + Number(String(p.valor).replace(/,/, '.') || 0) : acc, 0);
+  const totalCredito = partidas.reduce((acc, p) => p.tipo === 'credito' ? acc + Number(String(p.valor).replace(/,/, '.') || 0) : acc, 0);
   const difference = totalDebito - totalCredito;
 
   const mode = lancamento ? 'edit' : 'create';
+
+  useEffect(() => {
+    if (isOpen) {
+      if (lancamento) {
+          form.reset({
+              ...lancamento,
+              partidas: lancamento.partidas.map(p => ({ ...p, valor: String(p.valor) })) as any,
+          });
+      } else {
+          form.reset({
+              data: new Date(),
+              descricao: '',
+              partidas: [
+                  { contaId: '', tipo: 'debito', valor: 0 },
+                  { contaId: '', tipo: 'credito', valor: 0 },
+              ]
+          });
+      }
+    }
+  }, [isOpen, lancamento, form]);
+
 
   const onSubmit = async (values: FormData) => {
     setLoading(true);
@@ -169,4 +179,3 @@ export function LancamentoFormModal({ isOpen, onClose, userId, companyId, lancam
     </Dialog>
   );
 }
-

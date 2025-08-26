@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -52,32 +51,37 @@ const establishmentSchema = z.object({
   situacaoPj: z.string().min(1, "Situação é obrigatória"),
 });
 
+const defaultValues: z.infer<typeof establishmentSchema> = {
+    aliqRat: 0,
+    fap: 1.0,
+    nrInscApr: "",
+    nrCaepf: "",
+    contrataPCD: false,
+    contatoNome: "",
+    contatoCpf: "",
+    contatoFone: "",
+    softwareHouseCnpj: "12097670000157",
+    softwareHouseRazaoSocial: "DOM SOLUCOES",
+    softwareHouseNomeContato: "CLEIB DOMINGOS DE LIMA",
+    softwareHouseTelefone: "6241011972",
+    situacaoPj: "0",
+};
+
+
 export function EstablishmentForm({ isOpen, onClose, userId, companyId, initialData, onSave }: EstablishmentFormProps) {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
 
     const form = useForm<z.infer<typeof establishmentSchema>>({
         resolver: zodResolver(establishmentSchema),
-        defaultValues: {
-            aliqRat: 0,
-            fap: 1.0,
-            nrInscApr: "",
-            nrCaepf: "",
-            contrataPCD: false,
-            contatoNome: "",
-            contatoCpf: "",
-            contatoFone: "",
-            softwareHouseCnpj: "12097670000157",
-            softwareHouseRazaoSocial: "DOM SOLUCOES",
-            softwareHouseNomeContato: "CLEIB DOMINGOS DE LIMA",
-            softwareHouseTelefone: "6241011972",
-            situacaoPj: "0",
-        },
+        defaultValues,
     });
 
     useEffect(() => {
         if (initialData) {
             form.reset(initialData);
+        } else {
+            form.reset(defaultValues);
         }
     }, [initialData, form]);
 
@@ -103,10 +107,12 @@ export function EstablishmentForm({ isOpen, onClose, userId, companyId, initialD
             setLoading(false);
         }
     };
+    
+    const modalKey = `establishment-form-${companyId}`;
 
     return (
         <AlertDialog open={isOpen} onOpenChange={onClose}>
-            <AlertDialogContent className="max-w-2xl">
+            <AlertDialogContent className="max-w-2xl" key={modalKey}>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Ficha do Estabelecimento (eSocial)</AlertDialogTitle>
                     <AlertDialogDescription>

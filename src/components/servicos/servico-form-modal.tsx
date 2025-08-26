@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -31,16 +30,19 @@ const servicoSchema = z.object({
   valorPadrao: z.string().transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0, "Valor deve ser positivo")),
 });
 
+const defaultValues = {
+    codigo: '',
+    descricao: '',
+    valorPadrao: 0,
+};
+
 export function ServicoFormModal({ isOpen, onClose, userId, companyId, servico }: ServicoFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const modalKey = servico?.id || 'new-servico';
+
   const form = useForm<z.infer<typeof servicoSchema>>({
     resolver: zodResolver(servicoSchema),
-    defaultValues: {
-        codigo: '',
-        descricao: '',
-        valorPadrao: 0,
-    },
   });
 
   const mode = servico ? 'edit' : 'create';
@@ -54,9 +56,8 @@ export function ServicoFormModal({ isOpen, onClose, userId, companyId, servico }
             });
         } else {
             form.reset({
-                codigo: '',
-                descricao: '',
-                valorPadrao: 0,
+                ...defaultValues,
+                valorPadrao: String(defaultValues.valorPadrao),
             });
         }
     }
@@ -99,7 +100,7 @@ export function ServicoFormModal({ isOpen, onClose, userId, companyId, servico }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" key={modalKey}>
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Serviço' : 'Alterar Serviço'}</DialogTitle>
           <DialogDescription>

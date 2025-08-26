@@ -48,9 +48,9 @@ const defaultRubricaValues: z.infer<typeof rubricaSchema> = {
 export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }: RubricaFormModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const modalKey = rubrica?.id || 'new-rubrica';
   const form = useForm<z.infer<typeof rubricaSchema>>({
     resolver: zodResolver(rubricaSchema),
-    defaultValues: defaultRubricaValues,
   });
 
   const mode = rubrica ? 'edit' : 'create';
@@ -103,7 +103,7 @@ export function RubricaFormModal({ isOpen, onClose, userId, companyId, rubrica }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" key={modalKey}>
         <DialogHeader>
           <DialogTitle>{mode === 'create' ? 'Cadastro de Nova Rubrica' : 'Alterar Rubrica'}</DialogTitle>
           <DialogDescription>
