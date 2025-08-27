@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -267,7 +266,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   };
 
   const isReadOnly = mode === 'view';
-  const modalKey = launch?.id || xmlFile?.file.name || manualLaunchType || 'new';
+  const modalKey = launch?.id || xmlFile?.file.name || (manualLaunchType ? `manual-${manualLaunchType}` : 'new');
 
 
   const formatCnpj = (cnpj?: string | null) => {
@@ -308,7 +307,8 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
       }
       form.reset({ ...defaultLaunchValues, ...initialData });
     }
-  }, [isOpen, xmlFile, launch, orcamento, manualLaunchType, mode, company, form]);
+  }, [isOpen, xmlFile, launch, orcamento, manualLaunchType, mode, company.razaoSocial, company.cnpj, form]);
+
 
    const handleSelectPartner = (partner: Partner) => {
     if (!partnerTarget) return;
