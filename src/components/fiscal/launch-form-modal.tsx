@@ -205,13 +205,66 @@ const defaultLaunchValues: FormData = {
     valorPis: 0, valorCofins: 0, valorCsll: 0, valorIr: 0, valorInss: 0, valorIcms: 0, valorIpi: 0, valorIss: 0,
 };
 
+const getInitialData = (
+    mode: 'create' | 'edit' | 'view',
+    xmlFile: XmlFile | null,
+    launch: Launch | null,
+    orcamento: Orcamento | null,
+    manualLaunchType: 'entrada' | 'saida' | 'servico' | null,
+    company: Company,
+): Partial<FormData> => {
+    if (mode === 'create') {
+        if (xmlFile) {
+            const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
+            return {
+                ...parsedData,
+                type: xmlFile.type,
+                fileName: xmlFile.file.name,
+                status: xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal',
+            };
+        }
+        if (manualLaunchType) {
+            const manualData: Partial<FormData> = { type: manualLaunchType, date: new Date(), fileName: 'Lançamento Manual', status: 'Normal' };
+            if (manualLaunchType === 'servico') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            else if (manualLaunchType === 'saida') manualData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
+            else if (manualLaunchType === 'entrada') manualData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
+            return manualData;
+        }
+        if (orcamento) {
+            const hasServices = orcamento.items.some(i => i.type === 'servico');
+            const type = hasServices ? 'servico' : 'saida';
+            const orcamentoData: Partial<FormData> = {
+                type,
+                date: new Date(),
+                fileName: `Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`,
+                status: 'Normal',
+                discriminacao: orcamento.items.map(i => `${i.quantity}x ${i.description}`).join('; '),
+                valorServicos: orcamento.total,
+                valorTotalNota: orcamento.total,
+                valorLiquido: orcamento.total,
+                produtos: orcamento.items.filter(i => i.type === 'produto').map(p => ({ codigo: p.id, descricao: p.description, valorUnitario: p.unitPrice, ncm: '', cfop: '', quantidade: p.quantity, valorTotal: p.total }))
+            };
+            if (type === 'servico') orcamentoData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            else orcamentoData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
+            return orcamentoData;
+        }
+    } else if ((mode === 'edit' || mode === 'view') && launch) {
+        return { ...launch };
+    }
+    return {};
+};
+
+
 export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, manualLaunchType, mode, userId, company, onLaunchSuccess, partners }: LaunchFormModalProps) {
   const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
   const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
   const form = useForm<FormData>({ 
     resolver: zodResolver(launchSchema),
-    defaultValues: defaultLaunchValues
+    defaultValues: {
+        ...defaultLaunchValues,
+        ...getInitialData(mode, xmlFile, launch, orcamento, manualLaunchType, company),
+    }
   });
   const { control, setValue, getValues } = form;
 
@@ -266,8 +319,6 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   };
 
   const isReadOnly = mode === 'view';
-  const modalKey = launch?.id || xmlFile?.file.name || (manualLaunchType ? `manual-${manualLaunchType}` : 'new');
-
 
   const formatCnpj = (cnpj?: string | null) => {
     if (!cnpj) return '';
@@ -276,39 +327,6 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
     if (cleaned.length !== 14) return cnpj;
     return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
   };
-
-  useEffect(() => {
-    if (isOpen) {
-      let initialData: Partial<FormData> = {};
-      if (mode === 'create') {
-        if (xmlFile) {
-          initialData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
-          initialData.type = xmlFile.type;
-          initialData.fileName = xmlFile.file.name;
-          initialData.status = xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal';
-        } else if (manualLaunchType) {
-          initialData = { type: manualLaunchType, date: new Date(), fileName: 'Lançamento Manual', status: 'Normal' };
-          if (manualLaunchType === 'servico') initialData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
-          else if (manualLaunchType === 'saida') initialData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
-          else if (manualLaunchType === 'entrada') initialData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
-        } else if (orcamento) {
-            const hasServices = orcamento.items.some(i => i.type === 'servico');
-            const type = hasServices ? 'servico' : 'saida';
-            initialData = { type, date: new Date(), fileName: `Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`, status: 'Normal',
-                discriminacao: orcamento.items.map(i => `${i.quantity}x ${i.description}`).join('; '),
-                valorServicos: orcamento.total, valorTotalNota: orcamento.total, valorLiquido: orcamento.total,
-                produtos: orcamento.items.filter(i => i.type === 'produto').map(p => ({ codigo: p.id, descricao: p.description, valorUnitario: p.unitPrice, ncm: '', cfop: '', quantidade: p.quantity, valorTotal: p.total }))
-            };
-            if(type === 'servico') initialData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
-            else initialData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
-        }
-      } else if (mode === 'edit' || mode === 'view') {
-        initialData = { ...launch };
-      }
-      form.reset({ ...defaultLaunchValues, ...initialData });
-    }
-  }, [isOpen, xmlFile, launch, orcamento, manualLaunchType, mode, company.razaoSocial, company.cnpj, form]);
-
 
    const handleSelectPartner = (partner: Partner) => {
     if (!partnerTarget) return;
@@ -377,7 +395,7 @@ export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, m
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl" key={modalKey}>
+      <DialogContent className="sm:max-w-4xl">
         <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)}>
         <DialogHeader>

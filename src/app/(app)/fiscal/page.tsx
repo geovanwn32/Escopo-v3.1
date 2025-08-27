@@ -383,7 +383,7 @@ export default function FiscalPage() {
       return;
     }
     try {
-      generateLaunchPdf(company!, launch);
+      generateLaunchPdf(activeCompany, launch);
     } catch (error) {
        toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
     }
@@ -582,6 +582,14 @@ endDate.setHours(23,59,59,999);
         toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
      }
   }
+
+  const modalKey = useMemo(() => {
+    if (editingLaunch) return editingLaunch.id;
+    if (xmlFile) return xmlFile.file.name;
+    if (orcamentoToLaunch) return orcamentoToLaunch.id;
+    if (manualLaunchType) return `manual-${manualLaunchType}`;
+    return 'new-launch';
+  }, [editingLaunch, xmlFile, orcamentoToLaunch, manualLaunchType]);
 
   return (
     <div className="space-y-6">
@@ -985,6 +993,7 @@ endDate.setHours(23,59,59,999);
       </Card>
       {isModalOpen && user && activeCompany && (
         <LaunchFormModal 
+            key={modalKey}
             isOpen={isModalOpen}
             onClose={handleModalClose}
             xmlFile={selectedXml}
