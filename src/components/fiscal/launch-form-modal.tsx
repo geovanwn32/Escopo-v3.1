@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -36,16 +36,7 @@ interface XmlFile {
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
 }
 
-interface LaunchFormModalProps {
-  userId: string;
-  company: Company;
-  onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
-  partners: Partner[];
-  products: Produto[];
-  services: Servico[];
-}
-
-interface OpenModalOptions {
+export interface OpenModalOptions {
   xmlFile?: XmlFile | null;
   launch?: Launch | null;
   orcamento?: Orcamento | null;
@@ -53,8 +44,16 @@ interface OpenModalOptions {
   mode?: 'create' | 'edit' | 'view';
 }
 
-export interface LaunchModalHandles {
-    open: (options: OpenModalOptions) => void;
+interface LaunchFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  options: OpenModalOptions;
+  userId: string;
+  company: Company;
+  onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
+  partners: Partner[];
+  products: Produto[];
+  services: Servico[];
 }
 
 const partySchema = z.object({
@@ -257,10 +256,15 @@ const getInitialData = (
 };
 
 
-export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalProps>(
-    ({ userId, company, onLaunchSuccess, partners }, ref) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [modalOptions, setModalOptions] = useState<OpenModalOptions>({});
+export const LaunchFormModal = ({
+    isOpen,
+    onClose,
+    options,
+    userId,
+    company,
+    onLaunchSuccess,
+    partners,
+}: LaunchFormModalProps) => {
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
     const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
@@ -272,14 +276,14 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
     });
     const { control, setValue, getValues, reset } = form;
 
-    useImperativeHandle(ref, () => ({
-        open: (options: OpenModalOptions) => {
+    const modalKey = options.launch?.id || options.xmlFile?.file.name || options.orcamento?.id || options.manualLaunchType || 'new';
+
+    useEffect(() => {
+        if (isOpen) {
             const initialData = getInitialData(options, company);
             reset({ ...defaultLaunchValues, ...initialData });
-            setModalOptions(options);
-            setIsOpen(true);
         }
-    }));
+    }, [isOpen, options, company, reset]);
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -333,7 +337,7 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
         setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
     };
     
-    const { launch, mode = 'create' } = modalOptions;
+    const { launch, mode = 'create' } = options;
     const isReadOnly = mode === 'view';
 
     const formatCnpj = (cnpj?: string | null) => {
@@ -358,7 +362,7 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
     };
 
     const handleSubmit = async (values: FormData) => {
-        if (mode === 'view') { setIsOpen(false); return; }
+        if (mode === 'view') { onClose(); return; }
         try {
             const dataToSave = { ...values,
                 emitente: values.emitente ? { nome: values.emitente.nome || null, cnpj: values.emitente.cnpj?.replace(/\D/g, '') || null } : null,
@@ -377,12 +381,12 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
             } else {
                 await updateDoc(launchRef as any, dataToSave);
             }
-            setIsOpen(false);
+            onClose();
         } catch (error) { console.error(error); }
     };
   
     const getTitle = () => {
-        const { orcamento, xmlFile, manualLaunchType } = modalOptions;
+        const { orcamento, xmlFile } = options;
         if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
         if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
         return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
@@ -411,8 +415,8 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
 
     return (
         <>
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="sm:max-w-4xl">
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent className="sm:max-w-4xl" key={modalKey}>
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)}>
                     <DialogHeader>
@@ -420,7 +424,7 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
                     <DialogDescription asChild>
                         <div>
                         <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
-                        {(modalOptions.xmlFile || modalOptions.orcamento || modalOptions.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
+                        {(options.xmlFile || options.orcamento || options.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
                     </DialogDescription>
                     </DialogHeader>
@@ -430,8 +434,8 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
                             <AccordionTrigger>Informações Gerais</AccordionTrigger>
                             <AccordionContent className="space-y-4 px-1">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!modalOptions.xmlFile} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!modalOptions.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!options.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!options.xmlFile} /></FormControl></FormItem> )} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><Input type="date" value={isValid(new Date(field.value)) ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(new Date(e.target.value + 'T00:00:00'))} readOnly={isReadOnly} /></FormControl></FormItem>)} />
@@ -517,7 +521,7 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
                     </Accordion>
                     </div>
                     <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
+                    <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
                     {mode !== 'view' && <Button type="submit">{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
                     </DialogFooter>
                     </form>
@@ -535,6 +539,4 @@ export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalPro
             )}
         </>
     );
-});
-
-LaunchFormModal.displayName = 'LaunchFormModal';
+};

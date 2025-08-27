@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { LaunchFormModal, type LaunchModalHandles } from "@/components/fiscal/launch-form-modal";
+import { LaunchFormModal, type OpenModalOptions } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -129,7 +129,8 @@ export default function FiscalPage() {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
   const [isClosingModalOpen, setClosingModalOpen] = useState(false);
-  const launchFormModalRef = useRef<LaunchModalHandles>(null);
+  const [isLaunchModalOpen, setLaunchModalOpen] = useState(false);
+  const [launchModalOptions, setLaunchModalOptions] = useState<OpenModalOptions>({});
 
   
   // Data for modals
@@ -177,6 +178,16 @@ export default function FiscalPage() {
         sessionStorage.setItem(`xmlFiles_${activeCompany.id}`, JSON.stringify(xmlFiles, replacer));
     }
   }, [xmlFiles, activeCompany]);
+
+  const openLaunchModal = (options: OpenModalOptions) => {
+    setLaunchModalOptions(options);
+    setLaunchModalOpen(true);
+  };
+
+  const closeLaunchModal = () => {
+    setLaunchModalOpen(false);
+    setLaunchModalOptions({});
+  };
 
 
   useEffect(() => {
@@ -556,9 +567,9 @@ endDate.setHours(23,59,59,999);
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'saida' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'entrada' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'servico' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -623,7 +634,7 @@ endDate.setHours(23,59,59,999);
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ orcamento: orc })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => openLaunchModal({ orcamento: orc })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -710,7 +721,7 @@ endDate.setHours(23,59,59,999);
                             {getBadgeForXml(xmlFile)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                            <Button size="sm" onClick={() => launchFormModalRef.current?.open({ xmlFile })} disabled={xmlFile.status !== 'pending'}>
+                            <Button size="sm" onClick={() => openLaunchModal({ xmlFile })} disabled={xmlFile.status !== 'pending'}>
                                 {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
                                 Lançar
                             </Button>
@@ -887,11 +898,11 @@ endDate.setHours(23,59,59,999);
                                                 <FileText className="mr-2 h-4 w-4" />
                                                 Visualizar PDF
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ launch: launch, mode: 'view' })}>
+                                            <DropdownMenuItem onClick={() => openLaunchModal({ launch, mode: 'view' })}>
                                                 <Eye className="mr-2 h-4 w-4" />
                                                 Visualizar Detalhes
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ launch: launch, mode: 'edit' })}>
+                                            <DropdownMenuItem onClick={() => openLaunchModal({ launch, mode: 'edit' })}>
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Alterar
                                             </DropdownMenuItem>
@@ -941,7 +952,9 @@ endDate.setHours(23,59,59,999);
       </Card>
       {user && activeCompany && (
         <LaunchFormModal 
-            ref={launchFormModalRef}
+            isOpen={isLaunchModalOpen}
+            onClose={closeLaunchModal}
+            options={launchModalOptions}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
