@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -63,7 +63,6 @@ export default function FiscalPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  const [isClosingModalOpen, setClosingModalOpen] = useState(false);
   const [modalOptions, setModalOptions] = useState<OpenModalOptions | null>(null);
   
   // Data for modals
@@ -84,7 +83,7 @@ export default function FiscalPage() {
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -484,7 +483,6 @@ endDate.setHours(23,59,59,999);
     if (!modalOptions) return null;
     return (
       <LaunchFormModal 
-        key={modalOptions.launch?.id || modalOptions.orcamento?.id || modalOptions.xmlFile?.file.name || 'new-manual'}
         isOpen={!!modalOptions}
         onClose={closeModal}
         initialData={modalOptions}
@@ -900,12 +898,12 @@ endDate.setHours(23,59,59,999);
         )}
       </Card>
       
-      {renderedModal}
+      {modalOptions && user && activeCompany && renderedModal}
       
-      {isClosingModalOpen && user && activeCompany && (
+      {modalOptions === null && user && activeCompany && (
         <FiscalClosingModal
-            isOpen={isClosingModalOpen}
-            onClose={() => setClosingModalOpen(false)}
+            isOpen={false}
+            onClose={() => {}}
             userId={user.uid}
             companyId={activeCompany.id}
         />
