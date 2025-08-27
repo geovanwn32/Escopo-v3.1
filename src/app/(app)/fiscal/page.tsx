@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -32,7 +32,7 @@ import { XmlFile, Launch, Company } from "@/types";
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
-  if (value instanceof File) {
+  if (typeof File !== 'undefined' && value instanceof File) {
     return {
       _type: 'File',
       name: value.name,
@@ -46,7 +46,7 @@ function replacer(key: string, value: any) {
 
 // Helper to safely parse with support for File objects
 function reviver(key: string, value: any) {
-  if (value && value._type === 'File') {
+  if (typeof File !== 'undefined' && value && value._type === 'File') {
     // We can't recreate the file content, but we can recreate the object structure
     // This is sufficient for display and state management purposes
     return new File([], value.name, { type: value.type, lastModified: value.lastModified });
@@ -83,7 +83,7 @@ export default function FiscalPage() {
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -96,9 +96,14 @@ export default function FiscalPage() {
                 const companyData = JSON.parse(companyDataString);
                 setActiveCompany(companyData);
             }
-            const storedFiles = sessionStorage.getItem(`xmlFiles_${companyId}`);
-            if (storedFiles) {
-                setXmlFiles(JSON.parse(storedFiles, reviver));
+            try {
+                const storedFiles = sessionStorage.getItem(`xmlFiles_${companyId}`);
+                if (storedFiles) {
+                    setXmlFiles(JSON.parse(storedFiles, reviver));
+                }
+            } catch (e) {
+                console.error("Failed to parse stored XML files:", e);
+                sessionStorage.removeItem(`xmlFiles_${companyId}`);
             }
         }
     }
@@ -106,7 +111,11 @@ export default function FiscalPage() {
 
   useEffect(() => {
     if (activeCompany) {
+       try {
         sessionStorage.setItem(`xmlFiles_${activeCompany.id}`, JSON.stringify(xmlFiles, replacer));
+       } catch(e) {
+          console.error("Failed to save XML files to session storage:", e);
+       }
     }
   }, [xmlFiles, activeCompany]);
 
@@ -471,9 +480,30 @@ endDate.setHours(23,59,59,999);
     }
   }
   
-  const openModal = useCallback((options: OpenModalOptions) => {
+  const openModal = useCallback(async (options: OpenModalOptions) => {
+     if (options.xmlFile && user && activeCompany) {
+        const { xmlFile } = options;
+        if (xmlFile.key) {
+             const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
+             const qNFe = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
+             const qNfse = query(launchesRef, where("numeroNfse", "==", xmlFile.key));
+             
+             const [nfeSnapshot, nfseSnapshot] = await Promise.all([getDocs(qNFe), getDocs(qNfse)]);
+             
+             if (!nfeSnapshot.empty || !nfseSnapshot.empty) {
+                toast({
+                    variant: "destructive",
+                    title: "Nota Já Lançada",
+                    description: "Esta nota fiscal já foi lançada no sistema.",
+                });
+                // Update local XML file status without needing a full refresh
+                setXmlFiles(files => files.map(f => f.key === xmlFile.key ? { ...f, status: 'launched' } : f));
+                return; // Stop execution
+             }
+        }
+    }
     setModalOptions(options);
-  }, []);
+  }, [user, activeCompany, toast]);
 
   const closeModal = useCallback(() => {
     setModalOptions(null);
