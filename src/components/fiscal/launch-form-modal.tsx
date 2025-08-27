@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, forwardRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Search, PlusCircle, Trash2 } from 'lucide-react';
-import { Launch, Company } from '@/app/(app)/fiscal/page';
+import { Launch, Company } from '@/types';
 import { format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Textarea } from '../ui/textarea';
@@ -47,7 +47,7 @@ export interface OpenModalOptions {
 interface LaunchFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  options: OpenModalOptions;
+  initialData: OpenModalOptions;
   userId: string;
   company: Company;
   onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
@@ -259,7 +259,7 @@ const getInitialData = (
 export const LaunchFormModal = ({
     isOpen,
     onClose,
-    options,
+    initialData,
     userId,
     company,
     onLaunchSuccess,
@@ -272,18 +272,9 @@ export const LaunchFormModal = ({
 
     const form = useForm<FormData>({ 
         resolver: zodResolver(launchSchema),
-        defaultValues: defaultLaunchValues
+        defaultValues: { ...defaultLaunchValues, ...getInitialData(initialData, company) }
     });
     const { control, setValue, getValues, reset } = form;
-
-    const modalKey = options.launch?.id || options.xmlFile?.file.name || options.orcamento?.id || options.manualLaunchType || 'new';
-
-    useEffect(() => {
-        if (isOpen) {
-            const initialData = getInitialData(options, company);
-            reset({ ...defaultLaunchValues, ...initialData });
-        }
-    }, [isOpen, options, company, reset]);
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -293,8 +284,6 @@ export const LaunchFormModal = ({
     const watchedFormValues = useWatch({ control });
 
     useEffect(() => {
-        if (!isOpen) return;
-
         if (watchedFormValues.type !== 'servico' && watchedFormValues.produtos) {
             const newTotalProdutos = watchedFormValues.produtos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
             setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
@@ -303,8 +292,6 @@ export const LaunchFormModal = ({
     }, [watchedFormValues.produtos, watchedFormValues.type, setValue, isOpen]);
 
     useEffect(() => {
-        if (!isOpen) return;
-
         if(watchedFormValues.type === 'servico') {
             const valorServicos = watchedFormValues.valorServicos || 0;
             const totalDeducoes = (
@@ -319,7 +306,6 @@ export const LaunchFormModal = ({
             setValue('valorLiquido', parseFloat(valorLiquido.toFixed(2)));
         }
     }, [
-        isOpen,
         watchedFormValues.type,
         watchedFormValues.valorServicos,
         watchedFormValues.valorPis,
@@ -337,7 +323,7 @@ export const LaunchFormModal = ({
         setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
     };
     
-    const { launch, mode = 'create' } = options;
+    const { launch, mode = 'create' } = initialData;
     const isReadOnly = mode === 'view';
 
     const formatCnpj = (cnpj?: string | null) => {
@@ -386,7 +372,7 @@ export const LaunchFormModal = ({
     };
   
     const getTitle = () => {
-        const { orcamento, xmlFile } = options;
+        const { orcamento, xmlFile, manualLaunchType } = initialData;
         if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
         if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
         return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
@@ -416,7 +402,7 @@ export const LaunchFormModal = ({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="sm:max-w-4xl" key={modalKey}>
+                <DialogContent className="sm:max-w-4xl">
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)}>
                     <DialogHeader>
@@ -424,7 +410,7 @@ export const LaunchFormModal = ({
                     <DialogDescription asChild>
                         <div>
                         <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
-                        {(options.xmlFile || options.orcamento || options.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
+                        {(initialData.xmlFile || initialData.orcamento || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
                     </DialogDescription>
                     </DialogHeader>
@@ -434,8 +420,8 @@ export const LaunchFormModal = ({
                             <AccordionTrigger>Informações Gerais</AccordionTrigger>
                             <AccordionContent className="space-y-4 px-1">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!options.xmlFile} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!options.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><Input type="date" value={isValid(new Date(field.value)) ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(new Date(e.target.value + 'T00:00:00'))} readOnly={isReadOnly} /></FormControl></FormItem>)} />

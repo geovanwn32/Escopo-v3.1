@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from "react";
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { LaunchFormModal, type OpenModalOptions } from "@/components/fiscal/laun
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, isValid } from "date-fns";
@@ -28,72 +28,7 @@ import { generateLaunchPdf } from "@/services/launch-report-service";
 import type { Partner } from "@/types/partner";
 import type { Produto } from "@/types/produto";
 import type { Servico } from "@/types/servico";
-
-export interface XmlFile {
-  file: {
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-  };
-  content: string;
-  status: 'pending' | 'launched' | 'error' | 'cancelled';
-  type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
-  key?: string; // NFe key or NFS-e unique identifier
-}
-
-export interface Company {
-    id: string;
-    nomeFantasia: string;
-    razaoSocial: string;
-    cnpj: string;
-    logoUrl?: string | null;
-}
-
-export interface Launch {
-    id: string;
-    fileName: string;
-    type: string;
-    status: 'Normal' | 'Cancelado' | 'Substituida';
-    date: Date;
-    chaveNfe?: string;
-    numeroNfse?: string;
-    financialStatus?: 'pendente' | 'pago' | 'vencido';
-    observacoes?: string | null;
-    
-    // NFS-e fields
-    prestador?: { nome: string; cnpj: string; };
-    tomador?: { nome: string; cnpj: string; };
-    discriminacao?: string;
-    itemLc116?: string;
-    valorServicos?: number;
-    valorLiquido?: number;
-    valorPis?: number;
-    valorCofins?: number;
-    valorIr?: number;
-    valorInss?: number;
-    valorCsll?: number;
-    valorIss?: number;
-
-
-    // NF-e fields
-    emitente?: { nome: string; cnpj: string; };
-    destinatario?: { nome: string; cnpj: string; };
-    valorProdutos?: number;
-    valorTotalNota?: number;
-    valorIpi?: number;
-    valorIcms?: number;
-    produtos?: {
-      codigo?: string;
-      descricao?: string;
-      ncm?: string;
-      cfop?: string;
-      quantidade: number;
-      valorUnitario: number;
-      valorTotal: number;
-    }[];
-}
-
+import { XmlFile, Launch, Company } from "@/types";
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -129,9 +64,8 @@ export default function FiscalPage() {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
   const [isClosingModalOpen, setClosingModalOpen] = useState(false);
-  const [isLaunchModalOpen, setLaunchModalOpen] = useState(false);
-  const [launchModalOptions, setLaunchModalOptions] = useState<OpenModalOptions>({});
-
+  const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+  const [modalOptions, setModalOptions] = useState<OpenModalOptions | null>(null);
   
   // Data for modals
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -151,8 +85,7 @@ export default function FiscalPage() {
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
 
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -178,17 +111,6 @@ export default function FiscalPage() {
         sessionStorage.setItem(`xmlFiles_${activeCompany.id}`, JSON.stringify(xmlFiles, replacer));
     }
   }, [xmlFiles, activeCompany]);
-
-  const openLaunchModal = (options: OpenModalOptions) => {
-    setLaunchModalOptions(options);
-    setLaunchModalOpen(true);
-  };
-
-  const closeLaunchModal = () => {
-    setLaunchModalOpen(false);
-    setLaunchModalOptions({});
-  };
-
 
   useEffect(() => {
     if (!activeCompany || !user) {
@@ -347,7 +269,9 @@ export default function FiscalPage() {
         return [...prevFiles, ...uniqueNewFiles];
     });
 
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
   };
 
   const handleImportClick = () => {
@@ -549,7 +473,6 @@ endDate.setHours(23,59,59,999);
     }
   }
 
-
   return (
     <div className="space-y-6">
       <input
@@ -567,9 +490,9 @@ endDate.setHours(23,59,59,999);
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => setModalOptions({ manualLaunchType: 'saida', mode: 'create' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => setModalOptions({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => setModalOptions({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -634,7 +557,7 @@ endDate.setHours(23,59,59,999);
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openLaunchModal({ orcamento: orc })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setModalOptions({ orcamento: orc, mode: 'create' })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -721,7 +644,7 @@ endDate.setHours(23,59,59,999);
                             {getBadgeForXml(xmlFile)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                            <Button size="sm" onClick={() => openLaunchModal({ xmlFile })} disabled={xmlFile.status !== 'pending'}>
+                            <Button size="sm" onClick={() => setModalOptions({ xmlFile, mode: 'create' })} disabled={xmlFile.status !== 'pending'}>
                                 {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
                                 Lançar
                             </Button>
@@ -898,11 +821,11 @@ endDate.setHours(23,59,59,999);
                                                 <FileText className="mr-2 h-4 w-4" />
                                                 Visualizar PDF
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openLaunchModal({ launch, mode: 'view' })}>
+                                            <DropdownMenuItem onClick={() => setModalOptions({ launch, mode: 'view' })}>
                                                 <Eye className="mr-2 h-4 w-4" />
                                                 Visualizar Detalhes
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openLaunchModal({ launch, mode: 'edit' })}>
+                                            <DropdownMenuItem onClick={() => setModalOptions({ launch, mode: 'edit' })}>
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Alterar
                                             </DropdownMenuItem>
@@ -950,11 +873,13 @@ endDate.setHours(23,59,59,999);
             </CardFooter>
         )}
       </Card>
-      {user && activeCompany && (
+      
+      {modalOptions && user && activeCompany && (
         <LaunchFormModal 
-            isOpen={isLaunchModalOpen}
-            onClose={closeLaunchModal}
-            options={launchModalOptions}
+            key={modalOptions.launch?.id || 'new'}
+            isOpen={true}
+            onClose={() => setModalOptions(null)}
+            initialData={modalOptions}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
@@ -963,6 +888,7 @@ endDate.setHours(23,59,59,999);
             services={services}
         />
       )}
+      
       {isClosingModalOpen && user && activeCompany && (
         <FiscalClosingModal
             isOpen={isClosingModalOpen}
