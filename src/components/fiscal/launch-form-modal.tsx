@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -37,19 +37,24 @@ interface XmlFile {
 }
 
 interface LaunchFormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  xmlFile: XmlFile | null;
-  launch: Launch | null;
-  orcamento: Orcamento | null;
-  manualLaunchType: 'entrada' | 'saida' | 'servico' | null;
-  mode: 'create' | 'edit' | 'view';
   userId: string;
   company: Company;
   onLaunchSuccess: (launchedKey: string, status: Launch['status']) => void;
   partners: Partner[];
   products: Produto[];
   services: Servico[];
+}
+
+interface OpenModalOptions {
+  xmlFile?: XmlFile | null;
+  launch?: Launch | null;
+  orcamento?: Orcamento | null;
+  manualLaunchType?: 'entrada' | 'saida' | 'servico' | null;
+  mode?: 'create' | 'edit' | 'view';
+}
+
+export interface LaunchModalHandles {
+    open: (options: OpenModalOptions) => void;
 }
 
 const partySchema = z.object({
@@ -206,13 +211,10 @@ const defaultLaunchValues: FormData = {
 };
 
 const getInitialData = (
-    mode: 'create' | 'edit' | 'view',
-    xmlFile: XmlFile | null,
-    launch: Launch | null,
-    orcamento: Orcamento | null,
-    manualLaunchType: 'entrada' | 'saida' | 'servico' | null,
+    options: OpenModalOptions,
     company: Company,
 ): Partial<FormData> => {
+    const { mode = 'create', xmlFile, launch, orcamento, manualLaunchType } = options;
     if (mode === 'create') {
         if (xmlFile) {
             const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
@@ -255,267 +257,284 @@ const getInitialData = (
 };
 
 
-export function LaunchFormModal({ isOpen, onClose, xmlFile, launch, orcamento, manualLaunchType, mode, userId, company, onLaunchSuccess, partners }: LaunchFormModalProps) {
-  const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
-  const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
+export const LaunchFormModal = forwardRef<LaunchModalHandles, LaunchFormModalProps>(
+    ({ userId, company, onLaunchSuccess, partners }, ref) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [modalOptions, setModalOptions] = useState<OpenModalOptions>({});
+    const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
+    const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
 
-  const form = useForm<FormData>({ 
-    resolver: zodResolver(launchSchema),
-    defaultValues: {
-        ...defaultLaunchValues,
-        ...getInitialData(mode, xmlFile, launch, orcamento, manualLaunchType, company),
-    }
-  });
-  const { control, setValue, getValues } = form;
+    const { toast } = useToast();
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "produtos",
-  });
+    const form = useForm<FormData>({ 
+        resolver: zodResolver(launchSchema),
+        defaultValues: defaultLaunchValues
+    });
+    const { control, setValue, getValues, reset } = form;
+
+    useImperativeHandle(ref, () => ({
+        open: (options: OpenModalOptions) => {
+            const initialData = getInitialData(options, company);
+            reset({ ...defaultLaunchValues, ...initialData });
+            setModalOptions(options);
+            setIsOpen(true);
+        }
+    }));
+
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "produtos",
+    });
   
-  const watchedFormValues = useWatch({ control });
+    const watchedFormValues = useWatch({ control });
 
-  // Auto-calculate totals for NF-e
-  useEffect(() => {
-    if (watchedFormValues.type !== 'servico' && watchedFormValues.produtos) {
-      const newTotalProdutos = watchedFormValues.produtos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
-      setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
-      // Simple total for now. Can be expanded with IPI, etc.
-      setValue('valorTotalNota', parseFloat(newTotalProdutos.toFixed(2)));
-    }
-  }, [watchedFormValues.produtos, watchedFormValues.type, setValue]);
+    useEffect(() => {
+        if (!isOpen) return;
 
-  // Auto-calculate net value for NFS-e
-  useEffect(() => {
-      if(watchedFormValues.type === 'servico') {
-          const valorServicos = watchedFormValues.valorServicos || 0;
-          const totalDeducoes = (
-              (watchedFormValues.valorPis || 0) +
-              (watchedFormValues.valorCofins || 0) +
-              (watchedFormValues.valorCsll || 0) +
-              (watchedFormValues.valorIr || 0) +
-              (watchedFormValues.valorInss || 0) +
-              (watchedFormValues.valorIss || 0)
-          );
-          const valorLiquido = valorServicos - totalDeducoes;
-          setValue('valorLiquido', parseFloat(valorLiquido.toFixed(2)));
-      }
-  }, [
-      watchedFormValues.type,
-      watchedFormValues.valorServicos,
-      watchedFormValues.valorPis,
-      watchedFormValues.valorCofins,
-      watchedFormValues.valorCsll,
-      watchedFormValues.valorIr,
-      watchedFormValues.valorInss,
-      watchedFormValues.valorIss,
-      setValue
-  ]);
+        if (watchedFormValues.type !== 'servico' && watchedFormValues.produtos) {
+            const newTotalProdutos = watchedFormValues.produtos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
+            setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
+            setValue('valorTotalNota', parseFloat(newTotalProdutos.toFixed(2)));
+        }
+    }, [watchedFormValues.produtos, watchedFormValues.type, setValue, isOpen]);
 
-  const updateProductTotal = (index: number) => {
-    const product = getValues(`produtos.${index}`);
-    const total = (product.quantidade || 0) * (product.valorUnitario || 0);
-    setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
-  };
+    useEffect(() => {
+        if (!isOpen) return;
 
-  const isReadOnly = mode === 'view';
+        if(watchedFormValues.type === 'servico') {
+            const valorServicos = watchedFormValues.valorServicos || 0;
+            const totalDeducoes = (
+                (watchedFormValues.valorPis || 0) +
+                (watchedFormValues.valorCofins || 0) +
+                (watchedFormValues.valorCsll || 0) +
+                (watchedFormValues.valorIr || 0) +
+                (watchedFormValues.valorInss || 0) +
+                (watchedFormValues.valorIss || 0)
+            );
+            const valorLiquido = valorServicos - totalDeducoes;
+            setValue('valorLiquido', parseFloat(valorLiquido.toFixed(2)));
+        }
+    }, [
+        isOpen,
+        watchedFormValues.type,
+        watchedFormValues.valorServicos,
+        watchedFormValues.valorPis,
+        watchedFormValues.valorCofins,
+        watchedFormValues.valorCsll,
+        watchedFormValues.valorIr,
+        watchedFormValues.valorInss,
+        watchedFormValues.valorIss,
+        setValue
+    ]);
 
-  const formatCnpj = (cnpj?: string | null) => {
-    if (!cnpj) return '';
-    const cleaned = cnpj.replace(/\D/g, '');
-    if (cleaned.length === 11) return cleaned.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-    if (cleaned.length !== 14) return cnpj;
-    return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-  };
+    const updateProductTotal = (index: number) => {
+        const product = getValues(`produtos.${index}`);
+        const total = (product.quantidade || 0) * (product.valorUnitario || 0);
+        setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
+    };
+    
+    const { launch, mode = 'create' } = modalOptions;
+    const isReadOnly = mode === 'view';
 
-   const handleSelectPartner = (partner: Partner) => {
-    if (!partnerTarget) return;
-    form.setValue(`${partnerTarget}.nome`, partner.razaoSocial);
-    form.setValue(`${partnerTarget}.cnpj`, partner.cpfCnpj);
-    setPartnerModalOpen(false);
-    setPartnerTarget(null);
-  };
+    const formatCnpj = (cnpj?: string | null) => {
+        if (!cnpj) return '';
+        const cleaned = cnpj.replace(/\D/g, '');
+        if (cleaned.length === 11) return cleaned.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+        if (cleaned.length !== 14) return cnpj;
+        return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+    };
 
-  const openPartnerSearch = (target: 'emitente' | 'destinatario' | 'prestador' | 'tomador') => {
+    const handleSelectPartner = (partner: Partner) => {
+        if (!partnerTarget) return;
+        form.setValue(`${partnerTarget}.nome`, partner.razaoSocial);
+        form.setValue(`${partnerTarget}.cnpj`, partner.cpfCnpj);
+        setPartnerModalOpen(false);
+        setPartnerTarget(null);
+    };
+
+    const openPartnerSearch = (target: 'emitente' | 'destinatario' | 'prestador' | 'tomador') => {
       setPartnerTarget(target);
       setPartnerModalOpen(true);
-  };
+    };
 
-  const handleSubmit = async (values: FormData) => {
-    if (mode === 'view') { onClose(); return; }
-    try {
-        const dataToSave = { ...values,
-            emitente: values.emitente ? { nome: values.emitente.nome || null, cnpj: values.emitente.cnpj?.replace(/\D/g, '') || null } : null,
-            destinatario: values.destinatario ? { nome: values.destinatario.nome || null, cnpj: values.destinatario.cnpj?.replace(/\D/g, '') || null } : null,
-            prestador: values.prestador ? { nome: values.prestador.nome || null, cnpj: values.prestador.cnpj?.replace(/\D/g, '') || null } : null,
-            tomador: values.tomador ? { nome: values.tomador.nome || null, cnpj: values.tomador.cnpj?.replace(/\D/g, '') || null } : null,
-        };
-        if (values.produtos && values.produtos.length > 0) await upsertProductsFromLaunch(userId, company.id, values.produtos as Produto[]);
-        const partnerType = dataToSave.type === 'entrada' ? 'fornecedor' : 'cliente';
-        const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : (dataToSave.destinatario || dataToSave.tomador);
-        if (partnerData?.cnpj && partnerData?.nome) await upsertPartnerFromLaunch(userId, company.id, { cpfCnpj: partnerData.cnpj, razaoSocial: partnerData.nome, type: partnerType });
-        const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, launch!.id);
-        if (mode === 'create') {
-            await addDoc(launchRef, dataToSave);
-            onLaunchSuccess(dataToSave.chaveNfe || dataToSave.numeroNfse || '', dataToSave.status);
-        } else {
-            await updateDoc(launchRef as any, dataToSave);
-            onClose();
-        }
-    } catch (error) { console.error(error); }
-  };
+    const handleSubmit = async (values: FormData) => {
+        if (mode === 'view') { setIsOpen(false); return; }
+        try {
+            const dataToSave = { ...values,
+                emitente: values.emitente ? { nome: values.emitente.nome || null, cnpj: values.emitente.cnpj?.replace(/\D/g, '') || null } : null,
+                destinatario: values.destinatario ? { nome: values.destinatario.nome || null, cnpj: values.destinatario.cnpj?.replace(/\D/g, '') || null } : null,
+                prestador: values.prestador ? { nome: values.prestador.nome || null, cnpj: values.prestador.cnpj?.replace(/\D/g, '') || null } : null,
+                tomador: values.tomador ? { nome: values.tomador.nome || null, cnpj: values.tomador.cnpj?.replace(/\D/g, '') || null } : null,
+            };
+            if (values.produtos && values.produtos.length > 0) await upsertProductsFromLaunch(userId, company.id, values.produtos as Produto[]);
+            const partnerType = dataToSave.type === 'entrada' ? 'fornecedor' : 'cliente';
+            const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : (dataToSave.destinatario || dataToSave.tomador);
+            if (partnerData?.cnpj && partnerData?.nome) await upsertPartnerFromLaunch(userId, company.id, { cpfCnpj: partnerData.cnpj, razaoSocial: partnerData.nome, type: partnerType });
+            const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, launch!.id);
+            if (mode === 'create') {
+                await addDoc(launchRef, dataToSave);
+                onLaunchSuccess(dataToSave.chaveNfe || dataToSave.numeroNfse || '', dataToSave.status);
+            } else {
+                await updateDoc(launchRef as any, dataToSave);
+            }
+            setIsOpen(false);
+        } catch (error) { console.error(error); }
+    };
   
-  const getTitle = () => {
-    if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
-    if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
-    return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
-  };
+    const getTitle = () => {
+        const { orcamento, xmlFile, manualLaunchType } = modalOptions;
+        if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
+        if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
+        return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
+    };
 
-  const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string) => (
-    <AccordionItem value={partyName}>
-        <AccordionTrigger>{label}</AccordionTrigger>
-        <AccordionContent className="space-y-4 px-1">
-             <div className="space-y-2">
-                <FormLabel>Razão Social</FormLabel>
-                <div className="flex gap-2">
-                    <FormControl>
-                        <Input {...form.register(`${partyName}.nome`)} readOnly={isReadOnly} />
-                    </FormControl>
-                    <Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)} disabled={isReadOnly}><Search className="h-4 w-4"/></Button>
+    const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string) => (
+        <AccordionItem value={partyName}>
+            <AccordionTrigger>{label}</AccordionTrigger>
+            <AccordionContent className="space-y-4 px-1">
+                <div className="space-y-2">
+                    <FormLabel>Razão Social</FormLabel>
+                    <div className="flex gap-2">
+                        <FormControl>
+                            <Input {...form.register(`${partyName}.nome`)} readOnly={isReadOnly} />
+                        </FormControl>
+                        <Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)} disabled={isReadOnly}><Search className="h-4 w-4"/></Button>
+                    </div>
                 </div>
-            </div>
-            <div className="space-y-2">
-                <FormLabel>CNPJ / CPF</FormLabel>
-                <FormControl><Input {...form.register(`${partyName}.cnpj`)} value={formatCnpj(form.watch(`${partyName}.cnpj`))} onChange={(e) => form.setValue(`${partyName}.cnpj`, e.target.value)} readOnly={isReadOnly} /></FormControl>
-            </div>
-        </AccordionContent>
-    </AccordionItem>
-  );
+                <div className="space-y-2">
+                    <FormLabel>CNPJ / CPF</FormLabel>
+                    <FormControl><Input {...form.register(`${partyName}.cnpj`)} value={formatCnpj(form.watch(`${partyName}.cnpj`))} onChange={(e) => form.setValue(`${partyName}.cnpj`, e.target.value)} readOnly={isReadOnly} /></FormControl>
+                </div>
+            </AccordionContent>
+        </AccordionItem>
+    );
 
-  return (
-    <>
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl">
-        <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <DialogHeader>
-          <DialogTitle>{getTitle()}</DialogTitle>
-           <DialogDescription asChild>
-            <div>
-              <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
-              {(xmlFile || orcamento || launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
-            </div>
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-          <Accordion type="multiple" defaultValue={['general', 'emitter', 'recipient', 'products', 'service', 'taxes']} className="w-full">
-              <AccordionItem value="general">
-                  <AccordionTrigger>Informações Gerais</AccordionTrigger>
-                  <AccordionContent className="space-y-4 px-1">
-                      <div className="grid grid-cols-2 gap-4">
-                          <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                          <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!xmlFile} /></FormControl></FormItem> )} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                          <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><Input type="date" value={isValid(new Date(field.value)) ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(new Date(e.target.value + 'T00:00:00'))} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
-                      </div>
-                      <FormField control={form.control} name="observacoes" render={({ field }) => ( <FormItem><FormLabel>Observações Internas</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                  </AccordionContent>
-              </AccordionItem>
-
-              {form.getValues('type') === 'servico' ? (
-                <>
-                  {renderPartyField('prestador', 'Prestador do Serviço')}
-                  {renderPartyField('tomador', 'Tomador do Serviço')}
-                </>
-              ) : (
-                <>
-                  {renderPartyField('emitente', 'Emitente')}
-                  {renderPartyField('destinatario', 'Destinatário')}
-                </>
-              )}
-
-              {form.getValues('type') === 'servico' ? (
-                 <AccordionItem value="service">
-                    <AccordionTrigger>Serviços e Valores</AccordionTrigger>
-                    <AccordionContent className="space-y-4 px-1">
-                        <FormField control={form.control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                        <div className="grid grid-cols-3 gap-4">
-                            <FormField control={form.control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                             <FormField control={form.control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly className="font-semibold" /></FormControl></FormItem> )} />
+    return (
+        <>
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <DialogContent className="sm:max-w-4xl">
+                    <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)}>
+                    <DialogHeader>
+                    <DialogTitle>{getTitle()}</DialogTitle>
+                    <DialogDescription asChild>
+                        <div>
+                        <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
+                        {(modalOptions.xmlFile || modalOptions.orcamento || modalOptions.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
-                    </AccordionContent>
-                </AccordionItem>
-              ) : (
-                 <AccordionItem value="products">
-                    <AccordionTrigger>Produtos e Valores</AccordionTrigger>
-                    <AccordionContent className="space-y-4 px-1">
-                         {fields.map((item, index) => (
-                            <div key={item.id} className="p-3 border rounded-md bg-muted/50 relative">
-                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
-                                    <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                                    <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => (<FormItem className="col-span-9"><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                                    <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
-                                    <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
-                                    <FormField control={control} name={`produtos.${index}.valorTotal`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input type="number" {...field} readOnly className="font-semibold"/></FormControl></FormItem>)} />
-                                    <div className="col-span-3 flex justify-end">
-                                      {!isReadOnly && <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>}
-                                    </div>
+                    </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
+                    <Accordion type="multiple" defaultValue={['general', 'emitter', 'recipient', 'products', 'service', 'taxes']} className="w-full">
+                        <AccordionItem value="general">
+                            <AccordionTrigger>Informações Gerais</AccordionTrigger>
+                            <AccordionContent className="space-y-4 px-1">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!modalOptions.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!modalOptions.xmlFile} /></FormControl></FormItem> )} />
                                 </div>
-                            </div>
-                         ))}
-                         {!isReadOnly && (
-                            <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({ codigo: '', descricao: '', ncm: '', cfop: '', quantidade: 1, valorUnitario: 0, valorTotal: 0 })}>
-                                <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Produto
-                            </Button>
-                         )}
-                        <Separator className="my-4"/>
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor Total dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
-                            <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
-              )}
-               <AccordionItem value="taxes">
-                    <AccordionTrigger>Impostos</AccordionTrigger>
-                    <AccordionContent className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1">
-                        <FormField control={form.control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                        <FormField control={form.control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><Input type="date" value={isValid(new Date(field.value)) ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(new Date(e.target.value + 'T00:00:00'))} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                    <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
+                                </div>
+                                <FormField control={form.control} name="observacoes" render={({ field }) => ( <FormItem><FormLabel>Observações Internas</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            </AccordionContent>
+                        </AccordionItem>
+
                         {form.getValues('type') === 'servico' ? (
-                          <FormField control={form.control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            <>
+                            {renderPartyField('prestador', 'Prestador do Serviço')}
+                            {renderPartyField('tomador', 'Tomador do Serviço')}
+                            </>
                         ) : (
-                          <>
-                           <FormField control={form.control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                           <FormField control={form.control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                          </>
+                            <>
+                            {renderPartyField('emitente', 'Emitente')}
+                            {renderPartyField('destinatario', 'Destinatário')}
+                            </>
                         )}
-                    </AccordionContent>
-                </AccordionItem>
-          </Accordion>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
-          {mode !== 'view' && <Button type="submit">{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
-        </DialogFooter>
-        </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-    {userId && company && (
-         <PartnerSelectionModal
-            isOpen={isPartnerModalOpen}
-            onClose={() => setPartnerModalOpen(false)}
-            onSelect={handleSelectPartner}
-            partners={partners}
-            partnerType={partnerTarget === 'emitente' || partnerTarget === 'prestador' ? 'fornecedor' : 'cliente'}
-        />
-    )}
-    </>
-  );
-}
+
+                        {form.getValues('type') === 'servico' ? (
+                            <AccordionItem value="service">
+                                <AccordionTrigger>Serviços e Valores</AccordionTrigger>
+                                <AccordionContent className="space-y-4 px-1">
+                                    <FormField control={form.control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <FormField control={form.control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                        <FormField control={form.control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                        <FormField control={form.control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly className="font-semibold" /></FormControl></FormItem> )} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ) : (
+                            <AccordionItem value="products">
+                                <AccordionTrigger>Produtos e Valores</AccordionTrigger>
+                                <AccordionContent className="space-y-4 px-1">
+                                    {fields.map((item, index) => (
+                                        <div key={item.id} className="p-3 border rounded-md bg-muted/50 relative">
+                                            <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                                <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                                <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => (<FormItem className="col-span-9"><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                                <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                                <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                                <FormField control={control} name={`produtos.${index}.valorTotal`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input type="number" {...field} readOnly className="font-semibold"/></FormControl></FormItem>)} />
+                                                <div className="col-span-3 flex justify-end">
+                                                {!isReadOnly && <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {!isReadOnly && (
+                                        <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({ codigo: '', descricao: '', ncm: '', cfop: '', quantidade: 1, valorUnitario: 0, valorTotal: 0 })}>
+                                            <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Produto
+                                        </Button>
+                                    )}
+                                    <Separator className="my-4"/>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor Total dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
+                                        <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
+                                    </div>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )}
+                        <AccordionItem value="taxes">
+                                <AccordionTrigger>Impostos</AccordionTrigger>
+                                <AccordionContent className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1">
+                                    <FormField control={form.control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    {form.getValues('type') === 'servico' ? (
+                                    <FormField control={form.control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    ) : (
+                                    <>
+                                    <FormField control={form.control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={form.control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    </>
+                                    )}
+                                </AccordionContent>
+                            </AccordionItem>
+                    </Accordion>
+                    </div>
+                    <DialogFooter>
+                    <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
+                    {mode !== 'view' && <Button type="submit">{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
+                    </DialogFooter>
+                    </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+            {userId && company && (
+                <PartnerSelectionModal
+                    isOpen={isPartnerModalOpen}
+                    onClose={() => setPartnerModalOpen(false)}
+                    onSelect={handleSelectPartner}
+                    partners={partners}
+                    partnerType={partnerTarget === 'emitente' || partnerTarget === 'prestador' ? 'fornecedor' : 'cliente'}
+                />
+            )}
+        </>
+    );
+});
+
+LaunchFormModal.displayName = 'LaunchFormModal';

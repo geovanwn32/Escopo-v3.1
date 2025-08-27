@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -12,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { LaunchFormModal } from "@/components/fiscal/launch-form-modal";
+import { LaunchFormModal, type LaunchModalHandles } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,7 @@ import type { Partner } from "@/types/partner";
 import type { Produto } from "@/types/produto";
 import type { Servico } from "@/types/servico";
 
-interface XmlFile {
+export interface XmlFile {
   file: {
     name: string;
     type: string;
@@ -68,14 +67,12 @@ export interface Launch {
     discriminacao?: string;
     itemLc116?: string;
     valorServicos?: number;
+    valorLiquido?: number;
     valorPis?: number;
     valorCofins?: number;
     valorIr?: number;
     valorInss?: number;
     valorCsll?: number;
-    valorLiquido?: number;
-    valorIcms?: number;
-    valorIpi?: number;
     valorIss?: number;
 
 
@@ -84,6 +81,8 @@ export interface Launch {
     destinatario?: { nome: string; cnpj: string; };
     valorProdutos?: number;
     valorTotalNota?: number;
+    valorIpi?: number;
+    valorIcms?: number;
     produtos?: {
       codigo?: string;
       descricao?: string;
@@ -128,13 +127,10 @@ export default function FiscalPage() {
   const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const [isClosingModalOpen, setClosingModalOpen] = useState(false);
-  const [selectedXml, setSelectedXml] = useState<XmlFile | null>(null);
-  const [editingLaunch, setEditingLaunch] = useState<Launch | null>(null);
-  const [orcamentoToLaunch, setOrcamentoToLaunch] = useState<Orcamento | null>(null);
-  const [manualLaunchType, setManualLaunchType] = useState<'entrada' | 'saida' | 'servico' | null>(null);
-  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const launchFormModalRef = useRef<LaunchModalHandles>(null);
+
   
   // Data for modals
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -355,63 +351,16 @@ export default function FiscalPage() {
     fileInputRef.current?.click();
   };
   
-  const handleLaunchFromXml = (file: XmlFile) => {
-    setModalMode('create');
-    const fileObject = new File([file.content], file.file.name, { type: file.file.type });
-    setSelectedXml({ ...file, file: fileObject });
-    setEditingLaunch(null);
-    setManualLaunchType(null);
-    setOrcamentoToLaunch(null);
-    setIsModalOpen(true);
-  };
-  
-  const handleManualLaunch = (type: 'saida' | 'entrada' | 'servico') => {
-    setModalMode('create');
-    setSelectedXml(null);
-    setEditingLaunch(null);
-    setManualLaunchType(type);
-    setOrcamentoToLaunch(null);
-    setIsModalOpen(true);
-  };
-
-  const handleLaunchFromOrcamento = (orcamento: Orcamento) => {
-    setModalMode('create');
-    setSelectedXml(null);
-    setEditingLaunch(null);
-    setManualLaunchType(null);
-    setOrcamentoToLaunch(orcamento);
-    setIsModalOpen(true);
+  const handleLaunchSuccess = (launchedKey: string, status: Launch['status']) => {
+     if (launchedKey) {
+        setXmlFiles(files => files.map(f => {
+            if (f.key === launchedKey) {
+                return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
+            }
+            return f;
+        }));
+     }
   }
-
-  const handleViewLaunch = (launch: Launch) => {
-    setModalMode('view');
-    setEditingLaunch(launch);
-    setSelectedXml(null);
-    setManualLaunchType(null);
-    setOrcamentoToLaunch(null);
-    setIsModalOpen(true);
-  };
-  
-  const handleGeneratePdf = (launch: Launch) => {
-    if (!activeCompany) {
-      toast({ variant: 'destructive', title: 'Empresa não selecionada' });
-      return;
-    }
-    try {
-      generateLaunchPdf(activeCompany, launch);
-    } catch (error) {
-       toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
-    }
-  }
-
-  const handleEditLaunch = (launch: Launch) => {
-    setModalMode('edit');
-    setEditingLaunch(launch);
-    setSelectedXml(null);
-    setManualLaunchType(null);
-    setOrcamentoToLaunch(null);
-    setIsModalOpen(true);
-  };
 
   const handleDeleteLaunch = async (launch: Launch) => {
     if (!user || !activeCompany) return;
@@ -447,27 +396,6 @@ export default function FiscalPage() {
         description: `O arquivo ${fileName} foi removido da lista.`
     });
   };
-
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedXml(null);
-    setEditingLaunch(null);
-    setManualLaunchType(null);
-    setOrcamentoToLaunch(null);
-  }
-
-  const handleLaunchSuccess = (launchedKey: string, status: Launch['status']) => {
-     if (launchedKey) {
-        setXmlFiles(files => files.map(f => {
-            if (f.key === launchedKey) {
-                return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
-            }
-            return f;
-        }));
-     }
-     handleModalClose();
-  }
   
   const filteredLaunches = useMemo(() => {
     return launches.filter(launch => {
@@ -550,7 +478,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    currentPage * itemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -598,13 +526,18 @@ endDate.setHours(23,59,59,999);
      }
   }
 
-  const modalKey = useMemo(() => {
-    if (editingLaunch) return editingLaunch.id;
-    if (selectedXml) return selectedXml.file.name;
-    if (orcamentoToLaunch) return orcamentoToLaunch.id;
-    if (manualLaunchType) return `manual-${manualLaunchType}`;
-    return 'new-launch';
-  }, [editingLaunch, selectedXml, orcamentoToLaunch, manualLaunchType]);
+  const handleGeneratePdf = (launch: Launch) => {
+    if (!activeCompany) {
+      toast({ variant: 'destructive', title: 'Empresa não selecionada' });
+      return;
+    }
+    try {
+      generateLaunchPdf(activeCompany, launch);
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -623,9 +556,9 @@ endDate.setHours(23,59,59,999);
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => handleManualLaunch('saida')}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => handleManualLaunch('entrada')} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => handleManualLaunch('servico')} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'saida' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'entrada' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => launchFormModalRef.current?.open({ manualLaunchType: 'servico' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -690,7 +623,7 @@ endDate.setHours(23,59,59,999);
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleLaunchFromOrcamento(orc)}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ orcamento: orc })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -777,7 +710,7 @@ endDate.setHours(23,59,59,999);
                             {getBadgeForXml(xmlFile)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                            <Button size="sm" onClick={() => handleLaunchFromXml(xmlFile)} disabled={xmlFile.status !== 'pending'}>
+                            <Button size="sm" onClick={() => launchFormModalRef.current?.open({ xmlFile })} disabled={xmlFile.status !== 'pending'}>
                                 {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
                                 Lançar
                             </Button>
@@ -954,11 +887,11 @@ endDate.setHours(23,59,59,999);
                                                 <FileText className="mr-2 h-4 w-4" />
                                                 Visualizar PDF
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleViewLaunch(launch)}>
+                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ launch: launch, mode: 'view' })}>
                                                 <Eye className="mr-2 h-4 w-4" />
                                                 Visualizar Detalhes
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleEditLaunch(launch)}>
+                                            <DropdownMenuItem onClick={() => launchFormModalRef.current?.open({ launch: launch, mode: 'edit' })}>
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Alterar
                                             </DropdownMenuItem>
@@ -1006,16 +939,9 @@ endDate.setHours(23,59,59,999);
             </CardFooter>
         )}
       </Card>
-      {isModalOpen && user && activeCompany && (
+      {user && activeCompany && (
         <LaunchFormModal 
-            key={modalKey}
-            isOpen={isModalOpen}
-            onClose={handleModalClose}
-            xmlFile={selectedXml}
-            launch={editingLaunch}
-            orcamento={orcamentoToLaunch}
-            manualLaunchType={manualLaunchType}
-            mode={modalMode}
+            ref={launchFormModalRef}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
