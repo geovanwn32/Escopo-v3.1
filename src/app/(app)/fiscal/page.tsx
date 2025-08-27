@@ -48,6 +48,7 @@ export interface Company {
     nomeFantasia: string;
     razaoSocial: string;
     cnpj: string;
+    logoUrl?: string | null;
 }
 
 export interface Launch {
@@ -59,6 +60,7 @@ export interface Launch {
     chaveNfe?: string;
     numeroNfse?: string;
     financialStatus?: 'pendente' | 'pago' | 'vencido';
+    observacoes?: string | null;
     
     // NFS-e fields
     prestador?: { nome: string; cnpj: string; };
@@ -72,12 +74,25 @@ export interface Launch {
     valorInss?: number;
     valorCsll?: number;
     valorLiquido?: number;
+    valorIcms?: number;
+    valorIpi?: number;
+    valorIss?: number;
+
 
     // NF-e fields
     emitente?: { nome: string; cnpj: string; };
     destinatario?: { nome: string; cnpj: string; };
     valorProdutos?: number;
     valorTotalNota?: number;
+    produtos?: {
+      codigo?: string;
+      descricao?: string;
+      ncm?: string;
+      cfop?: string;
+      quantidade: number;
+      valorUnitario: number;
+      valorTotal: number;
+    }[];
 }
 
 
@@ -585,11 +600,11 @@ endDate.setHours(23,59,59,999);
 
   const modalKey = useMemo(() => {
     if (editingLaunch) return editingLaunch.id;
-    if (xmlFile) return xmlFile.file.name;
+    if (selectedXml) return selectedXml.file.name;
     if (orcamentoToLaunch) return orcamentoToLaunch.id;
     if (manualLaunchType) return `manual-${manualLaunchType}`;
     return 'new-launch';
-  }, [editingLaunch, xmlFile, orcamentoToLaunch, manualLaunchType]);
+  }, [editingLaunch, selectedXml, orcamentoToLaunch, manualLaunchType]);
 
   return (
     <div className="space-y-6">
