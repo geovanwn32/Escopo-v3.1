@@ -478,7 +478,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    currentPage * itemsPerPage
+    launchesCurrentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
