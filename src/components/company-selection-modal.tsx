@@ -148,7 +148,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>{isCreating || editingCompany ? 'Cadastro de Empresa' : 'Selecione uma Empresa'}</DialogTitle>
           <DialogDescription>
@@ -217,7 +217,7 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
               <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
             ) : (
               <div className="max-h-[50vh] overflow-y-auto p-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {filteredCompanies.length > 0 ? (
                       filteredCompanies.map(company => (
                           <Card 
