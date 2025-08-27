@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, ShoppingCart, Users, Package, FileText, Banknote } from "lucide-react";
+import { TrendingUp, ShoppingCart, Users, Package, FileText, Banknote, Share2, Calculator, FileDigit } from "lucide-react";
 import Link from "next/link";
 
 export default function RelatoriosPage() {
@@ -42,20 +42,41 @@ export default function RelatoriosPage() {
             description: 'Exporte uma lista completa dos seus produtos.',
             icon: Package,
             buttonText: 'Gerar Lista'
-        }
+        },
+        { 
+            href: "/esocial",
+            title: 'eSocial',
+            description: 'Central de geração e gerenciamento de eventos do eSocial.',
+            icon: Share2,
+            buttonText: 'Acessar Módulo'
+        },
+         { 
+            href: "/pgdas",
+            title: 'PGDAS',
+            description: 'Calcule o imposto do Simples Nacional.',
+            icon: Calculator,
+            buttonText: 'Acessar Módulo'
+        },
+         { 
+            href: "/efd-contribuicoes",
+            title: 'EFD Contribuições',
+            description: 'Gere o arquivo para o SPED Fiscal.',
+            icon: FileDigit,
+            buttonText: 'Acessar Módulo'
+        },
     ];
 
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Central de Relatórios</h1>
+      <h1 className="text-2xl font-bold">Central de Relatórios e Arquivos</h1>
       <Card>
         <CardHeader>
           <CardTitle>Relatórios Fiscais e Cadastrais</CardTitle>
-          <CardDescription>Selecione um dos relatórios abaixo para extrair informações importantes do sistema.</CardDescription>
+          <CardDescription>Selecione uma das opções abaixo para extrair informações importantes do sistema.</CardDescription>
         </CardHeader>
         <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {reportCards.map((card) => (
                     <Card key={card.href} className="flex flex-col">
                         <CardHeader className="items-center text-center">
