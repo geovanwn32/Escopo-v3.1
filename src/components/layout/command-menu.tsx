@@ -9,10 +9,9 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
+import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, relatoriosEArquivosLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
 import { DialogTitle } from "@radix-ui/react-dialog"
 
 const commandGroups = [
@@ -22,7 +21,7 @@ const commandGroups = [
   { heading: 'Contábil', links: contabilLinks },
   { heading: 'Financeiro', links: financeiroLinks },
   { heading: 'Cadastros', links: cadastroLinks },
-  { heading: 'Conectividade', links: conectividadeLinks },
+  { heading: 'Relatórios e Arquivos', links: relatoriosEArquivosLinks },
   { heading: 'Utilitários', links: utilitariosLinks },
   { heading: 'Sistema', links: sistemaLinks.filter(l => !l.adminOnly) },
 ];
