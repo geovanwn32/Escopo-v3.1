@@ -30,10 +30,16 @@ import { FileText } from 'lucide-react';
 import { Separator } from '../ui/separator';
 
 interface XmlFile {
-  file: File;
+  file: {
+    name: string;
+    type: string;
+    size: number;
+    lastModified: number;
+  };
   content: string;
   status: 'pending' | 'launched' | 'error' | 'cancelled';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
+  key?: string;
 }
 
 export interface OpenModalOptions {
@@ -289,7 +295,7 @@ export const LaunchFormModal = ({
             setValue('valorProdutos', parseFloat(newTotalProdutos.toFixed(2)));
             setValue('valorTotalNota', parseFloat(newTotalProdutos.toFixed(2)));
         }
-    }, [watchedFormValues.produtos, watchedFormValues.type, setValue, isOpen]);
+    }, [watchedFormValues.produtos, watchedFormValues.type, setValue]);
 
     useEffect(() => {
         if(watchedFormValues.type === 'servico') {
