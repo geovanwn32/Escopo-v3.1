@@ -5,6 +5,7 @@ import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp }
 import { db } from '@/lib/firebase';
 import type { Launch, ReinfFile } from '@/types';
 
+// #region Helper Functions
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
   return value.toFixed(2).replace('.', ',');
@@ -22,64 +23,24 @@ const sanitizeString = (str: string | undefined | null): string => {
     return str.replace(/[|]/g, '').trim().toUpperCase();
 }
 
-interface ServiceResult {
-    success: boolean;
-    message?: string;
-}
-
 const generateEventId = (cnpj: string) => {
     const timestamp = new Date().getTime();
-    return `ID1${cnpj}${timestamp}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    return `ID1${cnpj}${timestamp}${randomSuffix}`.slice(0, 36);
 }
+// #endregion
+
+// #region Event Generation Functions
 
 /**
- * Generates the EFD-Reinf XML content.
+ * Gera o XML do evento R-1000 (Informações do Contribuinte).
  */
-export async function generateReinfXml(
-    userId: string,
-    company: Company,
-    period: string
-): Promise<ServiceResult> {
-    const [monthStr, yearStr] = period.split('/');
-    if (!monthStr || !yearStr) {
-        return { success: false, message: "Período inválido." };
-    }
-    const month = parseInt(monthStr, 10);
-    const year = parseInt(yearStr, 10);
-    const companyCnpj = company.cnpj?.replace(/\D/g, '') || '';
-
-    const startDate = startOfMonth(new Date(year, month - 1));
-    const endDate = endOfMonth(new Date(year, month - 1));
-
-    // Fetch all service notes and filter in-memory to avoid composite index requirement
-    const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-    const q = query(launchesRef); // Query without date or type filters
-    const snapshot = await getDocs(q);
-
-    const servicesTaken = snapshot.docs
-      .map(doc => {
-          const data = doc.data();
-          return { ...data, date: (data.date as Timestamp).toDate() } as Launch
-      })
-      .filter(launch => 
-          launch.type === 'servico' &&
-          launch.valorInss && launch.valorInss > 0 &&
-          (launch.date as Date) >= startDate &&
-          (launch.date as Date) <= endDate
-      );
-
-
-    if (servicesTaken.length === 0) {
-        return { success: false, message: "Nenhuma nota de serviço com retenção de INSS encontrada no período." };
-    }
-    
-    const eventR1000Id = generateEventId(companyCnpj);
-    let xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/envioLoteEventos/v1_05_01">
-  <loteEventos>
-    <evento id="${eventR1000Id}">
+const generateR1000 = (company: Company, period: string): string => {
+    const eventId = generateEventId(company.cnpj.replace(/\D/g, ''));
+    return `
+    <evento id="${eventId}">
       <Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evtInfoContribuinte/v1_05_01">
-        <evtInfoContri id="${eventR1000Id}">
+        <evtInfoContri id="${eventId}">
           <ideEvento>
             <tpAmb>2</tpAmb>
             <procEmi>1</procEmi>
@@ -87,12 +48,12 @@ export async function generateReinfXml(
           </ideEvento>
           <ideContri>
             <tpInsc>1</tpInsc>
-            <nrInsc>${companyCnpj}</nrInsc>
+            <nrInsc>${company.cnpj.replace(/\D/g, '')}</nrInsc>
           </ideContri>
           <infoContri>
             <inclusao>
               <idePeriodo>
-                <iniValid>${format(startDate, 'yyyy-MM')}</iniValid>
+                <iniValid>${period}</iniValid>
               </idePeriodo>
               <infoCadastro>
                 <classTrib>99</classTrib>
@@ -103,7 +64,7 @@ export async function generateReinfXml(
                 <contato>
                   <nmCtt>${sanitizeString(company.razaoSocial)}</nmCtt>
                   <cpfCtt>${'00000000000'}</cpfCtt>
-                  <foneFixo>${company.telefone?.replace(/\D/g, '') || ''}</foneFixo>
+                  <foneFixo>${(company.telefone || '').replace(/\D/g, '')}</foneFixo>
                   <email>${company.email || ''}</email>
                 </contato>
               </infoCadastro>
@@ -112,16 +73,21 @@ export async function generateReinfXml(
         </evtInfoContri>
       </Reinf>
     </evento>`;
-    
-    servicesTaken.forEach(service => {
-        const eventR2010Id = generateEventId(companyCnpj);
+};
+
+/**
+ * Gera os XMLs do evento R-2010 (Serviços Tomados).
+ */
+const generateR2010 = (companyCnpj: string, servicesTaken: Launch[], period: string): string => {
+    return servicesTaken.map(service => {
+        const eventId = generateEventId(companyCnpj);
         const prestadorCnpj = service.prestador?.cnpj?.replace(/\D/g, '') || '';
-        xmlContent += `
-    <evento id="${eventR2010Id}">
+        return `
+    <evento id="${eventId}">
       <Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evtServTom/v1_05_01">
-        <evtServTom id="${eventR2010Id}">
+        <evtServTom id="${eventId}">
           <ideEvento>
-            <perApur>${format(startDate, 'yyyy-MM')}</perApur>
+            <perApur>${period}</perApur>
           </ideEvento>
           <ideContri>
             <tpInsc>1</tpInsc>
@@ -143,37 +109,133 @@ export async function generateReinfXml(
         </evtServTom>
       </Reinf>
     </evento>`;
-    });
+    }).join('');
+};
 
-    const eventR2099Id = generateEventId(companyCnpj);
-     xmlContent += `
-    <evento id="${eventR2099Id}">
+/**
+ * Gera os XMLs do evento R-2020 (Serviços Prestados).
+ */
+const generateR2020 = (companyCnpj: string, servicesProvided: Launch[], period: string): string => {
+    return servicesProvided.map(service => {
+        const eventId = generateEventId(companyCnpj);
+        const tomadorCnpj = service.tomador?.cnpj?.replace(/\D/g, '') || '';
+        return `
+    <evento id="${eventId}">
+      <Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evtServPrest/v1_05_01">
+        <evtServPrest id="${eventId}">
+          <ideEvento>
+            <perApur>${period}</perApur>
+          </ideEvento>
+          <ideContri>
+            <tpInsc>1</tpInsc>
+            <nrInsc>${companyCnpj}</nrInsc>
+          </ideContri>
+          <ideTomador>
+            <tpInsc>1</tpInsc>
+            <nrInsc>${tomadorCnpj}</nrInsc>
+            <vlrTotalBruto>${formatValue(service.valorServicos)}</vlrTotalBruto>
+            <vlrTotalBaseRet>${formatValue(service.valorServicos)}</vlrTotalBaseRet>
+            <vlrTotalRetPrinc>${formatValue(service.valorInss)}</vlrTotalRetPrinc>
+            <infoProcRet>
+              <!-- Placeholder for legal process info -->
+            </infoProcRet>
+          </ideTomador>
+        </evtServPrest>
+      </Reinf>
+    </evento>`;
+    }).join('');
+};
+
+/**
+ * Gera o XML do evento R-2099 (Fechamento).
+ */
+const generateR2099 = (companyCnpj: string, period: string, hasR2010: boolean, hasR2020: boolean): string => {
+    const eventId = generateEventId(companyCnpj);
+    return `
+    <evento id="${eventId}">
         <Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evtFechamento/v1_05_01">
-            <evtFecha id="${eventR2099Id}">
+            <evtFecha id="${eventId}">
                 <ideEvento>
-                    <perApur>${format(startDate, 'yyyy-MM')}</perApur>
+                    <perApur>${period}</perApur>
                 </ideEvento>
                 <ideContri>
                     <tpInsc>1</tpInsc>
                     <nrInsc>${companyCnpj}</nrInsc>
                 </ideContri>
                 <ideRespInf>
-                    <nmResp>Contador</nmResp>
+                    <nmResp>Contador Exemplo</nmResp>
                     <cpfResp>00000000000</cpfResp>
                     <telefone>62999999999</telefone>
-                    <email>contador@email.com</email>
+                    <email>contador@example.com</email>
                 </ideRespInf>
                 <infoFech>
-                    <evtServTom>S</evtServTom>
+                    <evtServTom>${hasR2010 ? 'S' : 'N'}</evtServTom>
+                    <evtServPrest>${hasR2020 ? 'S' : 'N'}</evtServPrest>
+                    <evtAssocDespRec>N</evtAssocDespRec>
+                    <evtAssocDespRep>N</evtAssocDespRep>
+                    <evtComProd>N</evtComProd>
+                    <evtCPRB>N</evtCPRB>
+                    <evtAquisProd>N</evtAquisProd>
+                    <evtRecursoClubes>N</evtRecursoClubes>
                 </infoFech>
             </evtFecha>
         </Reinf>
-    </evento>
+    </evento>`;
+};
+// #endregion
+
+/**
+ * Orchestrates the generation of the complete EFD-Reinf XML file.
+ */
+export async function generateReinfXml(
+    userId: string,
+    company: Company,
+    periodStr: string
+): Promise<ServiceResult> {
+    const [monthStr, yearStr] = periodStr.split('/');
+    if (!monthStr || !yearStr) {
+        return { success: false, message: "Período inválido." };
+    }
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10);
+    const companyCnpj = company.cnpj?.replace(/\D/g, '') || '';
+    const apiPeriod = `${year}-${monthStr}`;
+
+    const startDate = startOfMonth(new Date(year, month - 1));
+    const endDate = endOfMonth(new Date(year, month - 1));
+
+    // Fetch all launches for the period
+    const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+    const q = query(launchesRef, where('date', '>=', startDate), where('date', '<=', endDate));
+    const snapshot = await getDocs(q);
+    const launches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch));
+
+    // Filter for specific events
+    const servicesTaken = launches.filter(l => l.type === 'entrada' && (l.valorInss || 0) > 0);
+    const servicesProvided = launches.filter(l => l.type === 'servico' && (l.valorInss || 0) > 0);
+
+    if (servicesTaken.length === 0 && servicesProvided.length === 0) {
+        return { success: false, message: "Nenhuma nota fiscal com retenção de INSS (serviços tomados ou prestados) foi encontrada no período." };
+    }
+
+    let xmlEvents = '';
+    xmlEvents += generateR1000(company, apiPeriod);
+    if (servicesTaken.length > 0) {
+        xmlEvents += generateR2010(companyCnpj, servicesTaken, apiPeriod);
+    }
+    if (servicesProvided.length > 0) {
+        xmlEvents += generateR2020(companyCnpj, servicesProvided, apiPeriod);
+    }
+    xmlEvents += generateR2099(companyCnpj, apiPeriod, servicesTaken.length > 0, servicesProvided.length > 0);
+
+    const finalXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/envioLoteEventos/v1_05_01">
+  <loteEventos>${xmlEvents}
   </loteEventos>
 </Reinf>`;
 
-    const fileName = `REINF_${company.cnpj?.replace(/\D/g, '')}_${monthStr}${yearStr}.xml`;
-    const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8' });
+    const fileName = `REINF_${companyCnpj}_${monthStr}${yearStr}.xml`;
+    const blob = new Blob([finalXml], { type: 'application/xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -186,8 +248,8 @@ export async function generateReinfXml(
     try {
         const fileRecord: Omit<ReinfFile, 'id'> = {
             fileName,
-            period,
-            type: 'R-2010',
+            period: periodStr,
+            type: 'R-2099', // Closing event
             createdAt: serverTimestamp(),
             userId,
             companyId: company.id
@@ -198,5 +260,5 @@ export async function generateReinfXml(
         console.error("Error saving file record to Firestore:", e);
     }
     
-    return { success: true, message: `Arquivo ${fileName} gerado e download iniciado.` };
+    return { success: true, message: `Arquivo ${fileName} gerado com sucesso.` };
 }
