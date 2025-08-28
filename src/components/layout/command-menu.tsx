@@ -12,7 +12,7 @@ import {
   CommandList,
   CommandItem,
 } from "@/components/ui/command"
-import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, relatoriosLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
+import { mainNavLinks, fiscalLinks, pessoalLinks, contabilLinks, financeiroLinks, cadastroLinks, conectividadeLinks, utilitariosLinks, sistemaLinks } from "./sidebar-nav"
 import { DialogTitle } from "@radix-ui/react-dialog"
 
 const commandGroups = [
@@ -23,7 +23,6 @@ const commandGroups = [
   { heading: 'Financeiro', links: financeiroLinks },
   { heading: 'Cadastros', links: cadastroLinks },
   { heading: 'Conectividade', links: conectividadeLinks },
-  { heading: 'Relatórios', links: relatoriosLinks },
   { heading: 'Utilitários', links: utilitariosLinks },
   { heading: 'Sistema', links: sistemaLinks.filter(l => !l.adminOnly) },
 ];

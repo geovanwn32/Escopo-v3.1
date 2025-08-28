@@ -51,6 +51,16 @@ export interface EfdFile {
   companyId: string;
 }
 
+export interface ReinfFile {
+  id?: string;
+  fileName: string;
+  period: string;
+  type: 'R-1000' | 'R-2010' | 'R-2020' | 'R-2099';
+  createdAt: FieldValue | Date;
+  userId: string;
+  companyId: string;
+}
+
 
 export interface Launch {
     id: string;

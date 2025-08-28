@@ -29,6 +29,13 @@ export default function ConectividadePage() {
             icon: FileDigit,
             buttonText: 'Acessar Módulo'
         },
+        { 
+            href: "/reinf",
+            title: 'EFD-Reinf',
+            description: 'Gere os eventos de retenções e informações fiscais.',
+            icon: FileText,
+            buttonText: 'Acessar Módulo'
+        },
     ];
 
 
@@ -41,7 +48,7 @@ export default function ConectividadePage() {
           <CardDescription>Selecione uma das opções abaixo para gerar arquivos para os portais do governo.</CardDescription>
         </CardHeader>
         <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {conectividadeCards.map((card) => (
                     <Card key={card.href} className="flex flex-col">
                         <CardHeader className="items-center text-center">

@@ -96,6 +96,7 @@ export const conectividadeLinks = [
     { href: "/esocial", icon: <Share2 />, label: "eSocial" },
     { href: "/pgdas", icon: <Calculator />, label: "PGDAS" },
     { href: "/efd-contribuicoes", icon: <FileDigit />, label: "EFD Contribuições" },
+    { href: "/reinf", icon: <FileText />, label: "EFD-Reinf" },
 ]
 
 export const relatoriosLinks = [
@@ -133,7 +134,7 @@ const getLinksForPath = (pathname: string) => {
     if (pathname.startsWith('/pessoal')) return { title: 'Pessoal', links: pessoalLinks };
     if (pathname.startsWith('/contabil')) return { title: 'Contábil', links: contabilLinks };
     if (pathname.startsWith('/financeiro')) return { title: 'Financeiro', links: financeiroLinks };
-    if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes') || pathname.startsWith('/conectividade')) return { title: 'Conectividade', links: conectividadeLinks };
+    if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes') || pathname.startsWith('/reinf') || pathname.startsWith('/conectividade')) return { title: 'Conectividade', links: conectividadeLinks };
     if (pathname.startsWith('/relatorios')) return { title: 'Relatórios', links: relatoriosLinks };
     if (pathname.startsWith('/parceiros') || pathname.startsWith('/funcionarios') || pathname.startsWith('/socios') || pathname.startsWith('/produtos') || pathname.startsWith('/servicos') || pathname.startsWith('/aliquotas') || pathname.startsWith('/rubricas') || pathname.startsWith('/fichas')) return { title: 'Cadastros', links: cadastroLinks };
     if (pathname.startsWith('/utilitarios')) return { title: 'Utilitários', links: utilitariosLinks };
