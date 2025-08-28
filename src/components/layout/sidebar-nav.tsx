@@ -92,15 +92,18 @@ export const cadastroLinks = [
     { href: "/fichas", icon: <BookUser />, label: "Fichas" },
 ];
 
-export const relatoriosEArquivosLinks = [
+export const conectividadeLinks = [
+    { href: "/esocial", icon: <Share2 />, label: "eSocial" },
+    { href: "/pgdas", icon: <Calculator />, label: "PGDAS" },
+    { href: "/efd-contribuicoes", icon: <FileDigit />, label: "EFD Contribuições" },
+]
+
+export const relatoriosLinks = [
     { href: "/relatorios/receita-bruta", icon: <FileText />, label: "Receita Bruta" },
     { href: "/relatorios/vendas", icon: <LineChart />, label: "Vendas" },
     { href: "/relatorios/compras", icon: <ArrowDownLeftSquare />, label: "Compras" },
     { href: "/relatorios/funcionarios", icon: <Users />, label: "Funcionários" },
     { href: "/relatorios/produtos", icon: <Package />, label: "Produtos" },
-    { href: "/esocial", icon: <Share2 />, label: "eSocial" },
-    { href: "/pgdas", icon: <Calculator />, label: "PGDAS" },
-    { href: "/efd-contribuicoes", icon: <FileDigit />, label: "EFD Contribuições" },
 ]
 
 export const utilitariosLinks = [
@@ -121,6 +124,7 @@ export const mainNavLinks = [
   { href: "/contabil", icon: <BookCopy />, label: "Contábil" },
   { href: "/financeiro", icon: <Landmark />, label: "Financeiro" },
   { href: "/parceiros", icon: <Handshake />, label: "Cadastros" },
+  { href: "/conectividade", icon: <Share2 />, label: "Conectividade"},
   { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
 ];
 
@@ -129,7 +133,8 @@ const getLinksForPath = (pathname: string) => {
     if (pathname.startsWith('/pessoal')) return { title: 'Pessoal', links: pessoalLinks };
     if (pathname.startsWith('/contabil')) return { title: 'Contábil', links: contabilLinks };
     if (pathname.startsWith('/financeiro')) return { title: 'Financeiro', links: financeiroLinks };
-    if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes') || pathname.startsWith('/relatorios')) return { title: 'Relatórios e Arquivos', links: relatoriosEArquivosLinks };
+    if (pathname.startsWith('/esocial') || pathname.startsWith('/pgdas') || pathname.startsWith('/efd-contribuicoes') || pathname.startsWith('/conectividade')) return { title: 'Conectividade', links: conectividadeLinks };
+    if (pathname.startsWith('/relatorios')) return { title: 'Relatórios', links: relatoriosLinks };
     if (pathname.startsWith('/parceiros') || pathname.startsWith('/funcionarios') || pathname.startsWith('/socios') || pathname.startsWith('/produtos') || pathname.startsWith('/servicos') || pathname.startsWith('/aliquotas') || pathname.startsWith('/rubricas') || pathname.startsWith('/fichas')) return { title: 'Cadastros', links: cadastroLinks };
     if (pathname.startsWith('/utilitarios')) return { title: 'Utilitários', links: utilitariosLinks };
     if (pathname.startsWith('/minha-empresa') || pathname.startsWith('/configuracoes') || pathname.startsWith('/admin')) return { title: 'Sistema', links: sistemaLinks };
