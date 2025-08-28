@@ -1,3 +1,4 @@
+
 export type { Aliquota, EsferaTributaria } from './aliquota';
 export type { BankTransaction } from './bank-transaction';
 export type { Company, EstablishmentData } from './company';
@@ -51,11 +52,15 @@ export interface EfdFile {
   companyId: string;
 }
 
+export type ReinfEventType = 'R-1000' | 'R-1070' | 'R-2010' | 'R-2020' | 'R-2099'; // Add other event types as needed
+export type ReinfEventStatus = 'pending' | 'success' | 'error';
+
 export interface ReinfFile {
   id?: string;
   fileName: string;
   period: string;
-  type: 'R-1000' | 'R-2010' | 'R-2020' | 'R-2099';
+  type: ReinfEventType;
+  status: ReinfEventStatus; // Add status for more detailed dashboard
   createdAt: FieldValue | Date;
   userId: string;
   companyId: string;
