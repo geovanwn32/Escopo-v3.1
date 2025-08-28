@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Loader2, RefreshCcw, MoreHorizontal, Trash2, ListChecks, FileWarning, Beaker } from "lucide-react";
+import { FileText, Loader2, RefreshCcw, MoreHorizontal, Trash2, ListChecks, FileWarning, Beaker, Send, Lock, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -20,23 +20,24 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { generateReinfXml } from "@/services/reinf-service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 const reinfEvents = [
     { id: "geral", label: "Geral" },
-    { id: "R1000", label: "R-1000" },
-    { id: "R1070", label: "R-1070" },
-    { id: "R2010", label: "R-2010" },
-    { id: "R2020", label: "R-2020" },
-    { id: "R2030", label: "R-2030" },
-    { id: "R2040", label: "R-2040" },
-    { id: "R2050", label: "R-2050" },
-    { id: "R2055", label: "R-2055" },
-    { id: "R2060", label: "R-2060" },
-    { id: "R2098", label: "R-2098" },
-    { id: "R2099", label: "R-2099" },
-    { id: "R4010", label: "R-4010" },
-    { id: "R4020", label: "R-4020" },
+    { id: "R1000", label: "R1000" },
+    { id: "R1070", label: "R1070" },
+    { id: "R2010", label: "R2010" },
+    { id: "R2020", label: "R2020" },
+    { id: "R2030", label: "R2030" },
+    { id: "R2040", label: "R2040" },
+    { id: "R2050", label: "R2050" },
+    { id: "R2055", label: "R2055" },
+    { id: "R2060", label: "R2060" },
+    { id: "R2098", label: "R2098" },
+    { id: "R2099", label: "R2099" },
+    { id: "R4010", label: "R4010" },
+    { id: "R4020", label: "R4020" },
 ];
 
 function PlaceholderContent({ eventId }: { eventId: string }) {
@@ -107,10 +108,9 @@ export default function ReinfPage() {
 
     const summary = useMemo(() => {
         const total = generatedFiles.length;
-        // This is a placeholder for a real status logic
         const pendentes = generatedFiles.filter(f => f.status === 'pending').length;
         const enviados = generatedFiles.filter(f => f.status === 'success').length;
-        return { total, pendentes, enviados, correcao: 0, erro: 0, finalizados: 0 };
+        return { total, pendentes, enviados, correcao: 0, erro: 0, finalizados: enviados };
     }, [generatedFiles]);
 
     const handlePeriodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,6 +222,13 @@ export default function ReinfPage() {
         )
     }
 
+    const SummaryItem = ({ label, value }: { label: string, value: string | number}) => (
+        <>
+            <Label className="text-right text-muted-foreground">{label}:</Label>
+            <Input readOnly value={value} className="font-semibold text-sm h-8" />
+        </>
+    );
+
     return (
         <div className="space-y-6">
             <h1 className="text-2xl font-bold">EFD-Reinf - Central de Eventos</h1>
@@ -230,49 +237,73 @@ export default function ReinfPage() {
                 <Beaker className="h-4 w-4" />
                 <AlertTitle>Funcionalidade Parcial</AlertTitle>
                 <AlertDescription>
-                   Este módulo atualmente gera os eventos R-1000, R-2010 (Serviços Tomados com retenção de INSS) e R-2099 (Fechamento). O suporte aos demais eventos será adicionado em breve.
+                   Este módulo atualmente gera os eventos R-1000, R-2010 (Serviços Tomados com retenção de INSS), R-2020 (Serviços Prestados com retenção de INSS) e R-2099 (Fechamento). O suporte aos demais eventos será adicionado em breve.
                 </AlertDescription>
             </Alert>
             
             <Card>
-                <Tabs defaultValue="geral" className="w-full">
-                    <TabsList className="m-4">
-                        {reinfEvents.map(event => (
-                            <TabsTrigger key={event.id} value={event.id}>{event.label}</TabsTrigger>
-                        ))}
-                    </TabsList>
+                <CardHeader>
+                    <CardTitle>Painel de Controle EFD-Reinf</CardTitle>
+                    <CardDescription>Configure o período de apuração para gerar e enviar seus eventos.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2 items-end">
+                        <div className="space-y-2">
+                            <Label htmlFor="period">Data de Referência</Label>
+                             <Input id="period" placeholder="MM/AAAA" value={period} onChange={handlePeriodChange} maxLength={7} />
+                        </div>
+                        <div className="space-y-2">
+                             <Label htmlFor="tipo-ambiente">Tipo de Ambiente</Label>
+                             <Select defaultValue="2">
+                                <SelectTrigger id="tipo-ambiente"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">1 - Produção</SelectItem>
+                                    <SelectItem value="2">2 - Pré-Produção (dados reais)</SelectItem>
+                                </SelectContent>
+                             </Select>
+                        </div>
+                        <div className="space-y-2">
+                             <Label htmlFor="status-ref">Status da Referência</Label>
+                             <Select defaultValue="1">
+                                <SelectTrigger id="status-ref"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">Eventos enviados com sucesso - Pendentes...</SelectItem>
+                                    <SelectItem value="2">Eventos em processamento</SelectItem>
+                                </SelectContent>
+                             </Select>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                            <Button className="w-full" onClick={handleGenerateFile} disabled={isGenerating || !activeCompany}>
+                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileText className="mr-2 h-4 w-4"/>} Gerar
+                            </Button>
+                             <Button className="w-full" variant="outline"><Send className="mr-2 h-4 w-4"/> Enviar</Button>
+                             <Button className="w-full" variant="destructive"><Lock className="mr-2 h-4 w-4"/> Fechar</Button>
+                        </div>
+                    </div>
+                </CardContent>
 
-                    <TabsContent value="geral">
-                        <CardHeader>
-                            <CardTitle>Painel Geral da EFD-Reinf</CardTitle>
-                            <CardDescription>Resumo dos eventos e geração de novos arquivos.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Total de Eventos</p><p className="text-2xl font-bold">{summary.total}</p></div>
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Eventos Pendentes</p><p className="text-2xl font-bold">{summary.pendentes}</p></div>
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Eventos Enviados</p><p className="text-2xl font-bold">{summary.enviados}</p></div>
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Aguard. Correção</p><p className="text-2xl font-bold">{summary.correcao}</p></div>
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Erro Prioritário</p><p className="text-2xl font-bold">{summary.erro}</p></div>
-                                <div className="p-4 border rounded-lg text-center"><p className="text-xs text-muted-foreground">Eventos Finalizados</p><p className="text-2xl font-bold">{summary.finalizados}</p></div>
-                            </div>
-                             <div className="flex flex-col sm:flex-row items-end gap-4 p-4 border rounded-lg bg-muted/50">
-                                <div className="grid w-full max-w-xs items-center gap-1.5">
-                                    <Label htmlFor="period">Competência (MM/AAAA)</Label>
-                                    <Input 
-                                        id="period" 
-                                        placeholder="Ex: 07/2024" 
-                                        value={period} 
-                                        onChange={handlePeriodChange} 
-                                        maxLength={7} 
-                                    />
-                                </div>
-                                <Button onClick={handleGenerateFile} className="w-full sm:w-auto" disabled={isGenerating || !activeCompany}>
-                                    {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                    {isGenerating ? 'Gerando...' : 'Gerar Arquivo XML do Período'}
-                                </Button>
-                            </div>
-                        </CardContent>
+                <Tabs defaultValue="geral" className="w-full">
+                    <CardHeader className="p-0">
+                         <TabsList className="m-4">
+                            {reinfEvents.map(event => (
+                                <TabsTrigger key={event.id} value={event.id}>{event.label}</TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </CardHeader>
+
+                    <TabsContent value="geral" className="p-6">
+                        <Card className="bg-muted/50">
+                            <CardContent className="py-4">
+                                 <div className="grid grid-cols-4 gap-x-8 gap-y-2 text-sm items-center">
+                                    <SummaryItem label="Total de Eventos" value={summary.total} />
+                                    <SummaryItem label="Eventos Pendentes" value={summary.pendentes} />
+                                    <SummaryItem label="Eventos Enviados" value={summary.enviados} />
+                                    <SummaryItem label="Eventos Aguard. Correção" value={summary.correcao} />
+                                    <SummaryItem label="Eventos c/ Erro" value={summary.erro} />
+                                    <SummaryItem label="Eventos Finalizados" value={summary.finalizados} />
+                                 </div>
+                            </CardContent>
+                        </Card>
                     </TabsContent>
                     <TabsContent value="R1000"><PlaceholderContent eventId="R-1000" /></TabsContent>
                     <TabsContent value="R1070"><PlaceholderContent eventId="R-1070" /></TabsContent>
