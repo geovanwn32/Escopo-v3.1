@@ -19,6 +19,7 @@ import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { Launch } from "@/types";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -162,41 +163,38 @@ export default function PGDASPage() {
             
             const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
             
+            const revenueTypes = (annex === 'anexo-i' || annex === 'anexo-ii') ? ['saida'] : ['servico'];
+
+            // Function to fetch and calculate revenue for a given date range and types
+            const getRevenue = async (startDate: Date, endDate: Date, types: string[]): Promise<number> => {
+                const q = query(launchesRef, 
+                    where('date', '>=', Timestamp.fromDate(startDate)), 
+                    where('date', '<=', Timestamp.fromDate(endDate)),
+                    where('type', 'in', types)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.docs.reduce((acc, doc) => {
+                    const launch = doc.data() as Launch;
+                    // Ensure only normal status launches are considered
+                    if (launch.status === 'Normal') {
+                         return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
+                    }
+                    return acc;
+                }, 0);
+            };
+
             // --- Calculate RPA (Receita do Período de Apuração) ---
             const rpaStartDate = startOfMonth(currentPeriodDate);
             const rpaEndDate = endOfMonth(currentPeriodDate);
-            const rpaQuery = query(launchesRef, 
-                where('date', '>=', Timestamp.fromDate(rpaStartDate)), 
-                where('date', '<=', Timestamp.fromDate(rpaEndDate))
-            );
-            const rpaSnapshot = await getDocs(rpaQuery);
-            const rpa = rpaSnapshot.docs.reduce((acc, doc) => {
-                const launch = doc.data();
-                if(launch.type === 'saida' || launch.type === 'servico') {
-                    return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
-                }
-                return acc;
-            }, 0);
+            const rpa = await getRevenue(rpaStartDate, rpaEndDate, revenueTypes);
 
             // --- Calculate RBT12 (Receita Bruta dos últimos 12 meses) ---
             const rbt12EndDate = endOfMonth(subMonths(currentPeriodDate, 1));
             const rbt12StartDate = startOfMonth(subMonths(rbt12EndDate, 11));
+            const rbt12 = await getRevenue(rbt12StartDate, rbt12EndDate, revenueTypes);
 
-            const rbt12Query = query(launchesRef,
-                where('date', '>=', Timestamp.fromDate(rbt12StartDate)),
-                where('date', '<=', Timestamp.fromDate(rbt12EndDate))
-            );
-            const rbt12Snapshot = await getDocs(rbt12Query);
-            const rbt12 = rbt12Snapshot.docs.reduce((acc, doc) => {
-                 const launch = doc.data();
-                if(launch.type === 'saida' || launch.type === 'servico') {
-                    return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
-                }
-                return acc;
-            }, 0);
-            
             if (rpa === 0) {
-                 toast({ title: "Nenhum faturamento encontrado", description: "Não há notas de saída ou serviço no período selecionado." });
+                 toast({ title: "Nenhum faturamento encontrado", description: "Não há notas fiscais correspondentes ao anexo selecionado neste período." });
                  setCalculationResult(null);
                  setIsCalculating(false);
                  return;
