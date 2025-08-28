@@ -1,9 +1,9 @@
 
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Launch } from '@/app/(app)/fiscal/page';
+import type { Launch, EfdFile } from '@/types';
 
 const formatValue = (value: number | undefined | null): string => {
   if (value === undefined || value === null) return '0,00';
@@ -181,15 +181,34 @@ export async function generateEfdContribuicoesTxt(
 
     const finalFileContent = [...allLines, ...bloco9Lines].join('\r\n') + '\r\n';
     
+    const fileName = `EFD_CONTRIBUICOES_${company.cnpj?.replace(/\D/g, '')}_${monthStr}${yearStr}.txt`;
     const blob = new Blob([finalFileContent], { type: 'text/plain;charset=iso-8859-1' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `EFD_CONTRIBUICOES_${company.cnpj?.replace(/\D/g, '')}_${monthStr}${yearStr}.txt`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    return { success: true };
+    // Save record to Firestore
+    try {
+        const fileRecord: Omit<EfdFile, 'id'> = {
+            fileName,
+            period,
+            type: tipoEscrituracao,
+            isSemMovimento: semMovimento,
+            createdAt: serverTimestamp(),
+            userId,
+            companyId: company.id
+        };
+        const efdFilesRef = collection(db, `users/${userId}/companies/${company.id}/efdFiles`);
+        await addDoc(efdFilesRef, fileRecord);
+    } catch (e) {
+        console.error("Error saving file record to Firestore:", e);
+        // Do not block the user, just log the error
+    }
+    
+    return { success: true, message: `Arquivo ${fileName} gerado e download iniciado.` };
 }

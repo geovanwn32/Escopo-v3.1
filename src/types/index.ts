@@ -24,6 +24,8 @@ export type { Thirteenth } from './thirteenth';
 export type { Ticket, TicketStatus } from './ticket';
 export type { AppUser } from './user';
 export type { Vacation } from './vacation';
+import type { FieldValue } from 'firebase/firestore';
+
 
 export interface XmlFile {
   file: {
@@ -37,6 +39,18 @@ export interface XmlFile {
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   key?: string; // NFe key or NFS-e unique identifier
 }
+
+export interface EfdFile {
+  id?: string;
+  fileName: string;
+  period: string;
+  type: '0' | '1'; // 0-Original, 1-Retificadora
+  isSemMovimento: boolean;
+  createdAt: FieldValue | Date;
+  userId: string;
+  companyId: string;
+}
+
 
 export interface Launch {
     id: string;
