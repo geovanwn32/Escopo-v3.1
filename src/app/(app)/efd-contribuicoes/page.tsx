@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
 import { generateEfdContribuicoesTxt } from "@/services/efd-contribuicoes-service";
 import { Checkbox } from "@/components/ui/checkbox";
-import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, doc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from "next/link";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,11 +81,14 @@ export default function EfdContribuicoesPage() {
         const filesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/efdFiles`);
         const qFiles = query(filesRef, orderBy('createdAt', 'desc'));
         const unsubFiles = onSnapshot(qFiles, (snapshot) => {
-            const filesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt.toDate()
-            } as EfdFile));
+            const filesData = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
+                } as EfdFile;
+            });
             setGeneratedFiles(filesData);
             setLoadingFiles(false);
         });
@@ -252,7 +255,7 @@ export default function EfdContribuicoesPage() {
                                         <TableCell className="font-mono">{file.period}</TableCell>
                                         <TableCell>{file.type === '0' ? 'Original' : 'Retificadora'}</TableCell>
                                         <TableCell>{file.isSemMovimento ? 'Não' : 'Sim'}</TableCell>
-                                        <TableCell>{format(file.createdAt, 'dd/MM/yyyy HH:mm')}</TableCell>
+                                        <TableCell>{format(file.createdAt as Date, 'dd/MM/yyyy HH:mm')}</TableCell>
                                         <TableCell className="text-right">
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
