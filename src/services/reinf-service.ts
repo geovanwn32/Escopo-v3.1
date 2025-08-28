@@ -56,11 +56,15 @@ export async function generateReinfXml(
     const q = query(launchesRef, 
         where('type', '==', 'servico'),
         where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate)),
-        where('valorInss', '>', 0)
+        where('date', '<=', Timestamp.fromDate(endDate))
     );
+
     const snapshot = await getDocs(q);
-    const servicesTaken = snapshot.docs.map(doc => doc.data() as Launch);
+    // Filter for INSS withholding in memory to avoid complex index
+    const servicesTaken = snapshot.docs
+        .map(doc => doc.data() as Launch)
+        .filter(launch => launch.valorInss && launch.valorInss > 0);
+
 
     if (servicesTaken.length === 0) {
         return { success: false, message: "Nenhuma nota de serviço com retenção de INSS encontrada no período." };
