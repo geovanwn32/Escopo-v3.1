@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { generateChartOfAccountsPdf } from '@/services/chart-of-accounts-report-service';
 
-function PlanoDeContasPage() {
+export default function PlanoDeContasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConta, setEditingConta] = useState<ContaContabil | null>(null);
   const [contas, setContas] = useState<ContaContabil[]>([]);
@@ -365,11 +365,3 @@ function PlanoDeContasPage() {
     </div>
   );
 }
-
-
-// Wrapper component to handle search params
-export default function PlanoDeContasPageWrapper() {
-    return <PlanoDeContasPage />;
-}
-
-    
