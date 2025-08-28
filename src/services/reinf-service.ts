@@ -51,19 +51,22 @@ export async function generateReinfXml(
     const startDate = startOfMonth(new Date(year, month - 1));
     const endDate = endOfMonth(new Date(year, month - 1));
 
-    // Fetch service notes taken with INSS withholding
+    // Fetch all service notes and filter in-memory to avoid composite index requirement
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
-    const q = query(launchesRef, 
-        where('type', '==', 'servico'),
-        where('date', '>=', Timestamp.fromDate(startDate)),
-        where('date', '<=', Timestamp.fromDate(endDate))
-    );
-
+    const q = query(launchesRef); // Query without date or type filters
     const snapshot = await getDocs(q);
-    // Filter for INSS withholding in memory to avoid complex index
+
     const servicesTaken = snapshot.docs
-        .map(doc => doc.data() as Launch)
-        .filter(launch => launch.valorInss && launch.valorInss > 0);
+      .map(doc => {
+          const data = doc.data();
+          return { ...data, date: (data.date as Timestamp).toDate() } as Launch
+      })
+      .filter(launch => 
+          launch.type === 'servico' &&
+          launch.valorInss && launch.valorInss > 0 &&
+          (launch.date as Date) >= startDate &&
+          (launch.date as Date) <= endDate
+      );
 
 
     if (servicesTaken.length === 0) {
