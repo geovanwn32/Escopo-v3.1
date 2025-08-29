@@ -26,8 +26,8 @@ import Link from "next/link";
 import type { Orcamento } from '@/types/orcamento';
 import { generateLaunchPdf } from "@/services/launch-report-service";
 import type { Partner } from "@/types/partner";
-import type { Produto } from "@/types/produto";
-import type { Servico } from "@/types/servico";
+import type { Produto } from '@/types/produto';
+import type { Servico } from '@/types/servico';
 import { XmlFile, Launch, Company } from "@/types";
 
 // Helper to safely stringify with support for File objects
