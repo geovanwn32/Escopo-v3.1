@@ -1,7 +1,20 @@
 
 import type { FieldValue } from "firebase/firestore";
 
-export type ReinfEventType = 'R-1000' | 'R-1070' | 'R-2010' | 'R-2020' | 'R-2099' | 'R-4010' | 'R-4020';
+export type ReinfEventType = 
+    | 'R-1000' 
+    | 'R-1070' 
+    | 'R-2010' 
+    | 'R-2020'
+    | 'R-2030'
+    | 'R-2040'
+    | 'R-2050'
+    | 'R-2055'
+    | 'R-2060' 
+    | 'R-2099' 
+    | 'R-4010' 
+    | 'R-4020';
+
 export type ReinfEventStatus = 'pending' | 'success' | 'error';
 
 export interface ReinfFile {

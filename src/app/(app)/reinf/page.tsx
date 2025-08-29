@@ -231,10 +231,10 @@ export default function ReinfPage() {
     }
 
     const SummaryItem = ({ label, value }: { label: string, value: string | number}) => (
-        <>
-            <Label className="text-right text-muted-foreground">{label}:</Label>
-            <Input readOnly value={value} className="font-semibold text-sm h-8" />
-        </>
+        <div className="flex flex-col">
+            <Label className="text-sm text-muted-foreground">{label}</Label>
+            <p className="text-lg font-bold">{value}</p>
+        </div>
     );
 
     return (
@@ -245,17 +245,48 @@ export default function ReinfPage() {
                 <Beaker className="h-4 w-4" />
                 <AlertTitle>Funcionalidade Parcial</AlertTitle>
                 <AlertDescription>
-                   Este módulo atualmente gera os eventos R-1000, R-2010 (Serviços Tomados com retenção de INSS), R-2020 (Serviços Prestados com retenção de INSS) e R-2099 (Fechamento). O suporte aos demais eventos será adicionado em breve.
+                   Este módulo atualmente gera os eventos R-1000, R-2010, R-2020, R-4010, R-4020 e R-2099. O suporte aos demais eventos será adicionado em breve.
                 </AlertDescription>
             </Alert>
             
             <Card>
                 <CardHeader>
-                    <CardTitle>Painel de Controle EFD-Reinf</CardTitle>
-                    <CardDescription>Configure o período de apuração para gerar e enviar seus eventos.</CardDescription>
+                    <div className="flex justify-between items-start">
+                         <div>
+                            <CardTitle>Painel de Controle EFD-Reinf</CardTitle>
+                            <CardDescription>Configure o período de apuração para gerar e enviar seus eventos.</CardDescription>
+                        </div>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Settings className="h-4 w-4"/>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80">
+                                <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Configurações de Ambiente</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                    Selecione o ambiente para transmissão dos eventos.
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                        <Label htmlFor="tipo-ambiente">Tipo de Ambiente</Label>
+                                        <Select defaultValue="2">
+                                        <SelectTrigger id="tipo-ambiente"><SelectValue/></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="1">1 - Produção</SelectItem>
+                                            <SelectItem value="2">2 - Pré-Produção (dados reais)</SelectItem>
+                                        </SelectContent>
+                                        </Select>
+                                </div>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2 items-end">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 items-end">
                         <div className="space-y-2">
                             <Label htmlFor="period">Data de Referência</Label>
                              <Input id="period" placeholder="MM/AAAA" value={period} onChange={handlePeriodChange} maxLength={7} />
@@ -266,35 +297,6 @@ export default function ReinfPage() {
                             </Button>
                              <Button className="w-full" variant="outline"><Send className="mr-2 h-4 w-4"/> Enviar Pendentes</Button>
                              <Button className="w-full" variant="destructive"><Lock className="mr-2 h-4 w-4"/> Fechar Período</Button>
-                        </div>
-                        <div className="space-y-2 flex items-end justify-end">
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" size="icon">
-                                        <Settings className="h-4 w-4"/>
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                    <div className="grid gap-4">
-                                    <div className="space-y-2">
-                                        <h4 className="font-medium leading-none">Configurações de Ambiente</h4>
-                                        <p className="text-sm text-muted-foreground">
-                                        Selecione o ambiente para transmissão dos eventos.
-                                        </p>
-                                    </div>
-                                    <div className="grid gap-2">
-                                         <Label htmlFor="tipo-ambiente">Tipo de Ambiente</Label>
-                                         <Select defaultValue="2">
-                                            <SelectTrigger id="tipo-ambiente"><SelectValue/></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="1">1 - Produção</SelectItem>
-                                                <SelectItem value="2">2 - Pré-Produção (dados reais)</SelectItem>
-                                            </SelectContent>
-                                         </Select>
-                                    </div>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
                         </div>
                     </div>
                 </CardContent>
@@ -311,11 +313,12 @@ export default function ReinfPage() {
                     <TabsContent value="geral" className="p-6">
                         <Card className="bg-muted/50">
                             <CardContent className="py-4">
-                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-2 text-sm items-center">
+                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-8 gap-y-4 text-sm items-center">
                                     <SummaryItem label="Total de Eventos" value={summary.total} />
                                     <SummaryItem label="Eventos Pendentes" value={summary.pendentes} />
                                     <SummaryItem label="Eventos Enviados" value={summary.enviados} />
                                     <SummaryItem label="Eventos c/ Erro" value={summary.erro} />
+                                    <SummaryItem label="Eventos Finalizados" value={summary.finalizados} />
                                  </div>
                             </CardContent>
                         </Card>
@@ -330,8 +333,8 @@ export default function ReinfPage() {
                     <TabsContent value="R-2055"><PlaceholderContent eventId="R-2055" /></TabsContent>
                     <TabsContent value="R-2060"><PlaceholderContent eventId="R-2060" /></TabsContent>
                     <TabsContent value="R-2099">{renderEventTable("R-2099")}</TabsContent>
-                    <TabsContent value="R-4010"><PlaceholderContent eventId="R-4010" /></TabsContent>
-                    <TabsContent value="R-4020"><PlaceholderContent eventId="R-4020" /></TabsContent>
+                    <TabsContent value="R-4010">{renderEventTable("R-4010")}</TabsContent>
+                    <TabsContent value="R-4020">{renderEventTable("R-4020")}</TabsContent>
                 </Tabs>
             </Card>
 
@@ -347,4 +350,3 @@ export default function ReinfPage() {
         </div>
     );
 }
-

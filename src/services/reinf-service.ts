@@ -1,7 +1,7 @@
 
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
-import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Launch, ReinfFile } from '@/types';
 
@@ -118,6 +118,59 @@ const generateR2020Xml = (companyCnpj: string, service: Launch, period: string):
     return { eventId, payload };
 };
 
+const generateR4010Xml = (companyCnpj: string, launch: Launch, period: string): { eventId: string, payload: string } => {
+    const eventId = generateEventId(companyCnpj);
+    const prestadorCpf = (launch.prestador?.cnpj || '').replace(/\D/g, '');
+    const payload = `
+<Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evt4010/v1_05_01">
+    <evtRendPF id="${eventId}">
+        <ideEvento>
+            <perApur>${period}</perApur>
+        </ideEvento>
+        <ideContri>
+            <tpInsc>1</tpInsc>
+            <nrInsc>${companyCnpj}</nrInsc>
+        </ideContri>
+        <ideBenef>
+            <cpfBenef>${prestadorCpf}</cpfBenef>
+            <idePgto>
+                <infoPgto>
+                    <dtFatoGerador>${format(launch.date as Date, 'yyyy-MM-dd')}</dtFatoGerador>
+                    <vlrRendBruto>${(launch.valorServicos || 0).toFixed(2)}</vlrRendBruto>
+                </infoPgto>
+            </idePgto>
+        </ideBenef>
+    </evtRendPF>
+</Reinf>`;
+    return { eventId, payload };
+};
+
+const generateR4020Xml = (companyCnpj: string, launch: Launch, period: string): { eventId: string, payload: string } => {
+    const eventId = generateEventId(companyCnpj);
+    const prestadorCnpj = (launch.prestador?.cnpj || '').replace(/\D/g, '');
+    const payload = `
+<Reinf xmlns="http://www.reinf.esocial.gov.br/schemas/evt4020/v1_05_01">
+    <evtRendPJ id="${eventId}">
+        <ideEvento>
+            <perApur>${period}</perApur>
+        </ideEvento>
+        <ideContri>
+            <tpInsc>1</tpInsc>
+            <nrInsc>${companyCnpj}</nrInsc>
+        </ideContri>
+        <ideBenef>
+            <cnpjBenef>${prestadorCnpj}</cnpjBenef>
+            <idePgto>
+                <infoPgto>
+                    <dtFatoGerador>${format(launch.date as Date, 'yyyy-MM-dd')}</dtFatoGerador>
+                    <vlrRendBruto>${(launch.valorServicos || 0).toFixed(2)}</vlrRendBruto>
+                </infoPgto>
+            </idePgto>
+        </ideBenef>
+    </evtRendPJ>
+</Reinf>`;
+    return { eventId, payload };
+};
 
 const generateR2099Xml = (companyCnpj: string, period: string): { eventId: string, payload: string } => {
     const eventId = generateEventId(companyCnpj);
@@ -146,6 +199,7 @@ const generateR2099Xml = (companyCnpj: string, period: string): { eventId: strin
             <evtCPRB>N</evtCPRB>
             <evtAquisProd>N</evtAquisProd>
             <evtRecursoClubes>N</evtRecursoClubes>
+            <evtPgtos>S</evtPgtos>
         </infoFech>
     </evtFecha>
 </Reinf>`;
@@ -195,6 +249,9 @@ export async function generateReinfEvents(
     
     const servicesTaken = periodLaunches.filter(l => l.type === 'entrada' && (l.valorInss || 0) > 0);
     const servicesProvided = periodLaunches.filter(l => l.type === 'servico' && (l.valorInss || 0) > 0);
+    const paymentsPF = periodLaunches.filter(l => l.type === 'entrada' && (l.valorIr || 0) > 0 && l.prestador?.cnpj?.length === 11);
+    const paymentsPJ = periodLaunches.filter(l => l.type === 'entrada' && (l.valorIr || 0) > 0 && l.prestador?.cnpj?.length === 14);
+
     
     // --- 3. Generate new events and save them ---
     const saveBatch = writeBatch(db);
@@ -223,6 +280,22 @@ export async function generateReinfEvents(
         const { eventId, payload } = generateR2020Xml(companyCnpj, servicesProvided[0], apiPeriod); // Simplified: one event per type
         const r2020Ref = doc(reinfFilesRef);
         saveBatch.set(r2020Ref, { eventId, period: periodStr, type: 'R-2020', status: 'pending', relatedLaunchIds: servicesProvided.map(s => s.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        eventsGeneratedCount++;
+    }
+
+    // R-4010
+    if (paymentsPF.length > 0) {
+        const { eventId, payload } = generateR4010Xml(companyCnpj, paymentsPF[0], apiPeriod);
+        const r4010Ref = doc(reinfFilesRef);
+        saveBatch.set(r4010Ref, { eventId, period: periodStr, type: 'R-4010', status: 'pending', relatedLaunchIds: paymentsPF.map(p => p.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        eventsGeneratedCount++;
+    }
+
+    // R-4020
+    if (paymentsPJ.length > 0) {
+        const { eventId, payload } = generateR4020Xml(companyCnpj, paymentsPJ[0], apiPeriod);
+        const r4020Ref = doc(reinfFilesRef);
+        saveBatch.set(r4020Ref, { eventId, period: periodStr, type: 'R-4020', status: 'pending', relatedLaunchIds: paymentsPJ.map(p => p.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
         eventsGeneratedCount++;
     }
     
