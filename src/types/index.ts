@@ -17,6 +17,7 @@ export type { Pgdas, SimplesAnnexType } from './pgdas';
 export type { PreliminaryAdmission } from './preliminary-admission';
 export type { Produto } from './produto';
 export type { RCI } from './rci';
+export type { ReinfFile } from './reinf';
 export type { Rubrica } from './rubrica';
 export type { Servico } from './servico';
 export type { Socio } from './socio';
@@ -51,21 +52,6 @@ export interface EfdFile {
   userId: string;
   companyId: string;
 }
-
-export type ReinfEventType = 'R-1000' | 'R-1070' | 'R-2010' | 'R-2020' | 'R-2099'; // Add other event types as needed
-export type ReinfEventStatus = 'pending' | 'success' | 'error';
-
-export interface ReinfFile {
-  id?: string;
-  fileName: string;
-  period: string;
-  type: ReinfEventType;
-  status: ReinfEventStatus; // Add status for more detailed dashboard
-  createdAt: FieldValue | Date;
-  userId: string;
-  companyId: string;
-}
-
 
 export interface Launch {
     id: string;

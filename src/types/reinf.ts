@@ -6,11 +6,13 @@ export type ReinfEventStatus = 'pending' | 'success' | 'error';
 
 export interface ReinfFile {
   id?: string;
-  fileName: string;
+  eventId: string;
   period: string;
   type: ReinfEventType;
   status: ReinfEventStatus;
+  relatedLaunchIds: string[]; // IDs of the launches that make up this event
   createdAt: FieldValue | Date;
   userId: string;
   companyId: string;
+  payload: string; // XML content of the event
 }
