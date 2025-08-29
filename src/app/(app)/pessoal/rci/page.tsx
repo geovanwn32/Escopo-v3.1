@@ -59,16 +59,11 @@ export interface RciTotals {
     liquido: number;
 }
 
-function RciPageWrapper() {
+export default function RciPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const rciId = searchParams.get('id');
 
-    return <RciPage rciId={rciId} router={router} />;
-}
-
-
-function RciPage({ rciId, router }: { rciId: string | null, router: any }) {
     const [events, setEvents] = useState<RciEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
     const [isSocioModalOpen, setIsSocioModalOpen] = useState(false);
@@ -325,13 +320,13 @@ function RciPage({ rciId, router }: { rciId: string | null, router: any }) {
 
         try {
             if (currentRciId) {
-                const rciRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`, currentRciId);
+                const rciRef = doc(db, `users/${userId}/companies/${activeCompany.id}/rcis`, currentRciId);
                 await setDoc(rciRef, { ...rciData, updatedAt: serverTimestamp() }, { merge: true });
                 if (!isCalculation) {
                     toast({ title: `RCI atualizado como Rascunho!` });
                 }
             } else {
-                const rcisRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`);
+                const rcisRef = collection(db, `users/${userId}/companies/${activeCompany.id}/rcis`);
                 const docRef = await addDoc(rcisRef, { ...rciData, createdAt: serverTimestamp() });
                 setCurrentRciId(docRef.id);
                 router.replace(`/pessoal/rci?id=${docRef.id}`, { scroll: false });
@@ -507,7 +502,7 @@ function RciPage({ rciId, router }: { rciId: string | null, router: any }) {
                     </div>
 
                      <div className="flex justify-between items-center bg-muted p-2 rounded-md">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-sm">
                            <p className="text-sm">0 de 0 Registros</p>
                            <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" disabled><ChevronsLeft className="h-4 w-4"/></Button>
@@ -685,5 +680,3 @@ function RciPage({ rciId, router }: { rciId: string | null, router: any }) {
         </div>
     );
 }
-
-export default RciPageWrapper;

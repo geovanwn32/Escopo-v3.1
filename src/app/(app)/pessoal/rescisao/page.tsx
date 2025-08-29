@@ -33,16 +33,11 @@ import { DateInput } from '@/components/ui/date-input';
 import { generateTrctPdf } from '@/services/trct-service';
 
 
-function TerminationPageWrapper() {
+export default function TerminationPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const terminationId = searchParams.get('id');
 
-    return <TerminationPage terminationId={terminationId} router={router} />;
-}
-
-
-function TerminationPage({ terminationId, router }: { terminationId: string | null, router: any }) {
     const [events, setEvents] = useState<TerminationResult['events']>([]);
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
@@ -425,5 +420,3 @@ function TerminationPage({ terminationId, router }: { terminationId: string | nu
         </div>
     );
 }
-
-export default TerminationPageWrapper;

@@ -61,16 +61,11 @@ export interface PayrollTotals {
     liquido: number;
 }
 
-function PayrollPageWrapper() {
+export default function FolhaDePagamentoPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const payrollId = searchParams.get('id');
-
-    return <FolhaDePagamentoPage payrollId={payrollId} router={router} />;
-}
-
-
-function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null, router: any }) {
+    
     const [events, setEvents] = useState<PayrollEvent[]>([]);
     const [isRubricaModalOpen, setIsRubricaModalOpen] = useState(false);
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -738,5 +733,3 @@ function FolhaDePagamentoPage({ payrollId, router }: { payrollId: string | null,
         </div>
     );
 }
-
-export default PayrollPageWrapper;

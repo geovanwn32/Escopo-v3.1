@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -33,16 +32,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { generateThirteenthReceiptPdf } from '@/services/thirteenth-receipt-service';
 
-function ThirteenthPageWrapper() {
+export default function ThirteenthPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const thirteenthId = searchParams.get('id');
 
-    return <ThirteenthPage thirteenthId={thirteenthId} router={router} />;
-}
-
-
-function ThirteenthPage({ thirteenthId, router }: { thirteenthId: string | null, router: any }) {
     const [events, setEvents] = useState<ThirteenthResult['events']>([]);
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
@@ -400,5 +394,3 @@ function ThirteenthPage({ thirteenthId, router }: { thirteenthId: string | null,
         </div>
     );
 }
-
-export default ThirteenthPageWrapper;
