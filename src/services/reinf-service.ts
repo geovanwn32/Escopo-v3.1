@@ -1,7 +1,7 @@
 
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
-import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, deleteDoc, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Launch, ReinfFile } from '@/types';
 
@@ -182,15 +182,20 @@ export async function generateReinfEvents(
     }
 
     // --- 2. Fetch data for new events ---
-    const startDate = startOfMonth(new Date(year, month - 1));
-    const endDate = endOfMonth(new Date(year, month - 1));
-    const qLaunches = query(launchesRef, where('date', '>=', startDate), where('date', '<=', endDate));
-    const launchesSnap = await getDocs(qLaunches);
+    const launchesSnap = await getDocs(launchesRef);
     const allLaunches = launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Launch));
     
-    const servicesTaken = allLaunches.filter(l => l.type === 'entrada' && (l.valorInss || 0) > 0);
-    const servicesProvided = allLaunches.filter(l => l.type === 'servico' && (l.valorInss || 0) > 0);
+    const startDate = startOfMonth(new Date(year, month - 1));
+    const endDate = endOfMonth(new Date(year, month - 1));
 
+    const periodLaunches = allLaunches.filter(l => {
+        const launchDate = (l.date as Timestamp)?.toDate ? (l.date as Timestamp).toDate() : new Date(l.date);
+        return isValid(launchDate) && launchDate >= startDate && launchDate <= endDate;
+    });
+
+    const servicesTaken = periodLaunches.filter(l => l.type === 'entrada' && (l.valorInss || 0) > 0);
+    const servicesProvided = periodLaunches.filter(l => l.type === 'servico' && (l.valorInss || 0) > 0);
+    
     // --- 3. Generate new events and save them ---
     const saveBatch = writeBatch(db);
     let eventsGeneratedCount = 0;
