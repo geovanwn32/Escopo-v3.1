@@ -35,7 +35,7 @@ const formatCurrency = (value: number) => {
     }).format(value);
 };
 
-function ImportacaoExtratoPage() {
+export default function ImportacaoExtratoPage() {
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -330,8 +330,4 @@ function ImportacaoExtratoPage() {
             )}
         </div>
     );
-}
-
-export default function ImportacaoExtratoPageWrapper() {
-    return <ImportacaoExtratoPage />;
 }

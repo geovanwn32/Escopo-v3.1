@@ -47,7 +47,7 @@ type FormData = z.infer<typeof quoteSchema>;
 export type QuoteFormData = FormData;
 
 
-function OrcamentoPage() {
+export default function OrcamentoPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const orcamentoId = searchParams.get('id');
@@ -396,9 +396,4 @@ function OrcamentoPage() {
             )}
         </Form>
     );
-}
-
-// Wrapper to use searchParams
-export default function OrcamentoPageWrapper() {
-    return <OrcamentoPage />;
 }
