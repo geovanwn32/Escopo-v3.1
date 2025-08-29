@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Loader2, RefreshCcw, MoreHorizontal, Trash2, ListChecks, FileWarning, Beaker, Send, Lock, FileDown, Eye } from "lucide-react";
+import { FileText, Loader2, RefreshCcw, MoreHorizontal, Trash2, ListChecks, FileWarning, Beaker, Send, Lock, FileDown, Eye, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReinfDetailsModal } from "@/components/reinf/reinf-details-modal";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 
 const reinfEvents = [
@@ -166,15 +167,10 @@ export default function ReinfPage() {
         }
     }
     
-    const handleRegenerate = (file: ReinfFile) => {
-        setPeriod(file.period);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
     const renderEventTable = (eventType: string) => {
         const filteredFiles = generatedFiles.filter(f => f.type === eventType);
          if (loadingFiles) return <div className="flex justify-center items-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-        if (filteredFiles.length === 0) return <div className="text-center py-20 text-muted-foreground">Nenhum evento {eventType} encontrado.</div>
+        if (filteredFiles.length === 0) return <div className="text-center py-20 text-muted-foreground border-t">Nenhum evento {eventType} encontrado para os períodos apurados.</div>
         
         return (
             <div className="border-t">
@@ -264,32 +260,41 @@ export default function ReinfPage() {
                             <Label htmlFor="period">Data de Referência</Label>
                              <Input id="period" placeholder="MM/AAAA" value={period} onChange={handlePeriodChange} maxLength={7} />
                         </div>
-                        <div className="space-y-2">
-                             <Label htmlFor="tipo-ambiente">Tipo de Ambiente</Label>
-                             <Select defaultValue="2">
-                                <SelectTrigger id="tipo-ambiente"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1">1 - Produção</SelectItem>
-                                    <SelectItem value="2">2 - Pré-Produção (dados reais)</SelectItem>
-                                </SelectContent>
-                             </Select>
-                        </div>
-                        <div className="space-y-2">
-                             <Label htmlFor="status-ref">Status da Referência</Label>
-                             <Select defaultValue="1">
-                                <SelectTrigger id="status-ref"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1">Eventos enviados com sucesso - Pendentes...</SelectItem>
-                                    <SelectItem value="2">Eventos em processamento</SelectItem>
-                                </SelectContent>
-                             </Select>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                            <Button className="w-full" onClick={handleGenerateFile} disabled={isGenerating || !activeCompany}>
-                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileText className="mr-2 h-4 w-4"/>} Gerar
+                        <div className="space-y-2 lg:col-span-2 flex items-end gap-2">
+                             <Button className="w-full" onClick={handleGenerateFile} disabled={isGenerating || !activeCompany}>
+                                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <FileText className="mr-2 h-4 w-4"/>} Gerar Eventos
                             </Button>
-                             <Button className="w-full" variant="outline"><Send className="mr-2 h-4 w-4"/> Enviar</Button>
-                             <Button className="w-full" variant="destructive"><Lock className="mr-2 h-4 w-4"/> Fechar</Button>
+                             <Button className="w-full" variant="outline"><Send className="mr-2 h-4 w-4"/> Enviar Pendentes</Button>
+                             <Button className="w-full" variant="destructive"><Lock className="mr-2 h-4 w-4"/> Fechar Período</Button>
+                        </div>
+                        <div className="space-y-2 flex items-end justify-end">
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" size="icon">
+                                        <Settings className="h-4 w-4"/>
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80">
+                                    <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <h4 className="font-medium leading-none">Configurações de Ambiente</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                        Selecione o ambiente para transmissão dos eventos.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-2">
+                                         <Label htmlFor="tipo-ambiente">Tipo de Ambiente</Label>
+                                         <Select defaultValue="2">
+                                            <SelectTrigger id="tipo-ambiente"><SelectValue/></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 - Produção</SelectItem>
+                                                <SelectItem value="2">2 - Pré-Produção (dados reais)</SelectItem>
+                                            </SelectContent>
+                                         </Select>
+                                    </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     </div>
                 </CardContent>
@@ -306,13 +311,11 @@ export default function ReinfPage() {
                     <TabsContent value="geral" className="p-6">
                         <Card className="bg-muted/50">
                             <CardContent className="py-4">
-                                 <div className="grid grid-cols-4 gap-x-8 gap-y-2 text-sm items-center">
+                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-2 text-sm items-center">
                                     <SummaryItem label="Total de Eventos" value={summary.total} />
                                     <SummaryItem label="Eventos Pendentes" value={summary.pendentes} />
                                     <SummaryItem label="Eventos Enviados" value={summary.enviados} />
-                                    <SummaryItem label="Eventos Aguard. Correção" value={summary.correcao} />
                                     <SummaryItem label="Eventos c/ Erro" value={summary.erro} />
-                                    <SummaryItem label="Eventos Finalizados" value={summary.finalizados} />
                                  </div>
                             </CardContent>
                         </Card>
@@ -344,3 +347,4 @@ export default function ReinfPage() {
         </div>
     );
 }
+

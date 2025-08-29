@@ -1,7 +1,7 @@
 
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
-import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, deleteDoc, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp, writeBatch, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Launch, ReinfFile } from '@/types';
 
@@ -190,9 +190,9 @@ export async function generateReinfEvents(
 
     const periodLaunches = allLaunches.filter(l => {
         const launchDate = (l.date as Timestamp)?.toDate ? (l.date as Timestamp).toDate() : new Date(l.date);
-        return isValid(launchDate) && launchDate >= startDate && launchDate <= endDate;
+        return isValid(launchDate) && launchDate >= startDate && launchDate <= endDate && l.status !== 'Cancelado';
     });
-
+    
     const servicesTaken = periodLaunches.filter(l => l.type === 'entrada' && (l.valorInss || 0) > 0);
     const servicesProvided = periodLaunches.filter(l => l.type === 'servico' && (l.valorInss || 0) > 0);
     
