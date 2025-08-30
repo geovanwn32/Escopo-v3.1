@@ -32,7 +32,7 @@ import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import type { Company } from '@/app/(app)/fiscal/page';
+import type { Company } from '@/types/company';
 import type { Rubrica } from '@/types/rubrica';
 import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
 import type { Socio } from '@/types/socio';
@@ -185,6 +185,8 @@ export default function RciPage() {
 
         if (rciId && user && activeCompany) {
             fetchRci();
+        } else {
+            setIsLoading(false);
         }
     }, [rciId, user, activeCompany, toast, router, recalculateAndSetState]);
     
@@ -320,13 +322,13 @@ export default function RciPage() {
 
         try {
             if (currentRciId) {
-                const rciRef = doc(db, `users/${userId}/companies/${activeCompany.id}/rcis`, currentRciId);
+                const rciRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`, currentRciId);
                 await setDoc(rciRef, { ...rciData, updatedAt: serverTimestamp() }, { merge: true });
                 if (!isCalculation) {
                     toast({ title: `RCI atualizado como Rascunho!` });
                 }
             } else {
-                const rcisRef = collection(db, `users/${userId}/companies/${activeCompany.id}/rcis`);
+                const rcisRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`);
                 const docRef = await addDoc(rcisRef, { ...rciData, createdAt: serverTimestamp() });
                 setCurrentRciId(docRef.id);
                 router.replace(`/pessoal/rci?id=${docRef.id}`, { scroll: false });

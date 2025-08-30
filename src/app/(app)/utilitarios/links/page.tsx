@@ -41,10 +41,10 @@ export default function LinksUteisPage() {
                       </CardHeader>
                       <CardFooter className="mt-auto">
                         <Button asChild className="w-full" variant="outline">
-                            <Link href={link.url} target="_blank" rel="noopener noreferrer">
+                            <a href={link.url} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Acessar
-                            </Link>
+                            </a>
                         </Button>
                       </CardFooter>
                     </Card>
