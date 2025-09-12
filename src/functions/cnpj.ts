@@ -7,7 +7,6 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import fetch from 'node-fetch';
 
 // Interfaces for external API responses
 interface BrasilAPIData {
@@ -74,33 +73,24 @@ function mapToFrontendFormat(data: Partial<BrasilAPIData & ReceitaWSData>) {
 
 
 export const cnpjLookup = onCall(async (request) => {
-    const cnpj = request.data.cnpj;
-    if (!cnpj || typeof cnpj !== 'string' || cnpj.length !== 14) {
-        throw new HttpsError('invalid-argument', 'O CNPJ é obrigatório e deve conter 14 dígitos.');
+    const cnpj = request.data.cnpj?.replace(/\D/g, '');
+    if (!cnpj || typeof cnpj !== 'string' ) {
+        throw new HttpsError('invalid-argument', 'O CNPJ/CPF é obrigatório.');
+    }
+    
+    if (cnpj.length === 11) {
+        throw new HttpsError('invalid-argument', 'A busca automática não funciona para CPF.');
+    }
+
+    if (cnpj.length !== 14) {
+        throw new HttpsError('invalid-argument', 'O CNPJ deve conter 14 dígitos.');
     }
 
     logger.info(`Buscando CNPJ: ${cnpj}`);
     let finalData: Partial<BrasilAPIData & ReceitaWSData> = {};
     let lastError: string | null = null;
 
-    // --- Tentativa 1: BrasilAPI (Grátis, sem limite de taxa claro) ---
-    try {
-        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-        if (response.ok) {
-            const data = await response.json() as BrasilAPIData;
-            finalData = { ...finalData, ...data };
-            logger.info("Dados obtidos da BrasilAPI.");
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `BrasilAPI falhou com status ${response.status}`);
-        }
-    } catch (error) {
-        logger.warn(`Falha na BrasilAPI: ${(error as Error).message}`);
-        lastError = (error as Error).message;
-    }
-
-    // --- Tentativa 2: ReceitaWS (Fallback, mais completa mas com limite de taxa) ---
-    // Usamos mesmo se a primeira tentativa for bem-sucedida, para complementar os dados
+    // --- Tentativa 1: ReceitaWS ---
     try {
         const response = await fetch(`https://www.receitaws.com.br/v1/cnpj/${cnpj}`);
         if (response.ok) {
@@ -108,31 +98,32 @@ export const cnpjLookup = onCall(async (request) => {
             if (data.status === "ERROR") {
                 throw new Error(data.message || 'ReceitaWS retornou um erro.');
             }
-            // Merge data, giving preference to ReceitaWS for core fields if they are empty in BrasilAPI response
-            finalData = {
-                ...finalData,
-                razao_social: finalData.razao_social || data.nome,
-                nome_fantasia: finalData.nome_fantasia || data.fantasia,
-                atividade_principal: finalData.cnae_fiscal ? finalData.atividade_principal : data.atividade_principal,
-                cep: finalData.cep || data.cep,
-                logradouro: finalData.logradouro || data.logradouro,
-                numero: finalData.numero || data.numero,
-                complemento: finalData.complemento || data.complemento,
-                bairro: finalData.bairro || data.bairro,
-                municipio: finalData.municipio || data.municipio,
-                uf: finalData.uf || data.uf,
-                telefone: finalData.telefone || data.telefone,
-                email: finalData.email || data.email,
-            };
-            logger.info("Dados complementados/obtidos da ReceitaWS.");
-            lastError = null; // Clear error if this one succeeded
+            finalData = { ...finalData, ...data };
+            logger.info("Dados obtidos da ReceitaWS.");
         } else {
-             if (!Object.keys(finalData).length) { // Only throw if we have no data at all
-                 throw new Error(`ReceitaWS falhou com status ${response.status}`);
-             }
+            throw new Error(`ReceitaWS falhou com status ${response.status}`);
         }
     } catch (error) {
         logger.warn(`Falha na ReceitaWS: ${(error as Error).message}`);
+        lastError = (error as Error).message;
+    }
+    
+    // --- Tentativa 2: BrasilAPI (Fallback e para dados complementares) ---
+    try {
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+        if (response.ok) {
+            const data = await response.json() as BrasilAPIData;
+            finalData = { ...data, ...finalData }; // Prioriza ReceitaWS, mas complementa com BrasilAPI
+            logger.info("Dados complementados/obtidos da BrasilAPI.");
+             if(lastError) lastError = null; // Clear error if this one succeeded
+        } else {
+             if (!Object.keys(finalData).length) { // Only throw if we have no data at all
+                 const errorData = await response.json();
+                 throw new Error(errorData.message || `BrasilAPI falhou com status ${response.status}`);
+             }
+        }
+    } catch (error) {
+        logger.warn(`Falha na BrasilAPI: ${(error as Error).message}`);
         if (!Object.keys(finalData).length) { // Keep error only if we have no data
             lastError = (error as Error).message;
         }
