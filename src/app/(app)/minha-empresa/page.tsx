@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -25,7 +24,6 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
-import { createCnpjLookup } from '@/services/data-lookup-service';
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -122,7 +120,6 @@ const formatBytes = (bytes: number, decimals = 2) => {
 export default function MinhaEmpresaPage() {
     const { toast } = useToast();
     const { user } = useAuth();
-    const [loadingLookup, setLoadingLookup] = useState(false);
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -183,13 +180,6 @@ export default function MinhaEmpresaPage() {
             }
         }
     }, [user, form]);
-    
-    const handleCnpjLookup = async () => {
-        setLoadingLookup(true);
-        const lookupFn = createCnpjLookup(form, toast);
-        await lookupFn();
-        setLoadingLookup(false);
-    };
 
 
     async function onSubmit(data: CompanyFormData) {
@@ -411,18 +401,8 @@ export default function MinhaEmpresaPage() {
                                                         }
                                                         field.onChange(e);
                                                     }}
-                                                    
                                                 />
                                             </FormControl>
-                                            {tipoInscricao === 'cnpj' && (
-                                                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    {loadingLookup ? (
-                                                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                                                    ) : (
-                                                        <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
-                                                    )}
-                                                </div>
-                                            )}
                                         </div>
                                         <FormMessage />
                                     </FormItem>
@@ -808,7 +788,7 @@ export default function MinhaEmpresaPage() {
                     </Card>
 
                      <div className="flex justify-end">
-                        <Button type="submit" disabled={isSaving || loadingPage || loadingLookup}>
+                        <Button type="submit" disabled={isSaving || loadingPage}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
                             Salvar Todas as Alterações
                         </Button>

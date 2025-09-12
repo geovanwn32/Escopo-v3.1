@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -16,7 +15,6 @@ import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
-import { createCnpjLookup } from '@/services/data-lookup-service';
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -106,14 +104,6 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
         }
   });
   
-  const handleCnpjLookup = async () => {
-      setLoadingLookup(true);
-      const lookup = createCnpjLookup(form, toast);
-      await lookup();
-      setLoadingLookup(false);
-  };
-
-
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
     if (cleanedCep.length !== 8) return;
@@ -162,9 +152,6 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     fornecedor: 'Fornecedor',
     transportadora: 'Transportadora',
   }[partnerType];
-  
-  const isCnpj = form.watch('cpfCnpj').replace(/\D/g, '').length > 11;
-
 
   return (
     <>
@@ -190,11 +177,6 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                             <FormLabel>CPF / CNPJ</FormLabel>
                             <div className="relative">
                                 <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} value={field.value || ''} /></FormControl>
-                                {isCnpj && (
-                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        {loadingLookup ? (<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />)}
-                                    </div>
-                                )}
                             </div>
                             <FormMessage />
                         </FormItem> 
