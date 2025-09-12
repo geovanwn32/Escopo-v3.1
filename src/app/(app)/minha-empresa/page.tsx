@@ -24,6 +24,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
+import { createCnpjLookup } from "@/services/data-lookup-service";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -133,6 +134,7 @@ export default function MinhaEmpresaPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [fileToUpload, setFileToUpload] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [loadingCnpj, setLoadingCnpj] = useState(false);
 
 
     const form = useForm<CompanyFormData>({
@@ -142,6 +144,7 @@ export default function MinhaEmpresaPage() {
     
     const tipoInscricao = form.watch('tipoInscricao');
     const logoUrl = form.watch('logoUrl');
+    const handleCnpjLookup = createCnpjLookup(form, toast, setLoadingCnpj);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -388,7 +391,7 @@ export default function MinhaEmpresaPage() {
                                     <FormItem>
                                         <FormLabel>{tipoInscricao === 'cnpj' ? 'CNPJ' : 'CPF'}</FormLabel>
                                         <div className="relative">
-                                            <FormControl>
+                                             <FormControl>
                                                 <Input 
                                                     {...field}
                                                     placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
@@ -403,6 +406,11 @@ export default function MinhaEmpresaPage() {
                                                     }}
                                                 />
                                             </FormControl>
+                                            {tipoInscricao === 'cnpj' && (
+                                                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingCnpj}>
+                                                    {loadingCnpj ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                                                </Button>
+                                            )}
                                         </div>
                                         <FormMessage />
                                     </FormItem>
@@ -825,3 +833,5 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
+
+    

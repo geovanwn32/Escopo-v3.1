@@ -15,6 +15,8 @@ import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
+import { createCnpjLookup } from '@/services/data-lookup-service';
+
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -103,6 +105,8 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             telefone: partner?.telefone || '',
         }
   });
+
+  const handleCnpjLookup = createCnpjLookup(form, toast, setLoadingLookup, "cpfCnpj");
   
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
@@ -177,6 +181,9 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                             <FormLabel>CPF / CNPJ</FormLabel>
                             <div className="relative">
                                 <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} value={field.value || ''} /></FormControl>
+                                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingLookup}>
+                                    {loadingLookup ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                                </Button>
                             </div>
                             <FormMessage />
                         </FormItem> 
@@ -237,3 +244,5 @@ export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, 
     </Dialog>
   );
 }
+
+    
