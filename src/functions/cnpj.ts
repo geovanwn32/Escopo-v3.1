@@ -7,6 +7,7 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import fetch from "node-fetch";
 
 // Interfaces for external API responses
 interface BrasilAPIData {
@@ -119,7 +120,7 @@ export const cnpjLookup = onCall(async (request) => {
         } else {
              if (!Object.keys(finalData).length) { // Only throw if we have no data at all
                  const errorData = await response.json();
-                 throw new Error(errorData.message || `BrasilAPI falhou com status ${response.status}`);
+                 throw new Error((errorData as any).message || `BrasilAPI falhou com status ${response.status}`);
              }
         }
     } catch (error) {
