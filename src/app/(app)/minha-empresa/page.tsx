@@ -6,7 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase";
+import { db, storage, functions } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,6 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
-import { createCnpjLookup } from "@/services/data-lookup-service";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -144,7 +144,46 @@ export default function MinhaEmpresaPage() {
     
     const tipoInscricao = form.watch('tipoInscricao');
     const logoUrl = form.watch('logoUrl');
-    const handleCnpjLookup = createCnpjLookup(form, toast, setLoadingCnpj);
+
+    const handleCnpjLookup = async () => {
+        const cnpjValue = form.getValues("inscricao");
+        const cleanedCnpj = cnpjValue.replace(/\D/g, '');
+        if (cleanedCnpj.length !== 14) {
+            toast({ variant: "destructive", title: "CNPJ inválido", description: "A busca automática funciona apenas para CNPJ." });
+            return;
+        }
+        setLoadingCnpj(true);
+        try {
+            const cnpjLookupFunc = httpsCallable(functions, 'cnpjLookup');
+            const result = await cnpjLookupFunc({ cnpj: cleanedCnpj });
+            const data = result.data as any;
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            form.setValue('razaoSocial', data.razaoSocial);
+            form.setValue('nomeFantasia', data.nomeFantasia);
+            form.setValue('cnaePrincipalCodigo', data.cnaePrincipalCodigo);
+            form.setValue('cnaePrincipalDescricao', data.cnaePrincipalDescricao);
+            form.setValue('cep', data.cep);
+            form.setValue('logradouro', data.logradouro);
+            form.setValue('numero', data.numero);
+            form.setValue('bairro', data.bairro);
+            form.setValue('cidade', data.cidade);
+            form.setValue('uf', data.uf);
+            form.setValue('email', data.email);
+            form.setValue('telefone', data.telefone);
+            form.setValue('inscricaoEstadual', data.inscricaoEstadual);
+            toast({ title: 'Dados do CNPJ preenchidos!' });
+        } catch (error) {
+            console.error("Error looking up CNPJ:", error);
+            toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
+        } finally {
+            setLoadingCnpj(false);
+        }
+    };
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {

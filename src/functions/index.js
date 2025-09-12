@@ -6,8 +6,10 @@
 
 const listUsersFunctions = require('./list-users');
 const backupFunctions = require('./backup');
+const cnpjFunctions = require('./cnpj');
 
 // Export all functions from the required modules
 exports.listUsers = listUsersFunctions.listUsers;
 exports.setUserStatus = listUsersFunctions.setUserStatus;
 exports.backupCompanyData = backupFunctions.backupCompanyData;
+exports.cnpjLookup = cnpjFunctions.cnpjLookup;
