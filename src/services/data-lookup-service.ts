@@ -18,6 +18,7 @@ interface BrasilAPIData {
     inscricoes_estaduais: {
         inscricao_estadual: string;
         uf: string;
+        ativo: boolean;
     }[];
 }
 
@@ -44,7 +45,7 @@ const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})
 // Mapeia a resposta de qualquer uma das APIs para o formato unificado que o frontend espera
 function mapToFrontendFormat(data: Partial<BrasilAPIData & ReceitaWSData>) {
     // A Inscrição Estadual da BrasilAPI é um array, pegamos a primeira ativa se houver
-    const activeIE = data.inscricoes_estaduais?.find(ie => ie.uf === data.uf);
+    const activeIE = data.inscricoes_estaduais?.find(ie => ie.ativo);
 
     return {
         razaoSocial: data.razao_social || data.nome || "",
@@ -97,56 +98,71 @@ export const createCnpjLookup = (
         }
 
         let finalData: Partial<BrasilAPIData & ReceitaWSData> = {};
-        let lastError: Error | null = null;
         let success = false;
 
-        // --- Tentativa 1: ReceitaWS ---
+        // --- Tentativa 1: BrasilAPI (mais permissiva com limites) ---
         try {
-            // NOTE: The 'jsonp' approach circumvents CORS issues by using a script tag.
-            const data = await new Promise<ReceitaWSData>((resolve, reject) => {
-                const script = document.createElement('script');
-                const callbackName = `receitaws_callback_${Date.now()}`;
-                window[callbackName] = (data: ReceitaWSData) => {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    resolve(data);
-                };
-                script.src = `https://www.receitaws.com.br/v1/cnpj/${cleanedCnpj}?callback=${callbackName}`;
-                script.onerror = () => {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    reject(new Error('ReceitaWS falhou. Verifique o CNPJ ou a conexão.'));
-                };
-                document.body.appendChild(script);
-            });
-
-            if (data.status === "ERROR") {
-                throw new Error(data.message || 'ReceitaWS retornou um erro.');
+            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.message || `BrasilAPI falhou com status ${response.status}`);
             }
-            
+            const data = await response.json();
             finalData = { ...finalData, ...data };
             success = true;
 
         } catch (error) {
-            console.warn(`[CNPJ_LOOKUP] ReceitaWS falhou: ${(error as Error).message}. Tentando fallback.`);
-            lastError = error as Error;
+             console.warn(`[CNPJ_LOOKUP] BrasilAPI falhou: ${(error as Error).message}. Tentando fallback.`);
+             toast({ title: 'Primeira API falhou, tentando alternativa...', description: (error as Error).message });
         }
         
-        // --- Tentativa 2: BrasilAPI (Fallback e dados complementares) ---
-        try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
-            if (response.ok) {
-                const data = await response.json();
+        // --- Tentativa 2: ReceitaWS (Fallback) ---
+        if (!success) {
+            try {
+                const data = await new Promise<ReceitaWSData>((resolve, reject) => {
+                    const script = document.createElement('script');
+                    const callbackName = `receitaws_callback_${Date.now()}`;
+                    window[callbackName] = (data: ReceitaWSData) => {
+                        delete window[callbackName];
+                        document.body.removeChild(script);
+                        resolve(data);
+                    };
+                    script.src = `https://www.receitaws.com.br/v1/cnpj/${cleanedCnpj}?callback=${callbackName}`;
+                    script.onerror = () => {
+                        delete window[callbackName];
+                        document.body.removeChild(script);
+                        reject(new Error('ReceitaWS falhou. Verifique o CNPJ ou a conexão.'));
+                    };
+                    document.body.appendChild(script);
+                });
+
+                if (data.status === "ERROR") {
+                    throw new Error(data.message || 'ReceitaWS retornou um erro.');
+                }
+                
                 finalData = { ...finalData, ...data };
-                success = true; // Mark as success even if only this one worked
-            } else if (!success) { // Only throw if the first API also failed
-                 const errorData = await response.json();
-                 throw new Error(errorData.message || `BrasilAPI falhou com status ${response.status}`);
+                success = true;
+
+                // Since ReceitaWS doesn't provide IE, let's try BrasilAPI again just for that.
+                 try {
+                    const ieResponse = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+                    if (ieResponse.ok) {
+                        const ieData = await ieResponse.json();
+                        if (ieData.inscricoes_estaduais) {
+                            finalData.inscricoes_estaduais = ieData.inscricoes_estaduais;
+                        }
+                    }
+                } catch (ieError) {
+                    console.warn('[CNPJ_LOOKUP] Falha ao buscar IE complementar da BrasilAPI.');
+                }
+
+
+            } catch (error) {
+                 console.error(`[CNPJ_LOOKUP] ReceitaWS também falhou:`, (error as Error).message);
+                 toast({ variant: "destructive", title: "Erro na Consulta", description: "Ambas as fontes de dados para CNPJ falharam. Verifique o número digitado ou tente mais tarde."});
             }
-        } catch (error) {
-             console.error(`[CNPJ_LOOKUP] BrasilAPI também falhou:`, (error as Error).message);
-             lastError = error as Error;
         }
+
 
         // --- Processar e preencher o formulário ---
         if (success) {
@@ -162,12 +178,6 @@ export const createCnpjLookup = (
             toast({
                 title: "Dados da Empresa Carregados!",
                 description: "Os campos foram preenchidos com as informações encontradas.",
-            });
-        } else {
-             toast({
-                variant: "destructive",
-                title: "Erro ao buscar CNPJ",
-                description: lastError?.message || "Ambas as APIs de consulta falharam.",
             });
         }
     };
