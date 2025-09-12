@@ -16,6 +16,7 @@ import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
+import { createCnpjLookup } from '@/services/data-lookup-service';
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -77,8 +78,8 @@ const defaultFormValues: FormData = {
 };
 
 function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
-  const [loading, setLoading] = useState(false);
-  const [loadingCnpj, setLoadingCnpj] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingLookup, setLoadingLookup] = useState(false);
   const { toast } = useToast();
   
   const mode = partner ? 'edit' : 'create';
@@ -104,11 +105,19 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             telefone: partner?.telefone || '',
         }
   });
+  
+  const handleCnpjLookup = async () => {
+      setLoadingLookup(true);
+      const lookup = createCnpjLookup(form, toast);
+      await lookup();
+      setLoadingLookup(false);
+  };
+
 
   const handleCepLookup = async (cep: string) => {
     const cleanedCep = cep.replace(/\D/g, '');
     if (cleanedCep.length !== 8) return;
-    setLoading(true);
+    setLoadingLookup(true);
     try {
         const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
         if (!response.ok) throw new Error('CEP não encontrado');
@@ -122,46 +131,12 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     } catch (error) {
         toast({ variant: 'destructive', title: 'Erro ao buscar CEP', description: (error as Error).message });
     } finally {
-        setLoading(false);
+        setLoadingLookup(false);
     }
   };
-  
-    const handleCnpjLookup = async () => {
-        const cnpjValue = form.getValues("cpfCnpj");
-        const cleanedCnpj = cnpjValue.replace(/\D/g, '');
-        if (cleanedCnpj.length !== 14) {
-            toast({ variant: "destructive", title: "CNPJ Inválido", description: "A busca automática funciona apenas com CNPJs de 14 dígitos." });
-            return;
-        }
-        setLoadingCnpj(true);
-        try {
-            const response = await fetch(`/api/cnpj/${cleanedCnpj}`);
-            if (!response.ok) {
-                 const errorData = await response.json();
-                 throw new Error(errorData.message || 'CNPJ não encontrado ou API indisponível.');
-            }
-            const data = await response.json();
-            form.setValue("razaoSocial", data.razao_social || "");
-            form.setValue("nomeFantasia", data.nome_fantasia || "");
-            form.setValue("cep", formatCep(data.cep || ""));
-            form.setValue("logradouro", data.logradouro || "");
-            form.setValue("numero", data.numero || "");
-            form.setValue("complemento", data.complemento || "");
-            form.setValue("bairro", data.bairro || "");
-            form.setValue("cidade", data.municipio || "");
-            form.setValue("uf", data.uf || "");
-            form.setValue("telefone", data.ddd_telefone_1 || "");
-            form.setValue("email", data.email || "");
-            toast({ title: "Dados do Parceiro Carregados!", description: "Os campos foram preenchidos com as informações da API." });
-        } catch (error) {
-            toast({ variant: "destructive", title: "Erro ao buscar CNPJ", description: (error as Error).message });
-        } finally {
-            setLoadingCnpj(false);
-        }
-    };
 
   const onSubmit = async (values: FormData) => {
-    setLoading(true);
+    setIsSubmitting(true);
     try {
       const dataToSave = { ...values, type: partnerType, cpfCnpj: values.cpfCnpj.replace(/\D/g, '') };
       if (mode === 'create') {
@@ -178,7 +153,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
         console.error("Error saving partner:", error);
         toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar os dados do parceiro." });
     } finally {
-        setLoading(false);
+        setIsSubmitting(false);
     }
   };
 
@@ -217,7 +192,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                                 <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} value={field.value || ''} /></FormControl>
                                 {isCnpj && (
                                     <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        {loadingCnpj ? (<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />)}
+                                        {loadingLookup ? (<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />)}
                                     </div>
                                 )}
                             </div>
@@ -250,9 +225,9 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             </div>
           </Tabs>
           <DialogFooter className="pt-6">
-            <Button type="button" variant="ghost" onClick={onClose} disabled={loading || loadingCnpj}>Cancelar</Button>
-            <Button type="submit" disabled={loading || loadingCnpj}>
-              {(loading || loadingCnpj) && <Loader2 className="animate-spin mr-2" />}
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting || loadingLookup}>Cancelar</Button>
+            <Button type="submit" disabled={isSubmitting || loadingLookup}>
+              {(isSubmitting || loadingLookup) && <Loader2 className="animate-spin mr-2" />}
               {mode === 'create' ? `Salvar ${typeLabel}` : 'Salvar Alterações'}
             </Button>
           </DialogFooter>

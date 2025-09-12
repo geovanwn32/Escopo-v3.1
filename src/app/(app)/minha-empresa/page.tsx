@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -24,6 +25,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
+import { createCnpjLookup } from '@/services/data-lookup-service';
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -120,8 +122,7 @@ const formatBytes = (bytes: number, decimals = 2) => {
 export default function MinhaEmpresaPage() {
     const { toast } = useToast();
     const { user } = useAuth();
-    const [loadingCnpj, setLoadingCnpj] = useState(false);
-    const [loadingSintegra, setLoadingSintegra] = useState(false);
+    const [loadingLookup, setLoadingLookup] = useState(false);
     const [loadingPage, setLoadingPage] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -183,112 +184,14 @@ export default function MinhaEmpresaPage() {
         }
     }, [user, form]);
     
-    const handleSintegraLookup = async () => {
-        const inscricao = form.getValues("inscricao");
-        const uf = form.getValues("uf");
-        const tipo = form.getValues("tipoInscricao");
-
-        if (tipo !== 'cnpj') {
-            toast({ variant: "destructive", title: "Função não aplicável", description: "Busca de Inscrição Estadual disponível apenas para CNPJ." });
-            return;
-        }
-
-        if (!inscricao || !uf) {
-            toast({
-                variant: "destructive",
-                title: "Dados Incompletos",
-                description: "É necessário preencher o CNPJ e a UF para buscar a Inscrição Estadual.",
-            });
-            return;
-        }
-
-        setLoadingSintegra(true);
-        try {
-            const cleanedCnpj = inscricao.replace(/\D/g, '');
-            const response = await fetch(`https://brasilapi.com.br/api/sintegra/v1/${cleanedCnpj}?uf=${uf}`);
-            
-            if (!response.ok) {
-                toast({
-                    title: "Inscrição Estadual não encontrada",
-                    description: "Nenhuma Inscrição Estadual encontrada para este CNPJ na UF especificada.",
-                });
-                return;
-            }
-
-            const data = await response.json();
-            if (data && data.inscricao_estadual) {
-                form.setValue("inscricaoEstadual", data.inscricao_estadual);
-                 toast({
-                    title: "Inscrição Estadual encontrada!",
-                    description: "O campo foi preenchido com as informações da BrasilAPI.",
-                });
-            }
-
-        } catch (error) {
-             toast({
-                variant: "destructive",
-                title: "Erro ao buscar Inscrição Estadual",
-                description: "Não foi possível realizar a consulta. Verifique o console.",
-            });
-        } finally {
-            setLoadingSintegra(false);
-        }
-    }
-
-
     const handleCnpjLookup = async () => {
-        const inscricaoValue = form.getValues("inscricao");
-        if (tipoInscricao !== 'cnpj' || !inscricaoValue || inscricaoValue.replace(/\D/g, '').length !== 14) {
-            toast({
-                variant: "destructive",
-                title: "CNPJ Inválido",
-                description: "Por favor, digite um CNPJ com 14 dígitos.",
-            });
-            return;
-        }
-
-        setLoadingCnpj(true);
-        try {
-            const cleanedCnpj = inscricaoValue.replace(/\D/g, '');
-            const response = await fetch(`/api/cnpj/${cleanedCnpj}`);
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'CNPJ não encontrado ou API indisponível.');
-            }
-
-            const data = await response.json();
-            
-            form.setValue("razaoSocial", data.razao_social || "");
-            form.setValue("nomeFantasia", data.nome_fantasia || "");
-            form.setValue("cnaePrincipalCodigo", String(data.cnae_fiscal || ""));
-            form.setValue("cnaePrincipalDescricao", data.cnae_fiscal_descricao || "");
-            form.setValue("cep", data.cep || "");
-            form.setValue("logradouro", data.logradouro || "");
-            form.setValue("numero", data.numero || "");
-            form.setValue("complemento", data.complemento || "");
-            form.setValue("bairro", data.bairro || "");
-            form.setValue("cidade", data.municipio || "");
-            form.setValue("uf", data.uf || "");
-            form.setValue("telefone", data.ddd_telefone_1 || "");
-            form.setValue("email", data.email || "");
-
-            toast({
-                title: "Dados do CNPJ carregados!",
-                description: "Os campos foram preenchidos com as informações da API.",
-            });
-            
-        } catch (error) {
-            toast({
-                variant: "destructive",
-                title: "Erro ao buscar CNPJ",
-                description: "Não foi possível carregar os dados. Verifique o CNPJ e tente novamente.",
-            });
-        } finally {
-            setLoadingCnpj(false);
-        }
+        setLoadingLookup(true);
+        const lookupFn = createCnpjLookup(form, toast);
+        await lookupFn();
+        setLoadingLookup(false);
     };
-    
+
+
     async function onSubmit(data: CompanyFormData) {
         if (!user || !activeCompanyId) {
              toast({
@@ -499,7 +402,6 @@ export default function MinhaEmpresaPage() {
                                                 <Input 
                                                     {...field}
                                                     placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
-                                                    onBlur={tipoInscricao === 'cnpj' ? handleCnpjLookup : undefined}
                                                     onChange={(e) => {
                                                         const { value } = e.target;
                                                         if (tipoInscricao === 'cnpj') {
@@ -514,7 +416,7 @@ export default function MinhaEmpresaPage() {
                                             </FormControl>
                                             {tipoInscricao === 'cnpj' && (
                                                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                    {loadingCnpj ? (
+                                                    {loadingLookup ? (
                                                         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                                                     ) : (
                                                         <Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleCnpjLookup} />
@@ -626,7 +528,7 @@ export default function MinhaEmpresaPage() {
                             />
                             <FormField control={form.control} name="cnaePrincipalCodigo" render={({ field }) => ( <FormItem><FormLabel>Código da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
                             <FormField control={form.control} name="cnaePrincipalDescricao" render={({ field }) => ( <FormItem><FormLabel>Descrição da Atividade Principal</FormLabel><FormControl><Input {...field} readOnly={tipoInscricao === 'cnpj'} /></FormControl><FormMessage /></FormItem> )} />
-                            <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><div className="relative"><FormControl><Input {...field} /></FormControl><div className="absolute inset-y-0 right-0 flex items-center pr-3">{loadingSintegra ? ( <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />) : (<Search className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={handleSintegraLookup} />)}</div></div><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><div className="relative"><FormControl><Input {...field} /></FormControl></div><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="inscricaoMunicipal" render={({ field }) => ( <FormItem><FormLabel>Inscrição Municipal</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                         </CardContent>
                     </Card>
@@ -906,7 +808,7 @@ export default function MinhaEmpresaPage() {
                     </Card>
 
                      <div className="flex justify-end">
-                        <Button type="submit" disabled={isSaving || loadingPage || loadingCnpj || loadingSintegra}>
+                        <Button type="submit" disabled={isSaving || loadingPage || loadingLookup}>
                             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} 
                             Salvar Todas as Alterações
                         </Button>
