@@ -250,10 +250,11 @@ export default function MinhaEmpresaPage() {
         setLoadingCnpj(true);
         try {
             const cleanedCnpj = inscricaoValue.replace(/\D/g, '');
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+            const response = await fetch(`/api/cnpj/${cleanedCnpj}`);
             
             if (!response.ok) {
-                throw new Error('CNPJ não encontrado ou API indisponível.');
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'CNPJ não encontrado ou API indisponível.');
             }
 
             const data = await response.json();
@@ -274,7 +275,7 @@ export default function MinhaEmpresaPage() {
 
             toast({
                 title: "Dados do CNPJ carregados!",
-                description: "Os campos foram preenchidos com as informações da BrasilAPI.",
+                description: "Os campos foram preenchidos com as informações da API.",
             });
             
         } catch (error) {

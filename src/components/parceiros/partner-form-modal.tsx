@@ -135,8 +135,11 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
         }
         setLoadingCnpj(true);
         try {
-            const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
-            if (!response.ok) throw new Error('CNPJ não encontrado ou API indisponível.');
+            const response = await fetch(`/api/cnpj/${cleanedCnpj}`);
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.message || 'CNPJ não encontrado ou API indisponível.');
+            }
             const data = await response.json();
             form.setValue("razaoSocial", data.razao_social || "");
             form.setValue("nomeFantasia", data.nome_fantasia || "");
@@ -149,7 +152,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             form.setValue("uf", data.uf || "");
             form.setValue("telefone", data.ddd_telefone_1 || "");
             form.setValue("email", data.email || "");
-            toast({ title: "Dados do Parceiro Carregados!", description: "Os campos foram preenchidos com as informações da BrasilAPI." });
+            toast({ title: "Dados do Parceiro Carregados!", description: "Os campos foram preenchidos com as informações da API." });
         } catch (error) {
             toast({ variant: "destructive", title: "Erro ao buscar CNPJ", description: (error as Error).message });
         } finally {
