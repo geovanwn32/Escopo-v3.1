@@ -76,7 +76,7 @@ const companySchema = z.object({
 
 type CompanyFormData = z.infer<typeof companySchema>;
 
-const ensureSafeData = (data: any): Partial<CompanyFormData> => {
+const ensureSafeData = (data: any): CompanyFormData => {
     return {
         razaoSocial: data.razaoSocial ?? "",
         nomeFantasia: data.nomeFantasia ?? "",
@@ -867,4 +867,4 @@ export default function MinhaEmpresaPage() {
   );
 }
 
-      
+    
