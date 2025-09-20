@@ -1,205 +1,161 @@
 
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import type { Company } from '@/types/company';
-import type { Employee } from '@/types/employee';
-import type { Termination } from '@/types/termination';
-import { format } from 'date-fns';
+import type { Employee } from "@/types/employee";
+import { differenceInMonths, differenceInDays, getDaysInMonth, addMonths } from 'date-fns';
 
-const formatCurrency = (value: number | undefined | null): string => {
-  if (value === undefined || value === null) return 'R$ 0,00';
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-};
-
-const formatCnpj = (cnpj: string): string => {
-    return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+interface TerminationParams {
+    employee: Employee;
+    terminationDate: Date;
+    reason: string; // e.g., 'dispensa_sem_justa_causa', 'pedido_demissao'
+    noticeType: string; // e.g., 'indenizado', 'trabalhado'
+    fgtsBalance: number;
 }
 
-const formatCpf = (cpf: string): string => {
-    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+interface TerminationEvent {
+    descricao: string;
+    referencia: string;
+    provento: number;
+    desconto: number;
 }
 
-const formatDate = (date: Date | undefined): string => {
-    if (!date) return '';
-    return format(date, 'dd/MM/yyyy');
+export interface TerminationResult {
+    events: TerminationEvent[];
+    totalProventos: number;
+    totalDescontos: number;
+
+    liquido: number;
 }
 
-function addHeader(doc: jsPDF, company: Company) {
-    const pageWidth = doc.internal.pageSize.width;
-    let y = 15;
+// --- Tabelas de Impostos (podem ser compartilhadas) ---
+const inssBrackets = [
+    { limit: 1412.00, rate: 0.075, deduction: 0 },
+    { limit: 2666.68, rate: 0.09, deduction: 21.18 },
+    { limit: 4000.03, rate: 0.12, deduction: 101.18 },
+    { limit: 7786.02, rate: 0.14, deduction: 181.18 },
+];
+const inssCeiling = 908.85;
+
+const irrfBrackets = [
+    { limit: 2259.20, rate: 0, deduction: 0 },
+    { limit: 2826.65, rate: 0.075, deduction: 169.44 },
+    { limit: 3751.05, rate: 0.15, deduction: 381.44 },
+    { limit: 4664.68, rate: 0.225, deduction: 662.77 },
+    { limit: Infinity, rate: 0.275, deduction: 896.00 },
+];
+const irrfDependentDeduction = 189.59;
+
+function calculateINSS(base: number): { value: number, rate: number } {
+    if (base <= 0) return { value: 0, rate: 0 };
+    if (base > inssBrackets[inssBrackets.length - 1].limit) {
+        return { value: inssCeiling, rate: 14 };
+    }
+    for (const bracket of inssBrackets) {
+        if (base <= bracket.limit) {
+            return {
+                value: parseFloat(((base * bracket.rate) - bracket.deduction).toFixed(2)),
+                rate: bracket.rate * 100
+            };
+        }
+    }
+    return { value: 0, rate: 0 };
+}
+
+function calculateIRRF(base: number, dependents: number, inssDeduction: number): { value: number, rate: number } {
+    const baseAfterInss = base - inssDeduction;
+    if (baseAfterInss <= 0) return { value: 0, rate: 0 };
     
-    if (company.logoUrl) {
-        try { doc.addImage(company.logoUrl, 'PNG', 14, y, 30, 15); }
-        catch(e) { console.error("Could not add logo to PDF:", e); }
+    const totalDependentDeduction = dependents * irrfDependentDeduction;
+    const baseAfterDependents = baseAfterInss - totalDependentDeduction;
+
+    let irrfValue = 0;
+    let rate = 0;
+    for (const bracket of irrfBrackets) {
+        if (baseAfterDependents <= bracket.limit) {
+            irrfValue = (baseAfterDependents * bracket.rate) - bracket.deduction;
+            rate = bracket.rate * 100;
+            break;
+        }
     }
 
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(company.nomeFantasia.toUpperCase(), pageWidth - 14, y, { align: 'right' });
-    y += 5;
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(company.razaoSocial, pageWidth - 14, y, { align: 'right' });
-    y += 4;
-    doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
-    y += 4;
-    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
-    doc.text(address, pageWidth - 14, y, { align: 'right' });
-    y += 4;
-    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
-     y += 4;
-    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
-    
-    return y + 5;
+    return { value: parseFloat(Math.max(0, irrfValue).toFixed(2)), rate };
 }
 
 
-export function generateTrctPdf(company: Company, employee: Employee, termination: Termination) {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.width;
-  const primaryColor = [51, 145, 255];
-  const destructiveColor = [220, 38, 38];
-
-  let y = addHeader(doc, company);
-  
-  // Header
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Termo de Rescisão do Contrato de Trabalho - TRCT', pageWidth / 2, y, { align: 'center' });
-  y += 10;
-  
-  // Identification of Employer
-  doc.setFontSize(12);
-  doc.text('I - Identificação do Empregador', 14, y);
-  y += 5;
-  autoTable(doc, {
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      body: [
-          [{ content: '01 Razão Social/Nome', styles: { fontStyle: 'bold' } }, company.razaoSocial],
-          [{ content: '02 CNPJ/CEI/CNO', styles: { fontStyle: 'bold' } }, formatCnpj(company.cnpj)],
-          [{ content: '03 Endereço (Logradouro, nº, bairro)', styles: { fontStyle: 'bold' } }, `${company.logradouro || ''}, ${company.numero || ''}, ${company.bairro || ''}`],
-          [{ content: '04 Município/UF', styles: { fontStyle: 'bold' } }, `${company.cidade || ''}/${company.uf || ''}`],
-          [{ content: '05 CEP', styles: { fontStyle: 'bold' } }, company.cep ? company.cep.replace(/(\d{5})(\d{3})/, "$1-$2") : ''],
-      ],
-      columnStyles: { 0: { cellWidth: 50 } }
-  });
-  y = (doc as any).lastAutoTable.finalY + 5;
-  
-  // Identification of Employee
-  doc.setFontSize(12);
-  doc.text('II - Identificação do Trabalhador', 14, y);
-  y += 5;
-   autoTable(doc, {
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      body: [
-          [{ content: '09 Nome', styles: { fontStyle: 'bold' } }, employee.nomeCompleto],
-          [{ content: '10 CPF', styles: { fontStyle: 'bold' } }, formatCpf(employee.cpf)],
-          [{ content: '11 Data de Nascimento', styles: { fontStyle: 'bold' } }, formatDate(employee.dataNascimento)],
-          [{ content: '12 Nome da Mãe', styles: { fontStyle: 'bold' } }, employee.nomeMae],
-          [{ content: '13 CTPS (Nº, Série, UF)', styles: { fontStyle: 'bold' } }, ''], // Placeholder for CTPS
-      ],
-      columnStyles: { 0: { cellWidth: 50 } }
-  });
-  y = (doc as any).lastAutoTable.finalY + 5;
-  
-  // Contract Data
-  doc.setFontSize(12);
-  doc.text('III - Dados do Contrato', 14, y);
-  y += 5;
-  autoTable(doc, {
-      startY: y,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 1.5 },
-      body: [
-          [{ content: '21 Cargo', styles: { fontStyle: 'bold' } }, employee.cargo],
-          [{ content: '22 Salário Base', styles: { fontStyle: 'bold' } }, formatCurrency(employee.salarioBase)],
-          [{ content: '23 Data de Admissão', styles: { fontStyle: 'bold' } }, formatDate(employee.dataAdmissao)],
-          [{ content: '24 Data de Afastamento', styles: { fontStyle: 'bold' } }, formatDate(termination.terminationDate as Date)],
-          [{ content: '25 Causa do Afastamento', styles: { fontStyle: 'bold' } }, termination.reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())],
-      ],
-      columnStyles: { 0: { cellWidth: 50 } }
-  });
-  y = (doc as any).lastAutoTable.finalY + 5;
-
-  // Verbas Rescisórias
-  doc.setFontSize(12);
-  doc.text('IV - Discriminação das Verbas Rescisórias', 14, y);
-  y += 5;
-  
-   const tableRows = termination.result.events.map(event => [
-        event.descricao,
-        event.referencia,
-        formatCurrency(event.provento),
-        formatCurrency(event.desconto),
-    ]);
-
-    autoTable(doc, {
-        startY: y,
-        head: [['Verba Rescisória', 'Referência', 'Proventos', 'Descontos']],
-        body: tableRows,
-        theme: 'grid',
-        headStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
-        styles: { fontSize: 8, cellPadding: 1.5 },
-        columnStyles: {
-            0: { cellWidth: 'auto' },
-            1: { cellWidth: 25, halign: 'center' },
-            2: { cellWidth: 30, halign: 'right' },
-            3: { cellWidth: 30, halign: 'right' },
-        }
-    });
-    y = (doc as any).lastAutoTable.finalY;
-
-    // Totals
-    autoTable(doc, {
-        startY: y,
-        theme: 'grid',
-        showHead: false,
-        styles: { fontSize: 8, cellPadding: 1.5, fontStyle: 'bold' },
-        body: [
-             [
-                { content: 'Total Bruto', styles: { halign: 'right' } },
-                { content: formatCurrency(termination.result.totalProventos), styles: { halign: 'right' } },
-            ],
-             [
-                { content: 'Total Deduções', styles: { halign: 'right' } },
-                { content: formatCurrency(termination.result.totalDescontos), styles: { halign: 'right', textColor: destructiveColor } },
-            ],
-            [
-                { content: 'Valor Líquido', styles: { halign: 'right' } },
-                { content: formatCurrency(termination.result.liquido), styles: { halign: 'right', textColor: primaryColor } },
-            ]
-        ],
-        columnStyles: {
-            0: { cellWidth: 121.8, styles: { cellPadding: { right: 2 } } },
-            1: { cellWidth: 'auto' },
-        }
-    });
-    y = (doc as any).lastAutoTable.finalY + 8;
+export function calculateTermination(params: TerminationParams): TerminationResult {
+    const { employee, terminationDate, reason, noticeType, fgtsBalance } = params;
+    const events: TerminationEvent[] = [];
+    const baseSalary = employee.salarioBase;
     
-    // Legal Basis
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('V - Embasamento Legal', 14, y);
-    y += 5;
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('O presente termo é emitido em conformidade com o Art. 477 da Consolidação das Leis do Trabalho (CLT), que dispõe sobre a anotação na Carteira de Trabalho e o pagamento das verbas rescisórias.', 14, y, { maxWidth: pageWidth - 28 });
-    y += 12;
+    const daysInTerminationMonth = getDaysInMonth(terminationDate);
+    const workedDaysInMonth = terminationDate.getDate();
 
-    // Signatures
-    doc.setFontSize(10);
-    doc.text('__________________________________', 14, y);
-    doc.text('__________________________________', pageWidth / 2 + 10, y);
-    y += 4;
-    doc.text('Assinatura do Empregador', 14, y);
-    doc.text('Assinatura do Trabalhador', pageWidth / 2 + 10, y);
+    // --- VERBAS RESCISÓRIAS (PROVENTOS) ---
+    // 1. Saldo de Salário
+    const saldoSalario = (baseSalary / daysInTerminationMonth) * workedDaysInMonth;
+    events.push({ descricao: 'Saldo de Salário', referencia: `${workedDaysInMonth} dias`, provento: saldoSalario, desconto: 0 });
+
+    // 2. Aviso Prévio Indenizado
+    let avisoPrevio = 0;
+    if (reason === 'dispensa_sem_justa_causa' && noticeType === 'indenizado') {
+        avisoPrevio = baseSalary; // Simplificado, poderia incluir anos de serviço
+        events.push({ descricao: 'Aviso Prévio Indenizado', referencia: '30 dias', provento: avisoPrevio, desconto: 0 });
+    }
+
+    // 3. Férias Vencidas + 1/3 (se houver)
+    // Lógica simplificada: assume que não há férias vencidas para este cálculo.
+
+    // 4. Férias Proporcionais + 1/3
+    const monthsWorkedInPeriod = (differenceInMonths(terminationDate, employee.dataAdmissao) % 12) + 1;
+    const feriasProporcionais = (baseSalary / 12) * monthsWorkedInPeriod;
+    const tercoFeriasProporcionais = feriasProporcionais / 3;
+    events.push({ descricao: 'Férias Proporcionais', referencia: `${monthsWorkedInPeriod}/12`, provento: feriasProporcionais, desconto: 0 });
+    events.push({ descricao: '1/3 sobre Férias Proporcionais', referencia: '', provento: tercoFeriasProporcionais, desconto: 0 });
+
+    // 5. 13º Salário Proporcional
+    const mesesTrabalhados13 = terminationDate.getMonth() + 1;
+    const decimoTerceiroProporcional = (baseSalary / 12) * mesesTrabalhados13;
+    events.push({ descricao: '13º Salário Proporcional', referencia: `${mesesTrabalhados13}/12`, provento: decimoTerceiroProporcional, desconto: 0 });
+
+    // --- DEDUÇÕES ---
+    
+    // Base de INSS para Saldo de Salário e 13º
+    const baseINSS_Salario = saldoSalario;
+    const baseINSS_13 = decimoTerceiroProporcional;
+
+    // Cálculo INSS
+    const inssSalario = calculateINSS(baseINSS_Salario);
+    if (inssSalario.value > 0) {
+        events.push({ descricao: 'INSS sobre Saldo de Salário', referencia: `${inssSalario.rate}%`, provento: 0, desconto: inssSalario.value });
+    }
+    const inss13 = calculateINSS(baseINSS_13);
+     if (inss13.value > 0) {
+        events.push({ descricao: 'INSS sobre 13º Salário', referencia: `${inss13.rate}%`, provento: 0, desconto: inss13.value });
+    }
+    
+    // Base de IRRF
+    const numDependentesIRRF = employee.dependentes?.filter(d => d.isIRRF).length || 0;
+    const baseIRRF = (saldoSalario + feriasProporcionais + tercoFeriasProporcionais + decimoTerceiroProporcional);
+    const totalINSSDeduction = inssSalario.value + inss13.value;
+    const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, totalINSSDeduction);
+     if (irrf.value > 0) {
+        events.push({ descricao: 'IRRF sobre Rescisão', referencia: `${irrf.rate}%`, provento: 0, desconto: irrf.value });
+    }
+
+    // Multa FGTS (se aplicável)
+    if (reason === 'dispensa_sem_justa_causa' && fgtsBalance > 0) {
+        const multaFgts = fgtsBalance * 0.40;
+        events.push({ descricao: 'Multa de 40% sobre FGTS', referencia: '', provento: multaFgts, desconto: 0 });
+    }
 
 
-  // Open the PDF in a new tab
-  doc.output('dataurlnewwindow');
+    // --- CÁLCULO FINAL ---
+    const totalProventos = events.reduce((acc, event) => acc + event.provento, 0);
+    const totalDescontos = events.reduce((acc, event) => acc + event.desconto, 0);
+    const liquido = totalProventos - totalDescontos;
+
+    return {
+        events,
+        totalProventos: parseFloat(totalProventos.toFixed(2)),
+        totalDescontos: parseFloat(totalDescontos.toFixed(2)),
+        liquido: parseFloat(liquido.toFixed(2)),
+    };
 }
