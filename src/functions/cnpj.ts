@@ -3,6 +3,7 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import fetch from 'node-fetch'; // Use node-fetch for server-side requests
 
 interface CnpjData {
   razao_social: string;
@@ -65,7 +66,7 @@ export const cnpjLookup = onCall(async (request) => {
     const mappedData = {
       razaoSocial: data.razao_social,
       nomeFantasia: data.nome_fantasia || data.razao_social,
-      cnaePrincipal: data.cnae_fiscal.toString(),
+      cnaePrincipalCodigo: data.cnae_fiscal.toString(),
       cnaePrincipalDescricao: data.cnae_fiscal_descricao,
       cep: data.cep,
       logradouro: data.logradouro,
