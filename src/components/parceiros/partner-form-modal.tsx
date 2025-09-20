@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { lookupCnpj } from '@/services/data-lookup-service';
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -112,29 +113,21 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
     }
     setLoadingLookup(true);
     try {
-      const functions = getFunctions();
-      const cnpjLookup = httpsCallable(functions, 'cnpjLookup');
-      const response = await cnpjLookup({ cnpj: cnpjValue });
-      const result = response.data as { success: boolean, data?: any, message?: string };
-
-      if (!result.success || !result.data) {
-        throw new Error(result.message || 'CNPJ não encontrado ou API indisponível.');
-      }
-      
-      const data = result.data;
-      form.setValue('razaoSocial', data.razaoSocial, { shouldValidate: true });
-      form.setValue('nomeFantasia', data.nomeFantasia, { shouldValidate: true });
-      form.setValue('cep', data.cep, { shouldValidate: true });
-      form.setValue('logradouro', data.logradouro, { shouldValidate: true });
-      form.setValue('numero', data.numero, { shouldValidate: true });
-      form.setValue('bairro', data.bairro, { shouldValidate: true });
-      form.setValue('cidade', data.cidade, { shouldValidate: true });
-      form.setValue('uf', data.uf, { shouldValidate: true });
-      form.setValue('email', data.email, { shouldValidate: true });
-      form.setValue('telefone', data.telefone, { shouldValidate: true });
-      toast({ title: 'Dados do CNPJ preenchidos!' });
+        const data = await lookupCnpj(cnpjValue);
+        form.setValue('razaoSocial', data.razaoSocial, { shouldValidate: true });
+        form.setValue('nomeFantasia', data.nomeFantasia, { shouldValidate: true });
+        form.setValue('inscricaoEstadual', data.inscricaoEstadual, { shouldValidate: true });
+        form.setValue('cep', data.cep, { shouldValidate: true });
+        form.setValue('logradouro', data.logradouro, { shouldValidate: true });
+        form.setValue('numero', data.numero, { shouldValidate: true });
+        form.setValue('bairro', data.bairro, { shouldValidate: true });
+        form.setValue('cidade', data.cidade, { shouldValidate: true });
+        form.setValue('uf', data.uf, { shouldValidate: true });
+        form.setValue('email', data.email, { shouldValidate: true });
+        form.setValue('telefone', data.telefone, { shouldValidate: true });
+        toast({ title: 'Dados do CNPJ preenchidos!' });
     } catch (error) {
-        console.error("Function call failed:", error);
+        console.error("Lookup failed:", error);
         toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
     } finally {
         setLoadingLookup(false);

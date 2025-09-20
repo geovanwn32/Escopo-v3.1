@@ -1,3 +1,4 @@
+
 // Inspired by: https://github.com/the-via/receitaws-react/blob/master/src/useReceitaWS.js
 
 function fetchJsonp(url: string, options?: any) {
@@ -22,6 +23,7 @@ interface CnpjData {
     razaoSocial: string;
     nomeFantasia: string;
     cnaePrincipal: string;
+    cnaePrincipalDescricao: string;
     inscricaoEstadual: string;
     cep: string;
     logradouro: string;
@@ -42,65 +44,75 @@ export async function lookupCnpj(cnpj: string): Promise<CnpjData> {
     let lastError: Error | null = null;
     let combinedData: Partial<CnpjData> = {};
 
-    // --- 1. Attempt with ReceitaWS via JSONP proxy ---
+    // --- 1. Attempt with BrasilAPI (more reliable for client-side) ---
     try {
-        const url = `https://www.receitaws.com.br/v1/cnpj/${cleanedCnpj}`;
-        const data: any = await fetchJsonp(url);
-        
-        if (data.status === 'ERROR') {
-            throw new Error(data.message || 'CNPJ não encontrado na ReceitaWS.');
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
+        if (!response.ok) {
+            if (response.status === 404) throw new Error("CNPJ não encontrado na BrasilAPI.");
+            throw new Error(`BrasilAPI falhou: ${response.statusText}`);
         }
+        const data = await response.json();
         
         combinedData = {
-            razaoSocial: data.nome,
-            nomeFantasia: data.fantasia || data.nome,
-            cep: data.cep?.replace('.', ''),
+            razaoSocial: data.razao_social,
+            nomeFantasia: data.nome_fantasia || data.razao_social,
+            cnaePrincipal: (data.cnae_fiscal || '').toString(),
+            cnaePrincipalDescricao: data.cnae_fiscal_descricao,
+            cep: data.cep,
             logradouro: data.logradouro,
             numero: data.numero,
             bairro: data.bairro,
             cidade: data.municipio,
             uf: data.uf,
             email: data.email,
-            telefone: data.telefone,
-            cnaePrincipal: data.atividade_principal?.[0]?.code || '',
+            telefone: data.ddd_telefone_1 || data.ddd_telefone_2,
+            inscricaoEstadual: data.estabelecimentos?.[0]?.inscricao_estadual || '',
         };
+        // If we get a good result here, we can consider it done.
+        return combinedData as CnpjData;
+
     } catch (error) {
-        console.error("[CNPJ_LOOKUP] ReceitaWS falhou:", (error as Error).message);
+        console.error(`[CNPJ_LOOKUP] BrasilAPI falhou:`, (error as Error).message);
         lastError = error as Error;
     }
 
-    // --- 2. Attempt with BrasilAPI (especially for Inscricao Estadual) ---
-    try {
-        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
-        if (response.ok) {
-            const data = await response.json();
+
+    // --- 2. Fallback to ReceitaWS via JSONP if BrasilAPI fails ---
+    // Only try this if BrasilAPI failed, as it has stricter rate limits.
+    if (!combinedData.razaoSocial) {
+        try {
+            console.log("[CNPJ_LOOKUP] Tentando fallback com ReceitaWS...");
+            const url = `https://www.receitaws.com.br/v1/cnpj/${cleanedCnpj}`;
+            const data: any = await fetchJsonp(url);
             
-            // Merge BrasilAPI data, giving preference to already filled data from ReceitaWS
-            combinedData.razaoSocial = combinedData.razaoSocial || data.razao_social;
-            combinedData.nomeFantasia = combinedData.nomeFantasia || data.nome_fantasia;
-            combinedData.cnaePrincipal = combinedData.cnaePrincipal || (data.cnae_fiscal || '').toString();
-            combinedData.cep = combinedData.cep || data.cep;
-            combinedData.logradouro = combinedData.logradouro || data.logradouro;
-            combinedData.numero = combinedData.numero || data.numero;
-            combinedData.bairro = combinedData.bairro || data.bairro;
-            combinedData.cidade = combinedData.cidade || data.municipio;
-            combinedData.uf = combinedData.uf || data.uf;
-            combinedData.email = combinedData.email || data.email;
-            combinedData.telefone = combinedData.telefone || data.ddd_telefone_1;
-            
-            // BrasilAPI is the primary source for this
-            if (data.estabelecimentos && data.estabelecimentos.length > 0) {
-                 combinedData.inscricaoEstadual = data.estabelecimentos[0].inscricao_estadual || '';
+            if (data.status === 'ERROR') {
+                throw new Error(data.message || 'CNPJ não encontrado na ReceitaWS.');
             }
+            
+            combinedData = {
+                razaoSocial: data.nome,
+                nomeFantasia: data.fantasia || data.nome,
+                cnaePrincipal: data.atividade_principal?.[0]?.code,
+                cnaePrincipalDescricao: data.atividade_principal?.[0]?.text,
+                cep: data.cep?.replace('.', ''),
+                logradouro: data.logradouro,
+                numero: data.numero,
+                bairro: data.bairro,
+                cidade: data.municipio,
+                uf: data.uf,
+                email: data.email,
+                telefone: data.telefone,
+                inscricaoEstadual: combinedData.inscricaoEstadual, // Keep IE from BrasilAPI if it was found
+            };
+        } catch (error) {
+            console.error(`[CNPJ_LOOKUP] ReceitaWS também falhou:`, (error as Error).message);
+            lastError = error as Error;
         }
-    } catch (error) {
-        console.error("[CNPJ_LOOKUP] BrasilAPI falhou:", (error as Error).message);
-        lastError = error as Error;
     }
     
     // If after all attempts, we still don't have a company name, throw an error.
     if (!combinedData.razaoSocial) {
-        throw lastError || new Error("Não foi possível buscar os dados do CNPJ em nenhuma das fontes. Verifique o número e sua conexão.");
+        throw lastError || new Error("Não foi possível buscar os dados do CNPJ. Verifique o número e a conexão.");
     }
 
     return combinedData as CnpjData;

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -23,7 +24,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { lookupCnpj } from "@/services/data-lookup-service";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -153,21 +154,12 @@ export default function MinhaEmpresaPage() {
 
         setLoadingCnpj(true);
         try {
-            const functions = getFunctions();
-            const cnpjLookup = httpsCallable(functions, 'cnpjLookup');
-            const response = await cnpjLookup({ cnpj: cnpjValue });
-            
-            const result = response.data as { success: boolean; data?: any, message?: string };
-
-            if (!result.success || !result.data) {
-                 throw new Error(result.message || 'CNPJ não encontrado ou API indisponível.');
-            }
-            
-            const data = result.data;
+            const data = await lookupCnpj(cnpjValue);
             form.setValue('razaoSocial', data.razaoSocial, { shouldValidate: true });
             form.setValue('nomeFantasia', data.nomeFantasia, { shouldValidate: true });
             form.setValue('cnaePrincipalCodigo', data.cnaePrincipal, { shouldValidate: true });
             form.setValue('cnaePrincipalDescricao', data.cnaePrincipalDescricao, { shouldValidate: true });
+            form.setValue('inscricaoEstadual', data.inscricaoEstadual, { shouldValidate: true });
             form.setValue('cep', data.cep, { shouldValidate: true });
             form.setValue('logradouro', data.logradouro, { shouldValidate: true });
             form.setValue('numero', data.numero, { shouldValidate: true });
@@ -179,7 +171,7 @@ export default function MinhaEmpresaPage() {
 
             toast({ title: 'Dados do CNPJ preenchidos!' });
         } catch (error) {
-            console.error("Function call failed:", error);
+            console.error("Lookup failed:", error);
             toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
         } finally {
             setLoadingCnpj(false);
