@@ -1,139 +1,88 @@
-
 /**
- * @fileoverview Firebase Cloud Function for CNPJ lookup.
- * This function acts as a reliable proxy, querying multiple external APIs
- * to fetch company data and returning it in a unified format.
+ * @fileoverview Firebase Cloud Function to look up CNPJ data from Minha Receita API.
  */
-
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import fetch from "node-fetch";
 
-// Interfaces for external API responses
-interface BrasilAPIData {
-    razao_social: string;
-    nome_fantasia: string;
-    cnae_fiscal: number;
-    cnae_fiscal_descricao: string;
-    cep: string;
-    logradouro: string;
-    numero: string;
-    complemento: string;
-    bairro: string;
-    municipio: string;
-    uf: string;
-    ddd_telefone_1: string;
-    email: string;
-    inscricoes_estaduais?: {
-        inscricao_estadual: string;
-        uf: string;
-    }[];
-}
-
-interface ReceitaWSData {
-  nome: string;
-  fantasia: string;
-  atividade_principal: { code: string; text: string }[];
+interface CnpjData {
+  razao_social: string;
+  nome_fantasia: string;
+  cnae_fiscal: number;
+  cnae_fiscal_descricao: string;
   cep: string;
   logradouro: string;
   numero: string;
-  complemento: string;
   bairro: string;
   municipio: string;
   uf: string;
-  telefone: string;
   email: string;
-  status: string;
-  message?: string;
+  ddd_telefone_1: string;
+  descricao_situacao_cadastral: string;
 }
-
-const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, "$1-$2");
 
 /**
- * Maps data from either BrasilAPI or ReceitaWS to a unified frontend format.
+ * A callable Cloud Function that fetches CNPJ data from the Minha Receita API.
  */
-function mapToFrontendFormat(data: Partial<BrasilAPIData & ReceitaWSData>) {
-    const activeIE = data.inscricoes_estaduais?.find(ie => ie.uf === data.uf);
-    return {
-        razaoSocial: data.razao_social || data.nome || "",
-        nomeFantasia: data.nome_fantasia || data.fantasia || data.razao_social || data.nome || "",
-        cnaePrincipalCodigo: String(data.cnae_fiscal || (data.atividade_principal && data.atividade_principal[0]?.code?.replace(/\D/g, '')) || ""),
-        cnaePrincipalDescricao: data.cnae_fiscal_descricao || (data.atividade_principal && data.atividade_principal[0]?.text) || "",
-        cep: formatCep(data.cep || ""),
-        logradouro: data.logradouro || "",
-        numero: data.numero || "",
-        complemento: data.complemento || "",
-        bairro: data.bairro || "",
-        cidade: data.municipio || "",
-        uf: data.uf || "",
-        telefone: data.ddd_telefone_1 || data.telefone || "",
-        email: data.email || "",
-        inscricaoEstadual: activeIE?.inscricao_estadual || '',
-    };
-}
-
-
 export const cnpjLookup = onCall(async (request) => {
-    const cnpj = request.data.cnpj?.replace(/\D/g, '');
-    if (!cnpj || typeof cnpj !== 'string' ) {
-        throw new HttpsError('invalid-argument', 'O CNPJ/CPF é obrigatório.');
-    }
-    
-    if (cnpj.length === 11) {
-        throw new HttpsError('invalid-argument', 'A busca automática não funciona para CPF.');
-    }
+  const cnpj = request.data.cnpj;
+  if (!cnpj || typeof cnpj !== "string") {
+    throw new HttpsError(
+      "invalid-argument",
+      "O CNPJ é obrigatório e deve ser uma string."
+    );
+  }
 
-    if (cnpj.length !== 14) {
-        throw new HttpsError('invalid-argument', 'O CNPJ deve conter 14 dígitos.');
+  const cleanedCnpj = cnpj.replace(/\D/g, "");
+
+  if (cleanedCnpj.length !== 14) {
+    if (cleanedCnpj.length === 11) {
+       return { success: false, message: "A busca é válida apenas para CNPJ. Por favor, insira um CNPJ." };
     }
+    throw new HttpsError("invalid-argument", "O CNPJ deve ter 14 dígitos.");
+  }
 
-    logger.info(`Buscando CNPJ: ${cnpj}`);
-    let finalData: Partial<BrasilAPIData & ReceitaWSData> = {};
-    let lastError: string | null = null;
+  logger.info(`Buscando CNPJ: ${cleanedCnpj}`);
 
-    // --- Tentativa 1: BrasilAPI ---
-    try {
-        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
-        if (response.ok) {
-            const data = await response.json() as BrasilAPIData;
-            finalData = { ...finalData, ...data };
-            logger.info("Dados obtidos da BrasilAPI.");
-        } else {
-             const errorData = await response.json();
-             throw new Error((errorData as any).message || `BrasilAPI falhou com status ${response.status}`);
+  try {
+    const response = await fetch(
+      `https://minhareceita.org/${cleanedCnpj}`
+    );
+
+    if (!response.ok) {
+        if (response.status === 404) {
+             throw new HttpsError("not-found", "CNPJ não encontrado na base de dados.");
         }
-    } catch (error) {
-        logger.warn(`Falha na BrasilAPI: ${(error as Error).message}`);
-        lastError = (error as Error).message;
+      throw new HttpsError("unavailable", `A API Minha Receita retornou um erro: ${response.statusText}`);
     }
+
+    const data: CnpjData = await response.json();
     
-    // --- Tentativa 2: ReceitaWS (Fallback) ---
-    // Tenta apenas se a primeira falhou
-    if (Object.keys(finalData).length === 0) {
-        try {
-            logger.info(`BrasilAPI falhou, tentando ReceitaWS para o CNPJ ${cnpj}`);
-            const response = await fetch(`https://www.receitaws.com.br/v1/cnpj/${cnpj}`);
-            if (response.ok) {
-                const data = await response.json() as ReceitaWSData;
-                if (data.status === "ERROR") {
-                    throw new Error(data.message || 'ReceitaWS retornou um erro.');
-                }
-                finalData = { ...finalData, ...data };
-                logger.info("Dados obtidos da ReceitaWS como fallback.");
-                lastError = null; // Clear error since we got data
-            } else {
-                throw new Error(`ReceitaWS falhou com status ${response.status}`);
-            }
-        } catch (error) {
-            logger.error(`Falha na ReceitaWS: ${(error as Error).message}`);
-            lastError = (error as Error).message;
-        }
+    if (data.descricao_situacao_cadastral !== 'ATIVA') {
+        logger.warn(`CNPJ ${cleanedCnpj} não está ativo. Situação: ${data.descricao_situacao_cadastral}`);
     }
 
-
-    if (!Object.keys(finalData).length) {
-        throw new HttpsError('not-found', lastError || 'Não foi possível encontrar dados para o CNPJ informado em nenhuma das fontes.');
+    // Mapeando para o formato esperado pelo frontend
+    const mappedData = {
+      razaoSocial: data.razao_social,
+      nomeFantasia: data.nome_fantasia || data.razao_social,
+      cnaePrincipal: data.cnae_fiscal.toString(),
+      cnaePrincipalDescricao: data.cnae_fiscal_descricao,
+      cep: data.cep,
+      logradouro: data.logradouro,
+      numero: data.numero,
+      bairro: data.bairro,
+      cidade: data.municipio,
+      uf: data.uf,
+      email: data.email,
+      telefone: data.ddd_telefone_1,
+    };
+    
+    return { success: true, data: mappedData };
+  } catch (error) {
+    logger.error("Erro ao buscar CNPJ na Minha Receita API:", error);
+    if (error instanceof HttpsError) {
+        throw error;
     }
-
-    return mapToFrontendFormat(finalData);
+    throw new HttpsError("internal", "Erro interno ao processar a busca de CNPJ.");
+  }
 });

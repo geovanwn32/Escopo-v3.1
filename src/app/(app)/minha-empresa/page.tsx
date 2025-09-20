@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -6,8 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { db, storage, functions } from "@/lib/firebase";
-import { httpsCallable } from "firebase/functions";
+import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +23,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 const companySchema = z.object({
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
@@ -147,37 +146,40 @@ export default function MinhaEmpresaPage() {
 
     const handleCnpjLookup = async () => {
         const cnpjValue = form.getValues("inscricao");
-        const cleanedCnpj = cnpjValue.replace(/\D/g, '');
-        if (cleanedCnpj.length !== 14) {
-            toast({ variant: "destructive", title: "CNPJ inválido", description: "A busca automática funciona apenas para CNPJ." });
+        if (!cnpjValue || cnpjValue.replace(/\D/g, '').length !== 14) {
+            toast({ variant: 'destructive', title: 'CNPJ inválido para busca.' });
             return;
         }
+
         setLoadingCnpj(true);
         try {
-            const cnpjLookupFunc = httpsCallable(functions, 'cnpjLookup');
-            const result = await cnpjLookupFunc({ cnpj: cleanedCnpj });
-            const data = result.data as any;
+            const functions = getFunctions();
+            const cnpjLookup = httpsCallable(functions, 'cnpjLookup');
+            const response = await cnpjLookup({ cnpj: cnpjValue });
+            
+            const result = response.data as { success: boolean; data?: any, message?: string };
 
-            if (data.error) {
-                throw new Error(data.error);
+            if (!result.success || !result.data) {
+                 throw new Error(result.message || 'CNPJ não encontrado ou API indisponível.');
             }
+            
+            const data = result.data;
+            form.setValue('razaoSocial', data.razaoSocial, { shouldValidate: true });
+            form.setValue('nomeFantasia', data.nomeFantasia, { shouldValidate: true });
+            form.setValue('cnaePrincipalCodigo', data.cnaePrincipal, { shouldValidate: true });
+            form.setValue('cnaePrincipalDescricao', data.cnaePrincipalDescricao, { shouldValidate: true });
+            form.setValue('cep', data.cep, { shouldValidate: true });
+            form.setValue('logradouro', data.logradouro, { shouldValidate: true });
+            form.setValue('numero', data.numero, { shouldValidate: true });
+            form.setValue('bairro', data.bairro, { shouldValidate: true });
+            form.setValue('cidade', data.cidade, { shouldValidate: true });
+            form.setValue('uf', data.uf, { shouldValidate: true });
+            form.setValue('email', data.email, { shouldValidate: true });
+            form.setValue('telefone', data.telefone, { shouldValidate: true });
 
-            form.setValue('razaoSocial', data.razaoSocial);
-            form.setValue('nomeFantasia', data.nomeFantasia);
-            form.setValue('cnaePrincipalCodigo', data.cnaePrincipalCodigo);
-            form.setValue('cnaePrincipalDescricao', data.cnaePrincipalDescricao);
-            form.setValue('cep', data.cep);
-            form.setValue('logradouro', data.logradouro);
-            form.setValue('numero', data.numero);
-            form.setValue('bairro', data.bairro);
-            form.setValue('cidade', data.cidade);
-            form.setValue('uf', data.uf);
-            form.setValue('email', data.email);
-            form.setValue('telefone', data.telefone);
-            form.setValue('inscricaoEstadual', data.inscricaoEstadual);
             toast({ title: 'Dados do CNPJ preenchidos!' });
         } catch (error) {
-            console.error("Error looking up CNPJ:", error);
+            console.error("Function call failed:", error);
             toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
         } finally {
             setLoadingCnpj(false);
