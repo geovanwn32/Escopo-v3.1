@@ -76,39 +76,6 @@ const companySchema = z.object({
 
 type CompanyFormData = z.infer<typeof companySchema>;
 
-const ensureSafeData = (data: any): CompanyFormData => {
-    const d = data || {};
-    return {
-        razaoSocial: d.razaoSocial ?? "",
-        nomeFantasia: d.nomeFantasia ?? "",
-        tipoInscricao: d.tipoInscricao ?? 'cnpj',
-        inscricao: d.cnpj ?? d.cpf ?? d.inscricao ?? "",
-        ativo: d.ativo ?? true,
-        tipoEstabelecimento: d.tipoEstabelecimento ?? (d.isMatriz ? 'matriz' : 'filial'),
-        cnaePrincipalCodigo: d.cnaePrincipalCodigo ?? "",
-        cnaePrincipalDescricao: d.cnaePrincipalDescricao ?? "",
-        regimeTributario: d.regimeTributario ?? "",
-        inscricaoEstadual: d.inscricaoEstadual ?? "",
-        inscricaoMunicipal: d.inscricaoMunicipal ?? "",
-        cep: d.cep ?? "",
-        logradouro: d.logradouro ?? "",
-        numero: d.numero ?? "",
-        complemento: d.complemento ?? "",
-        bairro: d.bairro ?? "",
-        cidade: d.cidade ?? "",
-        uf: d.uf ?? "",
-        telefone: d.telefone ?? "",
-        email: d.email ?? "",
-        logoUrl: d.logoUrl ?? null,
-        logoPath: d.logoPath ?? null,
-        licenseType: d.licenseType ?? 'basica',
-        metodoApropriacaoCredito: d.metodoApropriacaoCredito ?? '1',
-        tipoContribuicao: d.tipoContribuicao ?? '1',
-        incidenciaTributaria: d.incidenciaTributaria ?? '1',
-        apuracaoPisCofins: d.apuracaoPisCofins ?? '1',
-    };
-};
-
 const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -140,7 +107,6 @@ export default function MinhaEmpresaPage() {
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
-        defaultValues: ensureSafeData({}),
     });
     
     const tipoInscricao = form.watch('tipoInscricao');
@@ -192,7 +158,7 @@ export default function MinhaEmpresaPage() {
                     const [companySnap, establishmentSnap] = await Promise.all([getDoc(companyRef), getDoc(establishmentRef)]);
 
                     if (companySnap.exists()) {
-                        const data = companySnap.data();
+                        const data = companySnap.data() as Partial<CompanyFormData>;
                         const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
                         let formattedInscricao = inscricaoValue || "";
                         if (inscricaoValue) {
@@ -203,8 +169,35 @@ export default function MinhaEmpresaPage() {
                             }
                         }
                         
-                        const safeData = ensureSafeData({ ...data, inscricao: formattedInscricao });
-                        form.reset(safeData);
+                        form.reset({
+                          razaoSocial: data.razaoSocial ?? '',
+                          nomeFantasia: data.nomeFantasia ?? '',
+                          tipoInscricao: data.tipoInscricao ?? 'cnpj',
+                          inscricao: formattedInscricao,
+                          ativo: data.ativo ?? true,
+                          tipoEstabelecimento: data.tipoEstabelecimento ?? (data.isMatriz ? 'matriz' : 'filial'),
+                          cnaePrincipalCodigo: data.cnaePrincipalCodigo ?? '',
+                          cnaePrincipalDescricao: data.cnaePrincipalDescricao ?? '',
+                          regimeTributario: data.regimeTributario ?? '',
+                          inscricaoEstadual: data.inscricaoEstadual ?? '',
+                          inscricaoMunicipal: data.inscricaoMunicipal ?? '',
+                          cep: data.cep ?? '',
+                          logradouro: data.logradouro ?? '',
+                          numero: data.numero ?? '',
+                          complemento: data.complemento ?? '',
+                          bairro: data.bairro ?? '',
+                          cidade: data.cidade ?? '',
+                          uf: data.uf ?? '',
+                          telefone: data.telefone ?? '',
+                          email: data.email ?? '',
+                          logoUrl: data.logoUrl ?? null,
+                          logoPath: data.logoPath ?? null,
+                          licenseType: data.licenseType ?? 'basica',
+                          metodoApropriacaoCredito: data.metodoApropriacaoCredito ?? '1',
+                          tipoContribuicao: data.tipoContribuicao ?? '1',
+                          incidenciaTributaria: data.incidenciaTributaria ?? '1',
+                          apuracaoPisCofins: data.apuracaoPisCofins ?? '1',
+                        });
                     }
                     if (establishmentSnap.exists()) {
                         setEstablishmentData(establishmentSnap.data() as EstablishmentData);
@@ -867,7 +860,3 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
-
-    
-
-    
