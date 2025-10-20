@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -97,13 +98,14 @@ export default function RciPage() {
         if (!socio) return null;
         
         // This is a bit of a hack, but we can reuse the payroll service by mocking an employee object
-        const mockEmployee: any = {
+        const mockSocioAsEmployee: any = {
           ...socio,
           salarioBase: socio.proLabore,
           dependentes: [], // Sócios don't have dependents for payroll purposes
+          isSocio: true, // Add a flag to identify as socio
         }
 
-        const result = calculatePayroll(mockEmployee, currentEvents);
+        const result = calculatePayroll(mockSocioAsEmployee, currentEvents);
         setCalculationResult(result);
             
         let updatedEvents = [...currentEvents];
@@ -322,13 +324,13 @@ export default function RciPage() {
 
         try {
             if (currentRciId) {
-                const rciRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`, currentRciId);
+                const rciRef = doc(db, `users/${userId}/companies/${companyId}/rcis`, currentRciId);
                 await setDoc(rciRef, { ...rciData, updatedAt: serverTimestamp() }, { merge: true });
                 if (!isCalculation) {
                     toast({ title: `RCI atualizado como Rascunho!` });
                 }
             } else {
-                const rcisRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`);
+                const rcisRef = collection(db, `users/${userId}/companies/${companyId}/rcis`);
                 const docRef = await addDoc(rcisRef, { ...rciData, createdAt: serverTimestamp() });
                 setCurrentRciId(docRef.id);
                 router.replace(`/pessoal/rci?id=${docRef.id}`, { scroll: false });
@@ -348,7 +350,7 @@ export default function RciPage() {
     const handleDelete = async () => {
         if (!currentRciId || !user || !activeCompany) return;
         try {
-            await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`, currentRciId));
+            await deleteDoc(doc(db, `users/${userId}/companies/${activeCompany.id}/rcis`, currentRciId));
             toast({ title: 'Rascunho de RCI excluído com sucesso!' });
             router.push('/pessoal');
         } catch (error) {

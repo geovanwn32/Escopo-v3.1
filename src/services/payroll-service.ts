@@ -1,8 +1,8 @@
 
 
-
 import type { Employee } from "@/types/employee";
 import type { PayrollEvent } from "@/app/(app)/pessoal/folha-de-pagamento/page";
+import { Socio } from "@/types";
 
 // --- Tabela INSS 2024 ---
 const inssBrackets = [
@@ -36,10 +36,17 @@ export interface PayrollCalculationResult {
     irrf: { valor: number; aliquota: number };
 }
 
-function calculateINSS(baseInss: number): { valor: number; aliquota: number } {
+function calculateINSS(baseInss: number, isSocio: boolean): { valor: number; aliquota: number } {
     if (baseInss <= 0) return { valor: 0, aliquota: 0 };
     
-    // Check against ceiling first
+    if (isSocio) {
+        const inssValue = baseInss * 0.11;
+        // The INSS for pro-labore is 11% but also capped at the INSS ceiling.
+        const finalValue = Math.min(inssValue, inssCeiling);
+        return { valor: parseFloat(finalValue.toFixed(2)), aliquota: 11 };
+    }
+
+    // Check against ceiling first for CLT
     if (baseInss > inssBrackets[inssBrackets.length - 1].limit) {
         return { valor: inssCeiling, aliquota: 14 }; // Effective rate is not 14, but it's the top bracket.
     }
@@ -57,6 +64,7 @@ function calculateINSS(baseInss: number): { valor: number; aliquota: number } {
 
     return { valor: parseFloat(calculatedInss.toFixed(2)), aliquota: effectiveRate };
 }
+
 
 function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number; aliquota: number } {
     if (baseIrrf <= 0) return { valor: 0, aliquota: 0 };
@@ -95,7 +103,10 @@ function calculateIRRF(baseIrrf: number, numDependents: number): { valor: number
 }
 
 
-export function calculatePayroll(employee: Employee | { salarioBase: number, dependentes: any[] }, events: PayrollEvent[]): PayrollCalculationResult {
+export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boolean }), events: PayrollEvent[]): PayrollCalculationResult {
+    // Check if the passed object is a socio by checking for proLabore or a specific flag
+    const isSocio = 'proLabore' in employee || (employee as any).isSocio;
+
     // 1. Calculate the bases by summing up all relevant proventos
     const baseFGTS = events
         .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')
@@ -105,8 +116,8 @@ export function calculatePayroll(employee: Employee | { salarioBase: number, dep
         .filter(e => e.rubrica.incideINSS && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
         
-    // 2. Calculate INSS based on its specific base
-    const inss = calculateINSS(baseINSS);
+    // 2. Calculate INSS based on its specific base and if it's a socio or employee
+    const inss = calculateINSS(baseINSS, isSocio);
 
     // 3. Calculate the IRRF base
     // It's the sum of proventos that are IRRF-incidente, minus the calculated INSS value.
@@ -116,8 +127,8 @@ export function calculatePayroll(employee: Employee | { salarioBase: number, dep
     const baseIRRF = baseIRRFProventos - inss.valor;
     
     // 4. Calculate IRRF based on its specific base and dependents
-    const numDependentesIRRF = employee.dependentes?.filter(d => d.isIRRF).length || 0;
-    const irrf = calculateIRRF(baseIRRF, numDependentesIRRF);
+    const numDependentesIRRF = (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0;
+    const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, inss.valor);
 
     // 5. Calculate FGTS (employer contribution, not a deduction from employee)
     const fgts = { valor: parseFloat((baseFGTS * 0.08).toFixed(2)) };
