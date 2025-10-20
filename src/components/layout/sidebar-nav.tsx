@@ -127,6 +127,7 @@ export const mainNavLinks = [
   { href: "/parceiros", icon: <Handshake />, label: "Cadastros" },
   { href: "/conectividade", icon: <Share2 />, label: "Conectividade"},
   { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
+  { href: "/esocial", icon: <Share2 />, label: "eSocial" },
 ];
 
 const getLinksForPath = (pathname: string) => {
