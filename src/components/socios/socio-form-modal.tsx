@@ -94,6 +94,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
     
     const form = useForm<FormData>({
         resolver: zodResolver(socioSchema),
+        defaultValues: defaultFormValues, // Guarantee all fields are initialized
     });
 
      useEffect(() => {
@@ -208,7 +209,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                     <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
                     const { value } = e.target;
-                    e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3}s)(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
                     field.onChange(e);
                     }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
