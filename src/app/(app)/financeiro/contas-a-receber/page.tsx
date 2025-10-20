@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, updateDoc, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 export default function ContasAReceberPage() {
-  const [launches, setLaunches] = useState<Launch[]>([]);
+  const [allLaunches, setAllLaunches] = useState<Launch[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
 
@@ -63,25 +63,22 @@ export default function ContasAReceberPage() {
   useEffect(() => {
     if (!user || !activeCompany) {
         setLoading(false);
-        setLaunches([]);
+        setAllLaunches([]);
         return;
     };
 
     setLoading(true);
     
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-    const qLaunches = query(launchesRef, 
-        where('type', 'in', ['saida', 'servico'])
-    );
+    const qLaunches = query(launchesRef, orderBy('date', 'desc'));
+
     const unsubscribeLaunches = onSnapshot(qLaunches, (snapshot) => {
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             date: doc.data().date.toDate(),
         } as Launch));
-        // Sort data by date on the client-side
-        data.sort((a, b) => b.date.getTime() - a.date.getTime());
-        setLaunches(data);
+        setAllLaunches(data);
         setLoading(false);
     }, (error) => { console.error("Error fetching launches: ", error); toast({ variant: "destructive", title: "Erro ao buscar lançamentos fiscais" }); setLoading(false); });
 
@@ -90,6 +87,8 @@ export default function ContasAReceberPage() {
         unsubscribeLaunches();
     }
   }, [user, activeCompany, toast]);
+
+  const launches = useMemo(() => allLaunches.filter(l => l.type === 'saida' || l.type === 'servico'), [allLaunches]);
 
   const financialTotals = useMemo(() => {
     return launches.reduce((acc, launch) => {
@@ -426,3 +425,5 @@ export default function ContasAReceberPage() {
     </div>
   );
 }
+
+    
