@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, where, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -865,12 +865,17 @@ export default function EsocialPage() {
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
-                const originalEventId = xmlDoc.querySelector("evento")?.getAttribute("id") || xmlDoc.querySelector("Reinf > *")?.getAttribute("id");
+                const eventNode = xmlDoc.querySelector("eSocial > *");
+                const originalEventId = eventNode?.getAttribute("id");
+                
                 const receiptNumber = xmlDoc.querySelector("recibo > nrRecibo")?.textContent;
                 const statusCode = xmlDoc.querySelector("processamento > cdResp")?.textContent;
                 const statusMessage = xmlDoc.querySelector("processamento > descResp")?.textContent;
-
-                if (!originalEventId) continue;
+                
+                if (!originalEventId) {
+                    console.warn(`Não foi possível encontrar o ID do evento no arquivo: ${file.name}`);
+                    continue;
+                }
                 
                 const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`), where("eventId", "==", originalEventId));
                 const querySnapshot = await getDocs(eventsQuery);
@@ -879,7 +884,7 @@ export default function EsocialPage() {
                     const docToUpdate = querySnapshot.docs[0];
                     const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, docToUpdate.id);
                     
-                    if (statusCode === "1") { // Sucesso
+                    if (statusCode === "201" || statusCode === "202") { // Sucesso
                         batch.update(eventRef, { status: "success", receiptNumber: receiptNumber || '', errorDetails: null, updatedAt: serverTimestamp() });
                     } else { // Erro
                         batch.update(eventRef, { status: "error", errorDetails: statusMessage || "Erro desconhecido no processamento.", receiptNumber: receiptNumber || null, updatedAt: serverTimestamp() });
