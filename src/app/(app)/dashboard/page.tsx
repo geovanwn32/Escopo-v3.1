@@ -24,7 +24,7 @@ import {
   Plane,
   Bot
 } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell, LabelList } from "recharts"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
@@ -145,7 +145,7 @@ export default function DashboardPage() {
     }
 
     setLoading(true);
-    let listenersActive = 8;
+    let listenersActive = 9;
     const onDone = () => {
         listenersActive--;
         if (listenersActive === 0) setLoading(false);
@@ -183,6 +183,11 @@ export default function DashboardPage() {
         setTerminations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp).toDate() } as Termination)));
         onDone();
       }, (error) => { console.error("Terminations error:", error); onDone(); }),
+
+      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`), (snapshot) => {
+        setThirteenths(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
+        onDone();
+      }, (error) => { console.error("Thirteenths error:", error); onDone(); }),
     ];
 
     return () => unsubscribes.forEach(unsub => unsub());
@@ -214,7 +219,7 @@ export default function DashboardPage() {
         }
     });
 
-    const addPersonnelExpense = (items: (Payroll | RCI | Vacation | Termination)[]) => {
+    const addPersonnelExpense = (items: (Payroll | RCI | Vacation | Termination | Thirteenth)[]) => {
       items.forEach(item => {
         const itemDate = (item as any).period 
             ? parse(`01/${(item as any).period}`, 'dd/MM/yyyy', new Date())
@@ -236,6 +241,7 @@ export default function DashboardPage() {
     addPersonnelExpense(rcis);
     addPersonnelExpense(vacations);
     addPersonnelExpense(terminations);
+    addPersonnelExpense(thirteenths);
 
     const newChartData = Object.keys(monthlyTotals).map(key => {
         const [year, month] = key.split('-').map(Number);
@@ -243,7 +249,7 @@ export default function DashboardPage() {
     });
 
     return { totalEntradas, totalSaidas, chartData: newChartData };
-  }, [launches, payrolls, rcis, vacations, terminations]);
+  }, [launches, payrolls, rcis, vacations, terminations, thirteenths]);
   
   const getFinancialAnalysis = useCallback(async () => {
     if (!activeCompany || chartData.length === 0 || chartData.every(d => d.entradas === 0 && d.saidas === 0)) {
@@ -386,8 +392,12 @@ export default function DashboardPage() {
                             <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
-                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" />
-                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" />
+                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" >
+                                <LabelList dataKey="entradas" position="top" formatter={(value: number) => formatCurrency(value)} fontSize={10}/>
+                            </Bar>
+                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
+                                <LabelList dataKey="saidas" position="top" formatter={(value: number) => formatCurrency(value)} fontSize={10}/>
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
