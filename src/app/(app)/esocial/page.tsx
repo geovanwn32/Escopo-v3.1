@@ -26,7 +26,7 @@ import type { Admission } from "@/types/admission";
 import { AdmissionForm } from "@/components/esocial/admission-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const realisticErrors = [
