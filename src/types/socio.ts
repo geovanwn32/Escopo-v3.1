@@ -6,6 +6,7 @@ export interface Socio {
   dataNascimento: Date;
   cpf: string;
   rg: string;
+  nis?: string; // NIT/PIS
   estadoCivil: string;
   nacionalidade: string;
   profissao: string;

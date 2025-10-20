@@ -148,6 +148,7 @@ export default function SociosPage() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>CPF</TableHead>
+                  <TableHead>NIT/PIS</TableHead>
                   <TableHead>Participação</TableHead>
                   <TableHead>Pró-labore</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -158,6 +159,7 @@ export default function SociosPage() {
                   <TableRow key={socio.id}>
                     <TableCell className="font-medium">{socio.nomeCompleto}</TableCell>
                     <TableCell>{socio.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</TableCell>
+                    <TableCell>{socio.nis || '-'}</TableCell>
                     <TableCell>{socio.participacao}%</TableCell>
                     <TableCell>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(socio.proLabore)}</TableCell>
                     <TableCell className="text-right">

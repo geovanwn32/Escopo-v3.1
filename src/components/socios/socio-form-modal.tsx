@@ -33,6 +33,7 @@ const socioSchema = z.object({
   dataNascimento: z.date({ required_error: "Data de nascimento é obrigatória." }),
   cpf: z.string().min(14, "CPF inválido").transform(val => val.replace(/\D/g, '')),
   rg: z.string().min(1, "RG é obrigatório"),
+  nis: z.string().optional(),
   estadoCivil: z.string().min(1, "Estado civil é obrigatório"),
   nacionalidade: z.string().min(1, "Nacionalidade é obrigatória"),
   profissao: z.string().min(1, "Profissão é obrigatória"),
@@ -67,6 +68,7 @@ const defaultFormValues: FormData = {
     dataNascimento: new Date(),
     cpf: '',
     rg: '',
+    nis: '',
     nacionalidade: "Brasileiro(a)",
     profissao: "Sócio",
     estadoCivil: "solteiro",
@@ -94,7 +96,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
     
     const form = useForm<FormData>({
         resolver: zodResolver(socioSchema),
-        defaultValues: defaultFormValues, // Guarantee all fields are initialized
+        defaultValues: defaultFormValues,
     });
 
      useEffect(() => {
@@ -176,12 +178,6 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
         }
     };
 
-    const typeLabel = {
-        cliente: 'Cliente',
-        fornecedor: 'Fornecedor',
-        transportadora: 'Transportadora',
-    }['cliente']; // Hardcoded for now as it's a partner form
-
   return (
     <>
       <DialogHeader>
@@ -215,7 +211,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="rg" render={({ field }) => ( <FormItem><FormLabel>RG</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="nis" render={({ field }) => ( <FormItem><FormLabel>NIT/PIS (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="estadoCivil" render={({ field }) => ( <FormItem><FormLabel>Estado Civil</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="solteiro">Solteiro(a)</SelectItem><SelectItem value="casado">Casado(a)</SelectItem><SelectItem value="divorciado">Divorciado(a)</SelectItem><SelectItem value="viuvo">Viúvo(a)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
@@ -243,8 +239,9 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                         </FormItem>
                     )}
                     />
-                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
+                 <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
                 </TabsContent>
 
                 <TabsContent value="address" className="space-y-4">
