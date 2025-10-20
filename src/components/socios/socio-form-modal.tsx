@@ -62,8 +62,9 @@ type FormData = z.infer<typeof socioSchema>;
 const formatCpf = (cpf: string) => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
 const formatCep = (cep: string) => cep?.replace(/(\d{5})(\d{3})/, "$1-$2");
 
-const defaultFormValues: Partial<FormData> = {
+const defaultFormValues: FormData = {
     nomeCompleto: '',
+    dataNascimento: new Date(),
     cpf: '',
     rg: '',
     nacionalidade: "Brasileiro(a)",
@@ -78,6 +79,7 @@ const defaultFormValues: Partial<FormData> = {
     uf: '',
     email: '',
     telefone: '',
+    dataEntrada: new Date(),
     participacao: "100",
     proLabore: "0",
     isAdministrador: true,
@@ -105,11 +107,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                 isAdministrador: socio?.isAdministrador ?? false,
             });
         } else {
-            form.reset({
-                ...defaultFormValues,
-                dataNascimento: new Date(),
-                dataEntrada: new Date(),
-            } as FormData);
+            form.reset(defaultFormValues);
         }
     }, [socio, form]);
 
@@ -210,7 +208,7 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                     <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
                     <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
                     const { value } = e.target;
-                    e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3}s)(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
                     field.onChange(e);
                     }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
