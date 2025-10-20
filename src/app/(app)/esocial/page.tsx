@@ -865,12 +865,19 @@ export default function EsocialPage() {
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
-                const originalEventNode = xmlDoc.querySelector("retornoEventoCompleto > evento > eSocial > *");
+                const originalEventNode = xmlDoc.querySelector("retornoEventoCompleto > evento > eSocial > *")?.firstElementChild;
                 const originalEventIdAttr = originalEventNode?.getAttribute("Id");
                 
-                const receiptNumber = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > recibo > nrRecibo")?.textContent;
-                const statusCode = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > processamento > cdResposta")?.textContent;
-                const statusMessage = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > processamento > descResposta")?.textContent;
+                const retornoEventoNode = xmlDoc.getElementsByTagNameNS("*", "retornoEvento")[0];
+
+                if (!retornoEventoNode) {
+                    console.warn(`Tag <retornoEvento> não encontrada no arquivo: ${file.name}`);
+                    continue;
+                }
+                
+                const receiptNumber = retornoEventoNode.getElementsByTagNameNS("*", "nrRecibo")[0]?.textContent;
+                const statusCode = retornoEventoNode.getElementsByTagNameNS("*", "cdResposta")[0]?.textContent;
+                const statusMessage = retornoEventoNode.getElementsByTagNameNS("*", "descResposta")[0]?.textContent;
                 
                 if (!originalEventIdAttr) {
                     console.warn(`Não foi possível encontrar o ID do evento no arquivo: ${file.name}`);
