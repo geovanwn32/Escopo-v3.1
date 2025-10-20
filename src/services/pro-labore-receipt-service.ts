@@ -56,6 +56,30 @@ export function generateProLaboreReceiptPdf(company: Company, socio: Socio, rci:
     y += 10;
     
     // --- COMPANY & SOCIO INFO ---
+    const socioBody = [
+      [
+        { content: 'Nome:', styles: { fontStyle: 'bold' } },
+        { content: socio.nomeCompleto },
+      ],
+      [
+        { content: 'CPF:', styles: { fontStyle: 'bold' } },
+        { content: socio.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") },
+      ],
+    ];
+
+    if (socio.nis) {
+      socioBody.push([
+        { content: 'NIT/PIS:', styles: { fontStyle: 'bold' } },
+        { content: socio.nis },
+      ]);
+    }
+    
+    socioBody.push([
+        { content: 'Competência:', styles: { fontStyle: 'bold' } },
+        { content: rci.period },
+    ]);
+
+
     autoTable(doc, {
         startY: y,
         theme: 'grid',
@@ -63,20 +87,7 @@ export function generateProLaboreReceiptPdf(company: Company, socio: Socio, rci:
         head: [
             [{ content: 'Sócio(a)', colSpan: 2, styles: { fillColor: [240, 245, 255], textColor: 30, fontStyle: 'bold' } }]
         ],
-        body: [
-            [
-                { content: 'Nome:', styles: { fontStyle: 'bold' } },
-                { content: socio.nomeCompleto },
-            ],
-            [
-                { content: 'CPF:', styles: { fontStyle: 'bold' } },
-                { content: socio.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") },
-            ],
-            [
-                { content: 'Competência:', styles: { fontStyle: 'bold' } },
-                { content: rci.period },
-            ],
-        ],
+        body: socioBody,
         columnStyles: { 
             0: { cellWidth: 25 },
             1: { cellWidth: 'auto' },
