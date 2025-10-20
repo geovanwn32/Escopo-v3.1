@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,6 +62,28 @@ type FormData = z.infer<typeof socioSchema>;
 const formatCpf = (cpf: string) => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
 const formatCep = (cep: string) => cep?.replace(/(\d{5})(\d{3})/, "$1-$2");
 
+const defaultFormValues: Partial<FormData> = {
+    nomeCompleto: '',
+    cpf: '',
+    rg: '',
+    nacionalidade: "Brasileiro(a)",
+    profissao: "Sócio",
+    estadoCivil: "solteiro",
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
+    email: '',
+    telefone: '',
+    participacao: "100",
+    proLabore: "0",
+    isAdministrador: true,
+};
+
+
 function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalProps, 'isOpen'>) {
     const [loading, setLoading] = useState(false);
     const { toast } = useToast();
@@ -84,13 +106,10 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
             });
         } else {
             form.reset({
-                nacionalidade: "Brasileiro(a)",
-                profissao: "Sócio",
-                estadoCivil: "solteiro",
-                participacao: "100",
-                proLabore: "0",
-                isAdministrador: true,
-            });
+                ...defaultFormValues,
+                dataNascimento: new Date(),
+                dataEntrada: new Date(),
+            } as FormData);
         }
     }, [socio, form]);
 
@@ -158,135 +177,141 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
         }
     };
 
-    return (
-        <>
-            <DialogHeader>
-            <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Sócio' : 'Alterar Sócio'}</DialogTitle>
-            <DialogDescription>
-                {mode === 'create' 
-                ? "Preencha os dados abaixo para adicionar um novo sócio."
-                : `Alterando os dados de ${socio?.nomeCompleto}.`
-                }
-            </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-                <Tabs defaultValue="personal" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="personal">Dados Pessoais</TabsTrigger>
-                    <TabsTrigger value="address">Endereço</TabsTrigger>
-                    <TabsTrigger value="corporate">Dados Societários</TabsTrigger>
-                </TabsList>
-                
-                <div className="max-h-[60vh] overflow-y-auto p-4">
-                    <TabsContent value="personal" className="space-y-4">
-                    <FormField control={form.control} name="nomeCompleto" render={({ field }) => ( <FormItem><FormLabel>Nome Completo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
-                        const { value } = e.target;
-                        e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-                        field.onChange(e);
-                        }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="rg" render={({ field }) => ( <FormItem><FormLabel>RG</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="estadoCivil" render={({ field }) => ( <FormItem><FormLabel>Estado Civil</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="solteiro">Solteiro(a)</SelectItem><SelectItem value="casado">Casado(a)</SelectItem><SelectItem value="divorciado">Divorciado(a)</SelectItem><SelectItem value="viuvo">Viúvo(a)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="nacionalidade" render={({ field }) => ( <FormItem><FormLabel>Nacionalidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                        control={form.control}
-                        name="profissao"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Profissão</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                <SelectItem value="Sócio">Sócio</SelectItem>
-                                <SelectItem value="Titular">Titular</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    </TabsContent>
+    const typeLabel = {
+        cliente: 'Cliente',
+        fornecedor: 'Fornecedor',
+        transportadora: 'Transportadora',
+    }['cliente']; // Hardcoded for now as it's a partner form
 
-                    <TabsContent value="address" className="space-y-4">
-                    <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {
-                        const { value } = e.target;
-                        e.target.value = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2');
-                        field.onChange(e);
-                        if(e.target.value.length === 9) handleCepLookup(e.target.value)
-                        }} maxLength={9} /></FormControl><FormMessage /></FormItem> )} />
-                    <div className="grid grid-cols-3 gap-4">
-                        <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <div className="grid grid-cols-3 gap-4">
-                        <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    </TabsContent>
-
-                    <TabsContent value="corporate" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="dataEntrada" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Entrada na Sociedade</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="participacao" render={({ field }) => ( <FormItem><FormLabel>Participação Societária (%)</FormLabel><FormControl><Input {...field} type="number" step="0.01" /></FormControl><FormMessage /></FormItem> )} />
-                    </div>
-                    <FormField control={form.control} name="proLabore" render={({ field }) => ( <FormItem><FormLabel>Valor do Pró-labore (R$)</FormLabel><FormControl><Input {...field} onChange={e => {
-                            const { value } = e.target;
-                            e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
-                            field.onChange(e);
-                        }} /></FormControl><FormDescription>Informe 0 (zero) caso não haja retirada.</FormDescription><FormMessage /></FormItem> )} />
-                    <FormField
-                        control={form.control}
-                        name="isAdministrador"
-                        render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                            <FormLabel className="text-base">Sócio Administrador</FormLabel>
-                            <FormDescription>
-                                Marque se este sócio tem poderes para administrar a empresa.
-                            </FormDescription>
-                            </div>
-                            <FormControl>
-                            <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                            </FormControl>
-                        </FormItem>
-                        )}
-                    />
-                    </TabsContent>
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{mode === 'create' ? 'Cadastro de Novo Sócio' : 'Alterar Sócio'}</DialogTitle>
+        <DialogDescription>
+            {mode === 'create' 
+            ? "Preencha os dados abaixo para adicionar um novo sócio."
+            : `Alterando os dados de ${socio?.nomeCompleto}.`
+            }
+        </DialogDescription>
+      </DialogHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+            <Tabs defaultValue="personal" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="personal">Dados Pessoais</TabsTrigger>
+                <TabsTrigger value="address">Endereço</TabsTrigger>
+                <TabsTrigger value="corporate">Dados Societários</TabsTrigger>
+            </TabsList>
+            
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+                <TabsContent value="personal" className="space-y-4">
+                <FormField control={form.control} name="nomeCompleto" render={({ field }) => ( <FormItem><FormLabel>Nome Completo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
+                    const { value } = e.target;
+                    e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    field.onChange(e);
+                    }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="rg" render={({ field }) => ( <FormItem><FormLabel>RG</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="telefone" render={({ field }) => ( <FormItem><FormLabel>Telefone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="estadoCivil" render={({ field }) => ( <FormItem><FormLabel>Estado Civil</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="solteiro">Solteiro(a)</SelectItem><SelectItem value="casado">Casado(a)</SelectItem><SelectItem value="divorciado">Divorciado(a)</SelectItem><SelectItem value="viuvo">Viúvo(a)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="nacionalidade" render={({ field }) => ( <FormItem><FormLabel>Nacionalidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                    control={form.control}
+                    name="profissao"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Profissão</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                            <SelectItem value="Sócio">Sócio</SelectItem>
+                            <SelectItem value="Titular">Titular</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input {...field} type="email" /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                </TabsContent>
 
-                </Tabs>
-                <DialogFooter className="pt-6">
-                <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
-                <Button type="submit" disabled={loading}>
-                    {loading ? <Loader2 className="animate-spin" /> : <Save />}
-                    {mode === 'create' ? 'Salvar Sócio' : 'Salvar Alterações'}
-                </Button>
-                </DialogFooter>
-            </form>
-            </Form>
-        </>
-    );
+                <TabsContent value="address" className="space-y-4">
+                <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {
+                    const { value } = e.target;
+                    e.target.value = value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2');
+                    field.onChange(e);
+                    if(e.target.value.length === 9) handleCepLookup(e.target.value)
+                    }} maxLength={9} /></FormControl><FormMessage /></FormItem> )} />
+                <div className="grid grid-cols-3 gap-4">
+                    <FormField control={form.control} name="logradouro" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                <FormField control={form.control} name="complemento" render={({ field }) => ( <FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <div className="grid grid-cols-3 gap-4">
+                    <FormField control={form.control} name="bairro" render={({ field }) => ( <FormItem><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="cidade" render={({ field }) => ( <FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="uf" render={({ field }) => ( <FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                </TabsContent>
+
+                <TabsContent value="corporate" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="dataEntrada" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Entrada na Sociedade</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    <FormField control={form.control} name="participacao" render={({ field }) => ( <FormItem><FormLabel>Participação Societária (%)</FormLabel><FormControl><Input {...field} type="number" step="0.01" /></FormControl><FormMessage /></FormItem> )} />
+                </div>
+                <FormField control={form.control} name="proLabore" render={({ field }) => ( <FormItem><FormLabel>Valor do Pró-labore (R$)</FormLabel><FormControl><Input {...field} onChange={e => {
+                        const { value } = e.target;
+                        e.target.value = value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                        field.onChange(e);
+                    }} /></FormControl><FormDescription>Informe 0 (zero) caso não haja retirada.</FormDescription><FormMessage /></FormItem> )} />
+                <FormField
+                    control={form.control}
+                    name="isAdministrador"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                        <FormLabel className="text-base">Sócio Administrador</FormLabel>
+                        <FormDescription>
+                            Marque se este sócio tem poderes para administrar a empresa.
+                        </FormDescription>
+                        </div>
+                        <FormControl>
+                        <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                        />
+                        </FormControl>
+                    </FormItem>
+                    )}
+                />
+                </TabsContent>
+            </div>
+
+            </Tabs>
+            <DialogFooter className="pt-6">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" /> : <Save />}
+                {mode === 'create' ? 'Salvar Sócio' : 'Salvar Alterações'}
+            </Button>
+            </DialogFooter>
+        </form>
+        </Form>
+    </>
+  );
 }
 
 
