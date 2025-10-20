@@ -26,7 +26,7 @@ import type { Admission } from "@/types/admission";
 import { AdmissionForm } from "@/components/esocial/admission-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 const realisticErrors = [
@@ -865,19 +865,19 @@ export default function EsocialPage() {
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
-                const eventNode = xmlDoc.querySelector("eSocial > *");
-                const originalEventId = eventNode?.getAttribute("id");
+                const originalEventNode = xmlDoc.querySelector("retornoEventoCompleto > evento > eSocial > *");
+                const originalEventIdAttr = originalEventNode?.getAttribute("Id");
                 
-                const receiptNumber = xmlDoc.querySelector("recibo > nrRecibo")?.textContent;
-                const statusCode = xmlDoc.querySelector("processamento > cdResp")?.textContent;
-                const statusMessage = xmlDoc.querySelector("processamento > descResp")?.textContent;
+                const receiptNumber = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > recibo > nrRecibo")?.textContent;
+                const statusCode = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > processamento > cdResposta")?.textContent;
+                const statusMessage = xmlDoc.querySelector("retornoEventoCompleto > recibo > eSocial > retornoEvento > processamento > descResposta")?.textContent;
                 
-                if (!originalEventId) {
+                if (!originalEventIdAttr) {
                     console.warn(`Não foi possível encontrar o ID do evento no arquivo: ${file.name}`);
                     continue;
                 }
                 
-                const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`), where("eventId", "==", originalEventId));
+                const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`), where("eventId", "==", originalEventIdAttr));
                 const querySnapshot = await getDocs(eventsQuery);
 
                 if (!querySnapshot.empty) {
