@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { ptBR } from "date-fns/locale"
-import { startOfDay, format, parse } from 'date-fns';
+import { startOfDay, format, parse, isValid } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "@/components/utilitarios/event-form-modal"
 import { Button } from "@/components/ui/button"
@@ -465,3 +465,5 @@ export default function DashboardPage() {
     </>
   )
 }
+
+    
