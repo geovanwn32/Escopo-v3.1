@@ -855,50 +855,51 @@ export default function EsocialPage() {
     const handleProcessReturnFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (!files || files.length === 0 || !user || !activeCompany) return;
-
+    
         let processedCount = 0;
         const batch = writeBatch(db);
-
+    
         for (const file of Array.from(files)) {
             try {
                 const xmlText = await file.text();
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-
-                const originalEventNode = xmlDoc.querySelector("retornoEventoCompleto > evento > eSocial > *")?.firstElementChild;
-                const originalEventIdAttr = originalEventNode?.getAttribute("Id");
-                
-                const retornoEventoNode = xmlDoc.getElementsByTagNameNS("*", "retornoEvento")[0];
-
-                if (!retornoEventoNode) {
-                    console.warn(`Tag <retornoEvento> não encontrada no arquivo: ${file.name}`);
-                    continue;
-                }
-                
-                const receiptNumber = retornoEventoNode.getElementsByTagNameNS("*", "nrRecibo")[0]?.textContent;
-                const statusCode = retornoEventoNode.getElementsByTagNameNS("*", "cdResposta")[0]?.textContent;
-                const statusMessage = retornoEventoNode.getElementsByTagNameNS("*", "descResposta")[0]?.textContent;
-                
+    
+                // Robustly find the original event ID, regardless of the specific event type tag
+                const allNodesWithId = xmlDoc.querySelectorAll("*[Id]");
+                let originalEventIdAttr: string | null = null;
+                allNodesWithId.forEach(node => {
+                    const id = node.getAttribute("Id");
+                    if (id && id.startsWith("ID")) {
+                        originalEventIdAttr = id;
+                    }
+                });
+    
                 if (!originalEventIdAttr) {
                     console.warn(`Não foi possível encontrar o ID do evento no arquivo: ${file.name}`);
                     continue;
                 }
-                
+    
+                // Robustly find the return data using localName to ignore namespaces
+                const receiptNumber = xmlDoc.getElementsByTagNameNS("*", "nrRecibo")[0]?.textContent;
+                const statusCode = xmlDoc.getElementsByTagNameNS("*", "cdResposta")[0]?.textContent;
+                const statusMessage = xmlDoc.getElementsByTagNameNS("*", "descResposta")[0]?.textContent;
+    
                 const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`), where("eventId", "==", originalEventIdAttr));
                 const querySnapshot = await getDocs(eventsQuery);
-
+    
                 if (!querySnapshot.empty) {
                     const docToUpdate = querySnapshot.docs[0];
                     const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, docToUpdate.id);
                     
-                    if (statusCode === "201" || statusCode === "202") { // Sucesso
-                        batch.update(eventRef, { status: "success", receiptNumber: receiptNumber || '', errorDetails: null, updatedAt: serverTimestamp() });
-                    } else { // Erro
+                    if (statusCode === "201" || statusCode === "202") { // Success or Success with warnings
+                        batch.update(eventRef, { status: "success", receiptNumber: receiptNumber || '', errorDetails: statusCode === "202" ? statusMessage : null, updatedAt: serverTimestamp() });
+                    } else { // Error
                         batch.update(eventRef, { status: "error", errorDetails: statusMessage || "Erro desconhecido no processamento.", receiptNumber: receiptNumber || null, updatedAt: serverTimestamp() });
                     }
                     processedCount++;
                 }
-
+    
             } catch (error) {
                 console.error(`Erro ao processar arquivo ${file.name}:`, error);
                 toast({ variant: 'destructive', title: `Falha ao processar ${file.name}` });
