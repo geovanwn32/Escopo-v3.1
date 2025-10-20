@@ -2,13 +2,13 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { useState, useEffect, useRef } from "react";
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, updateDoc, deleteDoc, getDoc, getDocs, where, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle, FileText, Beaker } from "lucide-react";
+import { Loader2, DownloadCloud, Send, Trash2, MoreHorizontal, Eye, ChevronDown, FileDown, Briefcase, CalendarClock, RefreshCw, ShieldCheck, UserPlus, FileSignature, AlertCircle, FileText, Beaker, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import type { Company } from '@/types/company';
@@ -116,7 +116,7 @@ function TabEventosTabela({
                     <TableHeader>
                         <TableRow>
                             <TableHead>Evento</TableHead>
-                            <TableHead>ID do Evento</TableHead>
+                            <TableHead>ID/Recibo do Evento</TableHead>
                             <TableHead>Data de Geração</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -130,7 +130,7 @@ function TabEventosTabela({
                         ) : events.map(event => (
                             <TableRow key={event.id}>
                                 <TableCell className="font-mono font-semibold">{event.type}</TableCell>
-                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={event.eventId}>{event.eventId}</TableCell>
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={event.receiptNumber || event.eventId}>{event.receiptNumber || event.eventId}</TableCell>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(event.createdAt as Date)}</TableCell>
                                 <TableCell>{getStatusBadge(event.status)}</TableCell>
                                 <TableCell className="text-right">
@@ -391,6 +391,8 @@ function TabEventosNaoPeriodicos({
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
+                    userId={userId}
+                    companyId={activeCompany.id}
                     employees={employees}
                 />
             )}
@@ -621,6 +623,8 @@ export default function EsocialPage() {
     const [establishmentDataExists, setEstablishmentDataExists] = useState(false);
     const { user } = useAuth();
     const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -848,6 +852,60 @@ export default function EsocialPage() {
         toast({ title: "Download iniciado", description: `O arquivo ${a.download} está sendo baixado.` });
     };
 
+    const handleProcessReturnFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0 || !user || !activeCompany) return;
+
+        let processedCount = 0;
+        const batch = writeBatch(db);
+
+        for (const file of Array.from(files)) {
+            try {
+                const xmlText = await file.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+
+                const originalEventId = xmlDoc.querySelector("evento")?.getAttribute("id") || xmlDoc.querySelector("Reinf > *")?.getAttribute("id");
+                const receiptNumber = xmlDoc.querySelector("recibo > nrRecibo")?.textContent;
+                const statusCode = xmlDoc.querySelector("processamento > cdResp")?.textContent;
+                const statusMessage = xmlDoc.querySelector("processamento > descResp")?.textContent;
+
+                if (!originalEventId) continue;
+                
+                const eventsQuery = query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`), where("eventId", "==", originalEventId));
+                const querySnapshot = await getDocs(eventsQuery);
+
+                if (!querySnapshot.empty) {
+                    const docToUpdate = querySnapshot.docs[0];
+                    const eventRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/esocialEvents`, docToUpdate.id);
+                    
+                    if (statusCode === "1") { // Sucesso
+                        batch.update(eventRef, { status: "success", receiptNumber: receiptNumber || '', errorDetails: null, updatedAt: serverTimestamp() });
+                    } else { // Erro
+                        batch.update(eventRef, { status: "error", errorDetails: statusMessage || "Erro desconhecido no processamento.", receiptNumber: receiptNumber || null, updatedAt: serverTimestamp() });
+                    }
+                    processedCount++;
+                }
+
+            } catch (error) {
+                console.error(`Erro ao processar arquivo ${file.name}:`, error);
+                toast({ variant: 'destructive', title: `Falha ao processar ${file.name}` });
+            }
+        }
+        
+        if (processedCount > 0) {
+            await batch.commit();
+            toast({ title: `${processedCount} evento(s) atualizado(s) com sucesso a partir do arquivo de retorno.` });
+        } else {
+             toast({ variant: "destructive", title: "Nenhum evento correspondente encontrado nos arquivos." });
+        }
+        
+        // Reset file input
+        if(fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
     const actionHandlers = {
         isProcessing,
         isCheckingStatus,
@@ -861,7 +919,21 @@ export default function EsocialPage() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleProcessReturnFile}
+                className="hidden"
+                accept=".xml"
+                multiple
+            />
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">eSocial - Central de Eventos</h1>
+                <Button variant="outline" onClick={() => fileInputRef.current?.click()} >
+                    <Upload className="mr-2 h-4 w-4"/>
+                    Consultar Retorno do eSocial
+                </Button>
+            </div>
             
             <Alert variant="destructive">
                 <Beaker className="h-4 w-4" />

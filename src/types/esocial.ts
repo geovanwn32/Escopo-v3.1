@@ -12,6 +12,7 @@ export interface EsocialEvent {
     status: EsocialEventStatus;
     payload: string; // This would hold the XML content
     errorDetails: string | null;
+    receiptNumber?: string; // To store the receipt number from the government
     period?: string; // For periodic events, e.g., "07/2024"
     createdAt: FieldValue | Date;
     updatedAt: FieldValue;
