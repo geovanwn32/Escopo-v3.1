@@ -12,11 +12,11 @@ export type { StoredFile } from './file';
 export type { LancamentoContabil, Partida } from './lancamento-contabil';
 export type { Orcamento, OrcamentoItem } from './orcamento';
 export type { Partner, PartnerType } from './partner';
-export type { Payroll } from './payroll';
+export type { Payroll, PayrollEvent, PayrollTotals } from './payroll';
 export type { Pgdas, SimplesAnnexType } from './pgdas';
 export type { PreliminaryAdmission } from './preliminary-admission';
 export type { Produto } from './produto';
-export type { RCI } from './rci';
+export type { RCI, RciEvent, RciTotals } from './rci';
 export type { ReinfFile } from './reinf';
 export type { Rubrica } from './rubrica';
 export type { Servico } from './servico';
@@ -56,7 +56,7 @@ export interface EfdFile {
 export interface Launch {
     id: string;
     fileName: string;
-    type: string;
+    type: 'entrada' | 'saida' | 'servico';
     status: 'Normal' | 'Cancelado' | 'Substituida';
     date: Date;
     chaveNfe?: string;

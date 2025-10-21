@@ -1,5 +1,20 @@
-import type { PayrollEvent, PayrollTotals } from "@/app/(app)/pessoal/folha-de-pagamento/page";
+
+import type { Rubrica } from './rubrica';
 import type { FieldValue } from "firebase/firestore";
+
+export interface PayrollEvent {
+    id: string; 
+    rubrica: Rubrica;
+    referencia: number;
+    provento: number;
+    desconto: number;
+}
+
+export interface PayrollTotals {
+    totalProventos: number;
+    totalDescontos: number;
+    liquido: number;
+}
 
 export interface Payroll {
     id?: string;

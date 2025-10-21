@@ -38,51 +38,11 @@ import { startOfDay, format, parse, isValid } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "@/components/utilitarios/event-form-modal"
 import { Button } from "@/components/ui/button"
-import type { Vacation } from "@/types/vacation"
-import type { Payroll } from "@/types/payroll"
-import type { RCI } from "@/types/rci"
-import type { Termination } from "@/types/termination"
-import type { Thirteenth } from "@/types/thirteenth"
+import type { Launch, Vacation, Payroll, RCI, Termination, Thirteenth, Company } from "@/types"
 import { analyzeFinancials, type FinancialAnalystInput, type FinancialAnalystOutput } from "@/ai/flows/financial-analyst-flow"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { CalendarCard } from "@/components/dashboard/calendar-card"
 
-interface Launch {
-  id: string;
-  type: 'entrada' | 'saida' | 'servico';
-  date: Date;
-  fileName: string;
-  valorLiquido?: number;
-  valorTotalNota?: number;
-  prestador?: { cnpj?: string | null };
-  tomador?: { cnpj?: string | null };
-  emitente?: { cnpj?: string | null };
-  destinatario?: { cnpj?: string | null };
-}
-
-interface CombinedEvent {
-    id: string;
-    type: 'event' | 'vacation';
-    date: Date;
-    title: string;
-    description: string;
-    icon: React.ElementType;
-}
-
-
-interface StatCard {
-  title: string;
-  amount: string;
-  icon: React.ElementType;
-  color: string;
-  bgColor: string;
-}
-
-interface MonthlyData {
-    month: string;
-    entradas: number;
-    saidas: number;
-}
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -94,7 +54,7 @@ const PIE_CHART_COLORS = ['#16a34a', '#dc2626']; // green-600, red-600
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeCompany, setActiveCompany] = useState<any>(null);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Data States
@@ -230,9 +190,11 @@ export default function DashboardPage() {
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
         const value = (item as any).totals?.liquido ?? (item as any).result?.liquido ?? 0;
         
-        totalSaidas += value;
-        if (monthlyTotals[key]) {
-            monthlyTotals[key].saidas += value;
+        if(value > 0) {
+            totalSaidas += value;
+            if (monthlyTotals[key]) {
+                monthlyTotals[key].saidas += value;
+            }
         }
       });
     };
@@ -279,7 +241,7 @@ export default function DashboardPage() {
   }, [loading, activeCompany, getFinancialAnalysis]);
 
 
-  const stats: StatCard[] = [
+  const stats = [
     { title: "Total de Entradas (Receitas)", amount: formatCurrency(totalEntradas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
     { title: "Total de Saídas (Despesas)", amount: formatCurrency(totalSaidas), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
     { title: "Funcionários Ativos", amount: employeesCount.toString(), icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
@@ -475,5 +437,3 @@ export default function DashboardPage() {
     </>
   )
 }
-
-    

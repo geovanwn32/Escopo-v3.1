@@ -1,9 +1,11 @@
 
+import type { Timestamp } from 'firebase/firestore';
+
 export interface Socio {
   id?: string;
   // Personal Data
   nomeCompleto: string;
-  dataNascimento: Date;
+  dataNascimento: Date | Timestamp;
   cpf: string;
   rg: string;
   nis?: string; // NIT/PIS
@@ -25,7 +27,7 @@ export interface Socio {
   telefone: string;
 
   // Corporate Data
-  dataEntrada: Date;
+  dataEntrada: Date | Timestamp;
   participacao: number;
   proLabore: number;
   isAdministrador: boolean;

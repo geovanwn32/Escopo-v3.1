@@ -33,27 +33,16 @@ import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import type { Company } from '@/app/(app)/fiscal/page';
-import type { Rubrica } from '@/types/rubrica';
+import type { Company, Rubrica, Employee, Payroll, PayrollEvent } from '@/types';
 import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
-import type { Employee } from '@/types/employee';
 import { EmployeeSelectionModal } from '@/components/pessoal/employee-selection-modal';
 import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
 import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, deleteDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Payroll } from '@/types/payroll';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { generatePayslipPdf } from '@/services/payslip-service';
 import { calculateAutomaticEvent } from '@/services/payroll-calculator.service';
-
-export interface PayrollEvent {
-    id: string; 
-    rubrica: Rubrica;
-    referencia: number;
-    provento: number;
-    desconto: number;
-}
 
 export interface PayrollTotals {
     totalProventos: number;
@@ -718,7 +707,8 @@ export default function FolhaDePagamentoPage() {
                     isOpen={isRubricaModalOpen}
                     onClose={() => setIsRubricaModalOpen(false)}
                     onSelect={handleAddEvent}
-                    rubricas={rubricas}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
                 />
             )}
 
@@ -727,7 +717,8 @@ export default function FolhaDePagamentoPage() {
                     isOpen={isEmployeeModalOpen}
                     onClose={() => setIsEmployeeModalOpen(false)}
                     onSelect={handleSelectEmployee}
-                    employees={employees}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
                 />
             )}
         </div>

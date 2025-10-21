@@ -11,17 +11,43 @@ import { Loader2, Search, PlusCircle } from 'lucide-react';
 import type { Rubrica } from '@/types/rubrica';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface RubricaSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (rubrica: Rubrica) => void;
-  rubricas: Rubrica[];
+  userId: string;
+  companyId: string;
 }
 
-export function RubricaSelectionModal({ isOpen, onClose, onSelect, rubricas }: RubricaSelectionModalProps) {
-  const [loading, setLoading] = useState(false);
+export function RubricaSelectionModal({ isOpen, onClose, onSelect, userId, companyId }: RubricaSelectionModalProps) {
+  const [rubricas, setRubricas] = useState<Rubrica[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    if (!isOpen || !userId || !companyId) return;
+
+    setLoading(true);
+    const rubricasRef = collection(db, `users/${userId}/companies/${companyId}/rubricas`);
+    const q = query(rubricasRef, orderBy('descricao', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Rubrica));
+        setRubricas(data);
+        setLoading(false);
+    }, (error) => {
+        console.error("Erro ao buscar rubricas:", error);
+        toast({ variant: 'destructive', title: "Erro ao buscar rubricas" });
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+}, [isOpen, userId, companyId, toast]);
+
 
   const filteredRubricas = useMemo(() => {
     if (!rubricas) return []; // Retorna um array vazio se rubricas for undefined
@@ -99,4 +125,3 @@ export function RubricaSelectionModal({ isOpen, onClose, onSelect, rubricas }: R
     </Dialog>
   );
 }
-

@@ -1,6 +1,21 @@
 
-import type { RciEvent, RciTotals } from "@/app/(app)/pessoal/rci/page";
+import type { Rubrica } from './rubrica';
 import type { FieldValue } from "firebase/firestore";
+
+export interface RciEvent {
+    id: string; 
+    rubrica: Rubrica;
+    referencia: number;
+    provento: number;
+    desconto: number;
+}
+
+export interface RciTotals {
+    totalProventos: number;
+    totalDescontos: number;
+    liquido: number;
+}
+
 
 export interface RCI {
     id?: string;
