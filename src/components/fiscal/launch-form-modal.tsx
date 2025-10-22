@@ -190,7 +190,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.valorIr = getTax(['ValorIr'], valoresNode);
         data.valorInss = getTax(['ValorInss'], valoresNode);
         data.valorCsll = getTax(['ValorCsll'], valoresNode);
-        data.valorIss = getTax(['ValorIss', 'ValorIssRetido', 'vISSRet'], valoresNode);
+        
+        const isIssRetido = querySelectorText(valoresNode, ['IssRetido']) === '1';
+        data.valorIss = isIssRetido ? getTax(['ValorIssRetido', 'ValorIss'], valoresNode) : 0;
         
         data.prestador = { nome: querySelectorText(declaracaoServicoNode, ['PrestadorServico > RazaoSocial', 'Prestador > RazaoSocial', 'Prestador > Nome', 'prest > xNome']), cnpj: querySelectorText(declaracaoServicoNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']) };
         data.tomador = { nome: querySelectorText(declaracaoServicoNode, ['TomadorServico > RazaoSocial', 'Tomador > RazaoSocial', 'toma > xNome']), cnpj: querySelectorText(declaracaoServicoNode, ['TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj', 'TomadorServico > IdentificacaoTomador > CpfCnpj > Cpf', 'Tomador > CpfCnpj > Cnpj', 'Tomador > CpfCnpj > Cpf']) };
