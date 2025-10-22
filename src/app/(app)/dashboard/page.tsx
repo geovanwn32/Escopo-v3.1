@@ -27,7 +27,7 @@ import {
   TrendingDown,
   CheckCircle2,
 } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell, LabelList } from "recharts"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, getDocs } from "firebase/firestore"
@@ -374,8 +374,12 @@ export default function DashboardPage() {
                             <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
-                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" />
-                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" />
+                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas">
+                               <LabelList dataKey="entradas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? new Intl.NumberFormat('pt-BR', { notation: 'compact', compactDisplay: 'short' }).format(value) : ''} />
+                            </Bar>
+                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
+                                <LabelList dataKey="saidas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? new Intl.NumberFormat('pt-BR', { notation: 'compact', compactDisplay: 'short' }).format(value) : ''} />
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
@@ -443,3 +447,5 @@ export default function DashboardPage() {
     </>
   )
 }
+
+    
