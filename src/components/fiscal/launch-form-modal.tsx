@@ -150,7 +150,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         dateString = querySelectorText(protNode || xmlDoc, dateSelectors);
     } else if (nfseNode) {
         const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
-        const dateSelectors = ['dCompet', 'DataEmissao', 'dtEmissao'];
+        const dateSelectors = ['DataEmissao', 'dCompet', 'dtEmissao'];
         dateString = querySelectorText(serviceNode, dateSelectors);
     }
     
@@ -165,23 +165,28 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     }
     data.date = dateObj || new Date();
 
-    const getTax = (selectors: string[]) => parseFloat(querySelectorText(xmlDoc, selectors) || '0');
+    const getTax = (selectors: string[], baseNode: Element | Document = xmlDoc) => parseFloat(querySelectorText(baseNode, selectors) || '0');
 
     if (type === 'servico' && nfseNode) {
         const servicoNode = nfseNode.querySelector('InfNfse') || nfseNode;
+        const declaracaoServicoNode = nfseNode.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || servicoNode;
+
         data.numeroNfse = querySelectorText(servicoNode, ['Numero', 'nNFSe']) || '';
-        data.valorServicos = getTax(['ValorServicos', 'vServ', 'vlrServicos']);
-        data.valorLiquido = getTax(['ValorLiquidoNfse', 'vLiq', 'vNF']);
-        data.discriminacao = querySelectorText(servicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']) || '';
-        data.itemLc116 = querySelectorText(servicoNode, ['ItemListaServico', 'cServico']) || '';
-        data.valorPis = getTax(['ValorPis', 'vPIS']);
-        data.valorCofins = getTax(['ValorCofins', 'vCOFINS']);
-        data.valorIr = getTax(['ValorIr', 'vIR']);
-        data.valorInss = getTax(['ValorInss', 'vINSS']);
-        data.valorCsll = getTax(['ValorCsll', 'vCSLL']);
-        data.valorIss = getTax(['ValorIssRetido', 'vISSRet', 'ValorIss']);
-        data.prestador = { nome: querySelectorText(servicoNode.querySelector('PrestadorServico, Prestador, prest'), ['RazaoSocial', 'Nome', 'xNome']), cnpj: querySelectorText(servicoNode.querySelector('PrestadorServico, Prestador, prest'), ['Cnpj', 'CNPJ', 'CpfCnpj > Cnpj']) };
-        data.tomador = { nome: querySelectorText(servicoNode.querySelector('TomadorServico, Tomador, toma'), ['RazaoSocial', 'Nome', 'xNome']), cnpj: querySelectorText(servicoNode.querySelector('TomadorServico, Tomador, toma'), ['IdentificacaoTomador CpfCnpj Cnpj', 'IdentificacaoTomador CpfCnpj Cpf', 'CpfCnpj Cnpj', 'CpfCnpj Cpf', 'CNPJ', 'CPF']) };
+        data.valorServicos = getTax(['Valores > ValorServicos', 'ValorServicos', 'vServ', 'vlrServicos'], declaracaoServicoNode);
+        data.valorLiquido = getTax(['ValoresNfse > ValorLiquidoNfse', 'ValorLiquidoNfse', 'vLiq', 'vNF'], servicoNode);
+        data.discriminacao = querySelectorText(declaracaoServicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']) || '';
+        data.itemLc116 = querySelectorText(declaracaoServicoNode, ['Servico > ItemListaServico', 'ItemListaServico', 'cServico']) || '';
+
+        const valoresNode = declaracaoServicoNode.querySelector('Servico > Valores') || servicoNode;
+        data.valorPis = getTax(['ValorPis'], valoresNode);
+        data.valorCofins = getTax(['ValorCofins'], valoresNode);
+        data.valorIr = getTax(['ValorIr'], valoresNode);
+        data.valorInss = getTax(['ValorInss'], valoresNode);
+        data.valorCsll = getTax(['ValorCsll'], valoresNode);
+        data.valorIss = getTax(['ValorIss', 'ValorIssRetido', 'vISSRet'], valoresNode);
+        
+        data.prestador = { nome: querySelectorText(declaracaoServicoNode, ['PrestadorServico > RazaoSocial', 'Prestador > RazaoSocial', 'Prestador > Nome', 'prest > xNome']), cnpj: querySelectorText(declaracaoServicoNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']) };
+        data.tomador = { nome: querySelectorText(declaracaoServicoNode, ['TomadorServico > RazaoSocial', 'Tomador > RazaoSocial', 'toma > xNome']), cnpj: querySelectorText(declaracaoServicoNode, ['TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj', 'TomadorServico > IdentificacaoTomador > CpfCnpj > Cpf', 'Tomador > CpfCnpj > Cnpj', 'Tomador > CpfCnpj > Cpf']) };
     } else if (isNFe) {
         data.emitente = { nome: querySelectorText(xmlDoc.querySelector('emit'), ['xNome']) || '', cnpj: querySelectorText(xmlDoc.querySelector('emit'), ['CNPJ', 'CPF']) || '' };
         data.destinatario = { nome: querySelectorText(xmlDoc.querySelector('dest'), ['xNome']) || '', cnpj: querySelectorText(xmlDoc.querySelector('dest'), ['CNPJ', 'CPF']) || '' };
