@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -54,6 +54,42 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const [loading, setLoading] = useState(false);
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const storedHistory = localStorage.getItem('chatHistory');
+        if (storedHistory) {
+          setChatHistory(JSON.parse(storedHistory));
+        }
+      } catch (error) {
+        console.error("Failed to load chat history from localStorage", error);
+        setChatHistory([]);
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+    } catch (error) {
+      console.error("Failed to save chat history to localStorage", error);
+    }
+    
+    // Auto-scroll to bottom
+    if (scrollAreaRef.current) {
+        setTimeout(() => {
+             if (scrollAreaRef.current) {
+                const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+                if (viewport) {
+                    viewport.scrollTop = viewport.scrollHeight;
+                }
+            }
+        }, 100);
+    }
+
+  }, [chatHistory]);
 
   const chatForm = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
@@ -114,11 +150,9 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
 
   const handleClose = () => {
     onClose();
-    setTimeout(() => {
-        setChatHistory([]);
-        chatForm.reset();
-        ticketForm.reset();
-    }, 300);
+    // Don't reset history here, as we want it to persist.
+    // chatForm.reset();
+    // ticketForm.reset();
   };
 
 
@@ -142,7 +176,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             </TabsList>
             <TabsContent value="assistant" className="mt-4">
                 <div className="space-y-4 flex flex-col">
-                    <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4">
+                    <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4" ref={scrollAreaRef}>
                         {chatHistory.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                                 <p>Faça uma pergunta sobre o sistema.</p>
@@ -150,9 +184,9 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
                             </div>
                         ) : (
                             chatHistory.map((msg, index) => (
-                                <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                                <div key={index} className={`flex items-start gap-3 my-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                                     {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
-                                    <div className={`prose prose-sm max-w-full rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                    <div className={`prose prose-sm max-w-[85%] rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
                                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                                     </div>
                                     {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
@@ -160,7 +194,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
                             ))
                         )}
                         {loading && (
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-3 my-3">
                             <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
                             <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
                                 <Loader2 className="h-4 w-4 animate-spin"/>
@@ -171,7 +205,12 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
                     </ScrollArea>
                     <Form {...chatForm}>
                         <form onSubmit={chatForm.handleSubmit(onChatSubmit)} className="flex items-start gap-2">
-                                <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} /></FormControl><FormMessage /></FormItem> )} />
+                                <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} onKeyDown={(e) => {
+                                    if(e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        chatForm.handleSubmit(onChatSubmit)();
+                                    }
+                                }} /></FormControl><FormMessage /></FormItem> )} />
                                 <Button type="submit" disabled={loading} size="icon">
                                     <Send className="h-4 w-4"/>
                                 </Button>
