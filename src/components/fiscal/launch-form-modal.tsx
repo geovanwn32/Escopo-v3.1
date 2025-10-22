@@ -171,10 +171,10 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     const getTax = (selectors: string[], baseNode: Element | Document = xmlDoc) => parseFloat(querySelectorText(baseNode, selectors) || '0');
 
     if (type === 'servico' && isNfse) {
-        const nfseNode = xmlDoc.querySelector('Nfse, NFSe') || xmlDoc.querySelector('CompNfse');
-        data.versaoNfse = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('NFSe')?.getAttribute('versao') || '1.00';
+        const nfseNode = xmlDoc.querySelector('Nfse, NFSe');
+        data.versaoNfse = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('CompNfse')?.getAttribute('versao') || '2.04';
 
-        const serviceNode = isNfse.querySelector('InfNfse') || isNfse;
+        const serviceNode = xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') || nfseNode;
         const declaracaoServicoNode = xmlDoc.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || serviceNode;
 
         data.numeroNfse = querySelectorText(serviceNode, ['Numero', 'nNFSe']) || '';

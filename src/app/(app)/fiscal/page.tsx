@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -195,13 +195,23 @@ export default function FiscalPage() {
 
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
     const existingLaunchesSnap = await getDocs(launchesRef);
-    const launchedKeys = new Set(existingLaunchesSnap.docs.map(doc => doc.data().chaveNfe || `${doc.data().numeroNfse}-${doc.data().codigoVerificacaoNfse}-${doc.data().versaoNfse}`).filter(Boolean));
+    const launchedItems = new Map<string, { valor: number, status: string }>();
+    existingLaunchesSnap.docs.forEach(doc => {
+      const data = doc.data();
+      const key = data.chaveNfe || `${data.numeroNfse}-${data.codigoVerificacaoNfse}-${data.versaoNfse}`;
+      if(key) {
+        launchedItems.set(key, { 
+            valor: data.valorTotalNota || data.valorLiquido || 0,
+            status: data.status || 'Normal',
+         });
+      }
+    });
     
     const newFilesPromises = files.map(async (file): Promise<XmlFile | null> => {
         const fileContent = await file.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(fileContent, 'text/xml');
-        const normalizedActiveCnpj = activeCompany?.cnpj?.replace(/\D/g, '');
+        const normalizedActiveCnpj = company.cnpj?.replace(/\D/g, '');
 
         let type: XmlFile['type'] = 'desconhecido';
         let status: XmlFile['status'] = 'pending';
@@ -224,6 +234,7 @@ export default function FiscalPage() {
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
 
         let nfseVersion = '';
+        let fileValue = 0;
 
         if (isCancelled) {
             type = 'cancelamento';
@@ -233,35 +244,40 @@ export default function FiscalPage() {
             const destCnpj = getCnpjCpfFromNode(isNFe.querySelector('dest'), ['CNPJ', 'CPF']);
             
             key = (isNFe.getAttribute('Id') || '').replace('NFe', '');
-            if (launchedKeys.has(key)) status = 'launched';
-
+            fileValue = parseFloat(xmlDoc.querySelector('vNF')?.textContent || '0');
+            
             if (emitCnpj === normalizedActiveCnpj) type = 'saida';
             else if (destCnpj === normalizedActiveCnpj) type = 'entrada';
 
         } else if (isNfsePadrao || isNfseAbrasf) {
-            const nfseNode = xmlDoc.querySelector('Nfse, NFSe') || xmlDoc.querySelector('CompNfse');
-            nfseVersion = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('NFSe')?.getAttribute('versao') || '1.00';
+            const nfseNode = xmlDoc.querySelector('Nfse, NFSe');
+            nfseVersion = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('CompNfse')?.getAttribute('versao') || '2.04';
             
-            const serviceNode = isNfseAbrasf ? xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') : (xmlDoc.querySelector('InfNfse') || nfseNode);
+            const serviceNode = xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') || nfseNode;
             
             if (serviceNode) {
                 const prestadorCnpj = getCnpjCpfFromNode(serviceNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
-                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador');
-                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'CNPJ', 'CPF']) : null;
-                const declaracaoTomadorCnpj = getCnpjCpfFromNode(xmlDoc.querySelector('DeclaracaoPrestacaoServico'), ['TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj']);
-                const finalTomadorCnpj = tomadorCnpj || declaracaoTomadorCnpj;
-
-                const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
-                const codigoVerificacao = (serviceNode.querySelector('CodigoVerificacao') || xmlDoc.querySelector('CodigoVerificacao'))?.textContent;
-                key = `${numeroNfse}-${codigoVerificacao}-${nfseVersion}`;
+                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador') || xmlDoc.querySelector('DeclaracaoPrestacaoServico');
+                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj']) : null;
                 
-                if (key && launchedKeys.has(key)) status = 'launched';
+                const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
+                const codigoVerificacao = (serviceNode.querySelector('CodigoVerificacao'))?.textContent;
+                key = `${numeroNfse}-${codigoVerificacao}-${nfseVersion}`;
+                fileValue = parseFloat(xmlDoc.querySelector('ValorLiquidoNfse, vLiq, vNF')?.textContent || '0');
 
                 if (prestadorCnpj === normalizedActiveCnpj) type = 'servico';
-                else if (finalTomadorCnpj === normalizedActiveCnpj) type = 'entrada';
+                else if (tomadorCnpj === normalizedActiveCnpj) type = 'entrada';
             }
         }
 
+        if(key) {
+            const existingLaunch = launchedItems.get(key);
+            if (existingLaunch) {
+                 if (Math.abs(existingLaunch.valor - fileValue) < 0.01 && existingLaunch.status !== 'Substituida') {
+                    status = 'launched';
+                 }
+            }
+        }
 
         if (type === 'desconhecido') {
              toast({
@@ -301,8 +317,23 @@ export default function FiscalPage() {
     fileInputRef.current?.click();
   };
   
-  const handleLaunchSuccess = (launchedKey: string, status: Launch['status']) => {
+  const handleLaunchSuccess = async (launchedKey: string, status: Launch['status']) => {
      if (launchedKey) {
+        const launchedLaunch = launches.find(l => (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey);
+        const newValue = launchedLaunch?.valorTotalNota || launchedLaunch?.valorLiquido || 0;
+
+        // Check for an older version of this launch and mark it as 'Substituida'
+        const oldLaunch = Array.from(launches.values()).find(l => 
+            (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey &&
+            l.id !== launchedLaunch?.id
+        );
+        
+        if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
+            const launchRef = doc(db, `users/${user!.uid}/companies/${company!.id}/launches`, oldLaunch.id);
+            await updateDoc(launchRef, { status: 'Substituida' });
+        }
+
+
         setXmlFiles(files => files.map(f => {
             if (f.key === launchedKey) {
                 return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
@@ -493,7 +524,7 @@ endDate.setHours(23,59,59,999);
         if (xmlFile.key) {
              const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
              let q;
-             if (xmlFile.type === 'servico') {
+             if (xmlFile.type === 'servico' || xmlFile.type === 'entrada') {
                  const [numero, codigo, versao] = xmlFile.key.split('-');
                  q = query(launchesRef, where("numeroNfse", "==", numero), where("codigoVerificacaoNfse", "==", codigo), where("versaoNfse", "==", versao));
              } else {
@@ -503,19 +534,28 @@ endDate.setHours(23,59,59,999);
              const querySnapshot = await getDocs(q);
              
              if (!querySnapshot.empty) {
-                toast({
-                    variant: "destructive",
-                    title: "Nota Já Lançada",
-                    description: "Esta nota fiscal já foi lançada no sistema.",
-                });
-                // Update local XML file status without needing a full refresh
-                setXmlFiles(files => files.map(f => f.key === xmlFile.key ? { ...f, status: 'launched' } : f));
-                return; // Stop execution
+                const existingLaunch = querySnapshot.docs[0].data() as Launch;
+                const xmlValue = parseFloat(xmlFile.content.match(/<(?:vNF|ValorLiquidoNfse|vLiq)>(\d+\.\d+)<\/(?:vNF|ValorLiquidoNfse|vLiq)>/)?.[1] || '0');
+                const launchedValue = existingLaunch.valorTotalNota || existingLaunch.valorLiquido || 0;
+
+                if (Math.abs(xmlValue - launchedValue) < 0.01 && existingLaunch.status !== 'Substituida') {
+                    toast({
+                        variant: "destructive",
+                        title: "Nota Já Lançada",
+                        description: "Esta nota fiscal já foi lançada no sistema.",
+                    });
+                    setXmlFiles(files => files.map(f => f.key === xmlFile.key ? { ...f, status: 'launched' } : f));
+                    return; 
+                } else {
+                    // This is a substitute note, allow launching but maybe warn user or handle specially
+                    options.launch = { ...existingLaunch, id: querySnapshot.docs[0].id };
+                    options.mode = 'edit';
+                }
              }
         }
     }
     setModalOptions(options);
-  }, [user, activeCompany, toast]);
+  }, [user, activeCompany, toast, launches]);
 
   const closeModal = useCallback(() => {
     setModalOptions(null);
