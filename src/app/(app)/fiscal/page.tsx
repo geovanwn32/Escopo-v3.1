@@ -221,7 +221,7 @@ export default function FiscalPage() {
 
         const isNFe = xmlDoc.querySelector('infNFe');
         const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
-        const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta, CompNfse');
+        const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta');
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
 
         if (isCancelled) {
@@ -238,22 +238,26 @@ export default function FiscalPage() {
             else if (destCnpj === normalizedActiveCnpj) type = 'entrada';
 
         } else if (isNfsePadrao || isNfseAbrasf) {
-            const nfseNode = isNfseAbrasf ? xmlDoc.querySelector('InfNfse') : isNfsePadrao;
+            const nfseNode = isNfseAbrasf 
+                ? xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') 
+                : (xmlDoc.querySelector('InfNfse') || isNfsePadrao);
+
             if (nfseNode) {
-                const prestadorNode = nfseNode.querySelector('PrestadorServico, Prestador, prest');
-                const tomadorNode = nfseNode.querySelector('TomadorServico, Tomador, toma');
+                const prestadorNode = isNfseAbrasf ? nfseNode.querySelector('Prestador') : nfseNode.querySelector('PrestadorServico');
+                const tomadorNode = isNfseAbrasf ? nfseNode.querySelector('TomadorServico') : nfseNode.querySelector('Tomador');
+                
+                const prestadorCnpj = getCnpjCpfFromNode(prestadorNode, ['CpfCnpj > Cnpj', 'Cnpj', 'CNPJ']);
+                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'CNPJ', 'CPF']);
 
-                const prestadorCnpj = getCnpjCpfFromNode(prestadorNode, ['Cnpj', 'CNPJ']);
-                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode, ['CpfCnpj > Cnpj', 'CNPJ', 'CPF']);
-
-                const numeroNfse = nfseNode.querySelector('Numero, nNFSe')?.textContent;
+                const numeroNfse = (xmlDoc.querySelector('Numero') || xmlDoc.querySelector('nNFSe'))?.textContent;
                 key = numeroNfse || undefined;
                 if (key && launchedKeys.has(key)) status = 'launched';
 
                 if (prestadorCnpj === normalizedActiveCnpj) type = 'servico';
-                else if (tomadorCnpj === normalizedActiveCnpj) type = 'entrada'; // NFS-e recebida é uma despesa/entrada de nota
+                else if (tomadorCnpj === normalizedActiveCnpj) type = 'entrada';
             }
         }
+
 
         if (type === 'desconhecido') {
              toast({
