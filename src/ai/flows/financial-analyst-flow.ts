@@ -1,6 +1,7 @@
 'use server';
 /**
  * @fileOverview An AI flow to analyze financial data and provide insights.
+ * This more advanced version provides a structured analysis with positive and improvement points.
  */
 
 import { ai } from '@/ai/genkit';
@@ -19,9 +20,10 @@ const FinancialAnalystInputSchema = z.object({
 export type FinancialAnalystInput = z.infer<typeof FinancialAnalystInputSchema>;
 
 const FinancialAnalystOutputSchema = z.object({
-  analysis: z
-    .string()
-    .describe('A concise, insightful, and encouraging analysis of the financial data provided. Should be 2-3 sentences long.'),
+  title: z.string().describe('A short, engaging title for the financial analysis (e.g., "Crescimento Acelerado em Julho!").'),
+  summary: z.string().describe('A concise, 1-2 sentence summary of the overall financial situation.'),
+  positivePoints: z.array(z.string()).describe('A list of 1 to 2 key positive highlights or trends.'),
+  improvementPoints: z.array(z.string()).describe('A list of 1 to 2 key areas for improvement or attention.'),
 });
 export type FinancialAnalystOutput = z.infer<typeof FinancialAnalystOutputSchema>;
 
@@ -30,23 +32,22 @@ const prompt = ai.definePrompt({
     name: 'financialAnalystPrompt',
     input: {schema: FinancialAnalystInputSchema },
     output: {schema: FinancialAnalystOutputSchema},
-    prompt: `Você é um analista financeiro especialista e conselheiro de negócios para pequenas e médias empresas.
-    Seu tom é encorajador, profissional e direto ao ponto.
+    prompt: `Você é um analista financeiro e conselheiro de negócios para pequenas e médias empresas. Seu tom é encorajador, profissional e direto ao ponto.
 
     Analise os dados financeiros dos últimos meses para a empresa "{{companyName}}" fornecidos abaixo.
     
     Dados Financeiros:
     {{#each data}}
-    - Mês: {{this.month}}, Receitas: R$ {{this.entradas}}, Despesas: R$ {{this.saidas}}
+    - Mês: {{this.month}}, Receitas: R$ {{this.entradas}}, Despesas: R$ {{this.saidas}}, Lucro/Prejuízo: R$ {{math this.entradas '-' this.saidas}}
     {{/each}}
 
-    Com base nesses dados, gere uma análise concisa (2 a 3 frases) que destaque uma tendência chave, um ponto positivo, ou uma área de atenção.
-    Seja específico, mas evite jargões complexos. O objetivo é fornecer um insight rápido e valioso para o dono do negócio.
-    
-    Exemplos de boas análises:
-    - "Ótimo trabalho em Julho! Suas receitas cresceram 15% em relação a Junho, mostrando um excelente momento de vendas. Mantenha o foco em otimizar as despesas para maximizar os lucros."
-    - "Atenção em Julho: suas despesas aumentaram significativamente, superando as receitas. Recomendamos uma revisão dos custos operacionais para garantir a saúde financeira do seu negócio."
-    - "Seu fluxo de caixa se manteve estável nos últimos meses, demonstrando consistência. Um bom próximo passo seria explorar novas oportunidades para aumentar a receita."
+    Com base na análise comparativa mês a mês, gere uma análise estruturada contendo:
+    1.  **title**: Um título curto e impactante que resuma a principal conclusão.
+    2.  **summary**: Uma análise geral de 1 a 2 frases sobre a situação.
+    3.  **positivePoints**: Uma lista de 1 ou 2 pontos positivos chave (ex: crescimento de receita, redução de despesas, lucro recorde).
+    4.  **improvementPoints**: Uma lista de 1 ou 2 pontos de atenção ou melhoria (ex: aumento de custos, queda no lucro, despesas superando receitas).
+
+    Seja específico e use os dados para embasar suas observações. Evite jargões complexos. O objetivo é fornecer um diagnóstico rápido e valioso para o dono do negócio.
     `,
 });
 

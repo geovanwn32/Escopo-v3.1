@@ -22,7 +22,10 @@ import {
   PieChart,
   Users,
   Plane,
-  Bot
+  Bot,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle2,
 } from "lucide-react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
 import { useEffect, useState, useMemo, useCallback } from "react"
@@ -42,6 +45,7 @@ import type { Launch, Vacation, Payroll, RCI, Termination, Thirteenth, Company }
 import { analyzeFinancials, type FinancialAnalystInput, type FinancialAnalystOutput } from "@/ai/flows/financial-analyst-flow"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { CalendarCard } from "@/components/dashboard/calendar-card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 
 const formatCurrency = (value: number) => {
@@ -66,7 +70,7 @@ export default function DashboardPage() {
   
   // UI States
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
-  const [financialAnalysis, setFinancialAnalysis] = useState<string | null>(null);
+  const [financialAnalysis, setFinancialAnalysis] = useState<FinancialAnalystOutput | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(true);
 
   useEffect(() => {
@@ -206,7 +210,7 @@ export default function DashboardPage() {
             data: chartData,
         };
         const result = await analyzeFinancials(input);
-        setFinancialAnalysis(result.analysis);
+        setFinancialAnalysis(result);
     } catch (error) {
         console.error("Error fetching financial analysis:", error);
         setFinancialAnalysis(null);
@@ -288,7 +292,7 @@ export default function DashboardPage() {
         ))}
       </div>
       
-        <Card>
+        <Card className="bg-primary/5 border-primary/20">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Bot className="h-6 w-6 text-primary" />
@@ -298,17 +302,51 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
                 {loadingAnalysis ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Analisando dados financeiros...</span>
+                    <div className="space-y-4">
+                        <Skeleton className="h-6 w-3/4 rounded-md" />
+                        <Skeleton className="h-4 w-full rounded-md" />
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <div className="space-y-2">
+                                <Skeleton className="h-5 w-24 rounded-md" />
+                                <Skeleton className="h-4 w-full rounded-md" />
+                                <Skeleton className="h-4 w-5/6 rounded-md" />
+                            </div>
+                            <div className="space-y-2">
+                                <Skeleton className="h-5 w-24 rounded-md" />
+                                <Skeleton className="h-4 w-full rounded-md" />
+                                <Skeleton className="h-4 w-5/6 rounded-md" />
+                            </div>
+                        </div>
                     </div>
                 ) : financialAnalysis ? (
-                    <Alert>
-                        <AlertTitle>Insight Rápido</AlertTitle>
-                        <AlertDescription>
-                            {financialAnalysis}
-                        </AlertDescription>
-                    </Alert>
+                    <div>
+                        <h3 className="font-semibold text-lg text-primary">{financialAnalysis.title}</h3>
+                        <p className="text-sm text-muted-foreground mt-1 mb-4">{financialAnalysis.summary}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <h4 className="font-semibold flex items-center gap-2 text-green-600"><TrendingUp className="h-5 w-5"/> Pontos Positivos</h4>
+                                <ul className="list-none space-y-1 text-sm">
+                                    {financialAnalysis.positivePoints.map((point, i) => (
+                                        <li key={`pos-${i}`} className="flex items-start gap-2">
+                                            <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
+                                            <span>{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                             <div className="space-y-2">
+                                <h4 className="font-semibold flex items-center gap-2 text-amber-600"><TrendingDown className="h-5 w-5"/> Pontos de Atenção</h4>
+                                <ul className="list-none space-y-1 text-sm">
+                                    {financialAnalysis.improvementPoints.map((point, i) => (
+                                        <li key={`imp-${i}`} className="flex items-start gap-2">
+                                            <TrendingDown className="h-4 w-4 mt-0.5 text-amber-500 flex-shrink-0" />
+                                            <span>{point}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 ) : (
                     <p className="text-sm text-muted-foreground">Não há dados suficientes para gerar uma análise. Adicione lançamentos de entrada e saída para começar.</p>
                 )}
