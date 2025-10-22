@@ -211,7 +211,7 @@ export default function FiscalPage() {
         const fileContent = await file.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(fileContent, 'text/xml');
-        const normalizedActiveCnpj = company.cnpj?.replace(/\D/g, '');
+        const normalizedActiveCnpj = activeCompany.cnpj?.replace(/\D/g, '');
 
         let type: XmlFile['type'] = 'desconhecido';
         let status: XmlFile['status'] = 'pending';
@@ -254,10 +254,11 @@ export default function FiscalPage() {
             nfseVersion = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('CompNfse')?.getAttribute('versao') || '2.04';
             
             const serviceNode = xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') || nfseNode;
-            
+            const declaracaoServicoNode = xmlDoc.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || serviceNode;
+
             if (serviceNode) {
-                const prestadorCnpj = getCnpjCpfFromNode(serviceNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
-                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador') || xmlDoc.querySelector('DeclaracaoPrestacaoServico');
+                const prestadorCnpj = getCnpjCpfFromNode(declaracaoServicoNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
+                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode;
                 const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj']) : null;
                 
                 const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
@@ -329,7 +330,7 @@ export default function FiscalPage() {
         );
         
         if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
-            const launchRef = doc(db, `users/${user!.uid}/companies/${company!.id}/launches`, oldLaunch.id);
+            const launchRef = doc(db, `users/${user!.uid}/companies/${activeCompany!.id}/launches`, oldLaunch.id);
             await updateDoc(launchRef, { status: 'Substituida' });
         }
 
