@@ -1,4 +1,5 @@
 
+
 // Inspired by: https://github.com/the-via/receitaws-react/blob/master/src/useReceitaWS.js
 
 function fetchJsonp(url: string, options?: any) {
@@ -6,10 +7,15 @@ function fetchJsonp(url: string, options?: any) {
     const script = document.createElement('script');
 
     return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error('JSONP request timed out.'));
+        }, 5000); // 5 second timeout
+
         script.src = `${url}${url.includes('?') ? '&' : '?'}callback=${callbackName}`;
         script.onerror = reject;
 
         (window as any)[callbackName] = (data: any) => {
+            clearTimeout(timeoutId);
             delete (window as any)[callbackName];
             document.body.removeChild(script);
             resolve(data);
@@ -58,7 +64,7 @@ export async function lookupCnpj(cnpj: string): Promise<CnpjData> {
             nomeFantasia: data.nome_fantasia || data.razao_social,
             cnaePrincipal: (data.cnae_fiscal || '').toString(),
             cnaePrincipalDescricao: data.cnae_fiscal_descricao,
-            cep: data.cep,
+            cep: (data.cep || '').replace(/\D/g, ''),
             logradouro: data.logradouro,
             numero: data.numero,
             bairro: data.bairro,
@@ -94,7 +100,7 @@ export async function lookupCnpj(cnpj: string): Promise<CnpjData> {
                 nomeFantasia: data.fantasia || data.nome,
                 cnaePrincipal: data.atividade_principal?.[0]?.code,
                 cnaePrincipalDescricao: data.atividade_principal?.[0]?.text,
-                cep: data.cep?.replace('.', ''),
+                cep: (data.cep || '').replace(/\D/g, ''),
                 logradouro: data.logradouro,
                 numero: data.numero,
                 bairro: data.bairro,

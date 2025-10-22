@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +29,7 @@ import { format } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 
-export default function PessoalPage() {
+export default function PessoalPageWrapper() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [rcis, setRcis] = useState<RCI[]>([]);
   const [terminations, setTerminations] = useState<Termination[]>([]);
@@ -94,58 +95,39 @@ export default function PessoalPage() {
     };
 
     setLoading(true);
-    let activeListeners = 5; 
-    const onDone = () => {
-        activeListeners--;
-        if (activeListeners === 0) {
+    
+    const fetchAllData = async () => {
+        try {
+            const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+            const [
+                payrollsSnap,
+                rcisSnap,
+                terminationsSnap,
+                thirteenthsSnap,
+                vacationsSnap
+            ] = await Promise.all([
+                getDocs(query(collection(db, `${companyPath}/payrolls`), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, `${companyPath}/rcis`), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, `${companyPath}/terminations`), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, `${companyPath}/thirteenths`), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, `${companyPath}/vacations`), orderBy('createdAt', 'desc')))
+            ]);
+
+            setPayrolls(payrollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as Payroll)));
+            setRcis(rcisSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as RCI)));
+            setTerminations(terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp)?.toDate() } as Termination)));
+            setThirteenths(thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
+            setVacations(vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp)?.toDate() } as Vacation)));
+            
+        } catch (error) {
+            console.error("Error fetching pessoal data:", error);
+            toast({ variant: "destructive", title: "Erro ao carregar dados do módulo pessoal." });
+        } finally {
             setLoading(false);
         }
     };
-    
-    const payrollsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`);
-    const payrollsQuery = query(payrollsRef, orderBy('createdAt', 'desc'));
-    const unsubscribePayrolls = onSnapshot(payrollsQuery, (snapshot) => {
-        setPayrolls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() } as Payroll)));
-        onDone();
-    }, (error) => { console.error("Erro (Payrolls): ", error); toast({ variant: "destructive", title: "Erro ao buscar folhas" }); onDone(); });
 
-    const rcisRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`);
-    const rcisQuery = query(rcisRef, orderBy('createdAt', 'desc'));
-    const unsubscribeRcis = onSnapshot(rcisQuery, (snapshot) => {
-        setRcis(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate() } as RCI)));
-        onDone();
-    }, (error) => { console.error("Erro (RCIs): ", error); toast({ variant: "destructive", title: "Erro ao buscar RCIs" }); onDone(); });
-
-
-    const terminationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`);
-    const terminationsQuery = query(terminationsRef, orderBy('createdAt', 'desc'));
-    const unsubscribeTerminations = onSnapshot(terminationsQuery, (snapshot) => {
-        setTerminations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: doc.data().terminationDate?.toDate() } as Termination)));
-        onDone();
-    }, (error) => { console.error("Erro (Terminations): ", error); toast({ variant: "destructive", title: "Erro ao buscar rescisões" }); onDone(); });
-
-    const thirteenthsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`);
-    const thirteenthsQuery = query(thirteenthsRef, orderBy('createdAt', 'desc'));
-    const unsubscribeThirteenths = onSnapshot(thirteenthsQuery, (snapshot) => {
-        setThirteenths(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
-        onDone();
-    }, (error) => { console.error("Erro (13th): ", error); toast({ variant: "destructive", title: "Erro ao buscar 13º" }); onDone(); });
-
-    const vacationsRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`);
-    const vacationsQuery = query(vacationsRef, orderBy('createdAt', 'desc'));
-    const unsubscribeVacations = onSnapshot(vacationsQuery, (snapshot) => {
-        setVacations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: doc.data().startDate?.toDate() } as Vacation)));
-        onDone();
-    }, (error) => { console.error("Erro (Vacations): ", error); toast({ variant: "destructive", title: "Erro ao buscar férias" }); onDone(); });
-
-
-    return () => {
-        unsubscribePayrolls();
-        unsubscribeRcis();
-        unsubscribeTerminations();
-        unsubscribeThirteenths();
-        unsubscribeVacations();
-    };
+    fetchAllData();
   }, [user, activeCompany, toast]);
 
     const filteredPayrolls = useMemo(() => {
@@ -221,6 +203,13 @@ export default function PessoalPage() {
       try {
         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, docId));
         toast({ title: `${docName} excluído(a) com sucesso!` });
+        // Refetch data after deletion
+        if (collectionName === 'payrolls') setPayrolls(prev => prev.filter(p => p.id !== docId));
+        if (collectionName === 'rcis') setRcis(prev => prev.filter(p => p.id !== docId));
+        if (collectionName === 'terminations') setTerminations(prev => prev.filter(p => p.id !== docId));
+        if (collectionName === 'thirteenths') setThirteenths(prev => prev.filter(p => p.id !== docId));
+        if (collectionName === 'vacations') setVacations(prev => prev.filter(p => p.id !== docId));
+
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }

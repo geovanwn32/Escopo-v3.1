@@ -24,10 +24,10 @@ import {
   Plane,
   Bot
 } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell, LabelList } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
-import { collection, query, onSnapshot, orderBy, limit, Timestamp, where } from "firebase/firestore"
+import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -55,36 +55,19 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
   
   // Data States
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [personnelCosts, setPersonnelCosts] = useState<(Payroll | RCI | Vacation | Termination | Thirteenth)[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [vacations, setVacations] = useState<Vacation[]>([]);
-  const [payrolls, setPayrolls] = useState<Payroll[]>([]);
-  const [rcis, setRcis] = useState<RCI[]>([]);
-  const [terminations, setTerminations] = useState<Termination[]>([]);
-  const [thirteenths, setThirteenths] = useState<Thirteenth[]>([]);
   
   // UI States
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
   const [financialAnalysis, setFinancialAnalysis] = useState<string | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(true);
-  const [isEventModalOpen, setEventModalOpen] = useState(false);
-  const [selectedEventDate, setSelectedEventDate] = useState<Date | null>(null);
-
-
-  const handleDayClick = (day: Date) => {
-      setSelectedEventDate(day);
-      setEventModalOpen(true);
-  };
-
-  const closeEventModal = () => {
-    setEventModalOpen(false);
-    setSelectedEventDate(null);
-  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -96,62 +79,67 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!user || !activeCompany?.id) {
-      setLoading(false);
+      setLoadingData(false);
       setLoadingAnalysis(false);
-      setLaunches([]); setEmployeesCount(0); setProductsCount(0); setEvents([]); setVacations([]); setPayrolls([]); setRcis([]); setTerminations([]); setThirteenths([]);
+      setLaunches([]); setPersonnelCosts([]); setEmployeesCount(0); setProductsCount(0); setEvents([]);
       return;
     }
 
-    setLoading(true);
-    let listenersActive = 9;
-    const onDone = () => {
-        listenersActive--;
-        if (listenersActive === 0) setLoading(false);
+    setLoadingData(true);
+    try {
+        const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+        
+        const [
+            launchesSnap,
+            employeesSnap,
+            productsSnap,
+            eventsSnap,
+            payrollsSnap,
+            rcisSnap,
+            vacationsSnap,
+            terminationsSnap,
+            thirteenthsSnap
+        ] = await Promise.all([
+            getDocs(query(collection(db, `${companyPath}/launches`), orderBy('date', 'desc'))),
+            getDocs(query(collection(db, `${companyPath}/employees`), where('ativo', '==', true))),
+            getDocs(collection(db, `${companyPath}/produtos`)),
+            getDocs(query(collection(db, `${companyPath}/events`), orderBy('date', 'asc'))),
+            getDocs(collection(db, `${companyPath}/payrolls`)),
+            getDocs(collection(db, `${companyPath}/rcis`)),
+            getDocs(collection(db, `${companyPath}/vacations`)),
+            getDocs(collection(db, `${companyPath}/terminations`)),
+            getDocs(collection(db, `${companyPath}/thirteenths`))
+        ]);
+
+        setLaunches(launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch)));
+        setEmployeesCount(employeesSnap.size);
+        setProductsCount(productsSnap.size);
+        setEvents(eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent)));
+        
+        const allPersonnelCosts = [
+            ...payrollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payroll)),
+            ...rcisSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RCI)),
+            ...vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp).toDate() } as Vacation)),
+            ...terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp).toDate() } as Termination)),
+            ...thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)),
+        ];
+        setPersonnelCosts(allPersonnelCosts);
+
+    } catch (error) {
+        console.error("Dashboard data fetch error:", error);
+        toast({ variant: 'destructive', title: "Erro ao carregar dados do dashboard" });
+    } finally {
+        setLoadingData(false);
     }
-
-    const unsubscribes = [
-      onSnapshot(query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`), orderBy('date', 'desc')), (snapshot) => {
-        setLaunches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch)));
-        onDone();
-      }, (error) => { console.error("Launches error:", error); toast({ variant: 'destructive', title: "Erro ao carregar lançamentos" }); onDone(); }),
-      
-      onSnapshot(query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/employees`), where('ativo', '==', true)), (snapshot) => { setEmployeesCount(snapshot.size); onDone(); }, (error) => { console.error("Employees error:", error); onDone(); }),
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/produtos`), (snapshot) => { setProductsCount(snapshot.size); onDone(); }, (error) => { console.error("Products error:", error); onDone(); }),
-      onSnapshot(query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/events`), orderBy('date', 'asc')), (snapshot) => {
-        setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent)));
-        onDone();
-      }, (error) => { console.error("Events error:", error); onDone(); }),
-      
-      onSnapshot(query(collection(db, `users/${user.uid}/companies/${activeCompany.id}/vacations`), where('startDate', '>=', startOfDay(new Date()))), (snapshot) => {
-        setVacations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp).toDate() } as Vacation)));
-        onDone();
-      }, (error) => { console.error("Vacations error:", error); onDone(); }),
-      
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/payrolls`), (snapshot) => {
-        setPayrolls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payroll)));
-        onDone();
-      }, (error) => { console.error("Payrolls error:", error); onDone(); }),
-
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`), (snapshot) => {
-        setRcis(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RCI)));
-        onDone();
-      }, (error) => { console.error("RCIs error:", error); onDone(); }),
-
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/terminations`), (snapshot) => {
-        setTerminations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp).toDate() } as Termination)));
-        onDone();
-      }, (error) => { console.error("Terminations error:", error); onDone(); }),
-
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/thirteenths`), (snapshot) => {
-        setThirteenths(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
-        onDone();
-      }, (error) => { console.error("Thirteenths error:", error); onDone(); }),
-    ];
-
-    return () => unsubscribes.forEach(unsub => unsub());
   }, [user, activeCompany, toast]);
+
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const { totalEntradas, totalSaidas, chartData } = useMemo(() => {
     let totalEntradas = 0;
@@ -179,8 +167,7 @@ export default function DashboardPage() {
         }
     });
 
-    const addPersonnelExpense = (items: (Payroll | RCI | Vacation | Termination | Thirteenth)[]) => {
-      items.forEach(item => {
+    personnelCosts.forEach(item => {
         const itemDate = (item as any).period 
             ? parse(`01/${(item as any).period}`, 'dd/MM/yyyy', new Date())
             : (item as any).startDate || (item as any).terminationDate;
@@ -188,7 +175,7 @@ export default function DashboardPage() {
         if (!itemDate || !isValid(itemDate)) return;
 
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
-        const value = (item as any).totals?.liquido ?? (item as any).result?.liquido ?? 0;
+        const value = (item as any).totals?.totalProventos ?? (item as any).result?.totalProventos ?? 0;
         
         if(value > 0) {
             totalSaidas += value;
@@ -197,25 +184,19 @@ export default function DashboardPage() {
             }
         }
       });
-    };
-
-    addPersonnelExpense(payrolls);
-    addPersonnelExpense(rcis);
-    addPersonnelExpense(vacations);
-    addPersonnelExpense(terminations);
-    addPersonnelExpense(thirteenths);
-
+    
     const newChartData = Object.keys(monthlyTotals).map(key => {
         const [year, month] = key.split('-').map(Number);
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
 
     return { totalEntradas, totalSaidas, chartData: newChartData };
-  }, [launches, payrolls, rcis, vacations, terminations, thirteenths]);
+  }, [launches, personnelCosts]);
   
   const getFinancialAnalysis = useCallback(async () => {
     if (!activeCompany || chartData.length === 0 || chartData.every(d => d.entradas === 0 && d.saidas === 0)) {
         setLoadingAnalysis(false);
+        setFinancialAnalysis(null);
         return;
     }
     setLoadingAnalysis(true);
@@ -229,16 +210,17 @@ export default function DashboardPage() {
     } catch (error) {
         console.error("Error fetching financial analysis:", error);
         setFinancialAnalysis(null);
+        toast({ variant: 'destructive', title: 'Falha na Análise Financeira', description: 'Não foi possível carregar o insight da IA.' });
     } finally {
         setLoadingAnalysis(false);
     }
-  }, [activeCompany, chartData]);
+  }, [activeCompany, chartData, toast]);
 
   useEffect(() => {
-    if (!loading && activeCompany) {
+    if (!loadingData && activeCompany) {
         getFinancialAnalysis();
     }
-  }, [loading, activeCompany, getFinancialAnalysis]);
+  }, [loadingData, activeCompany, getFinancialAnalysis]);
 
 
   const stats = [
@@ -251,7 +233,7 @@ export default function DashboardPage() {
   const upcomingEvents = useMemo(() => {
     const today = startOfDay(new Date());
 
-    const manualEvents: CombinedEvent[] = events
+    const manualEvents: {id: string, type: 'event' | 'vacation', date: Date, title: string, description: string, icon: React.FC<any>}[] = events
       .filter(e => e.date >= today)
       .map(e => ({
         id: e.id!,
@@ -262,7 +244,7 @@ export default function DashboardPage() {
         icon: CalendarCheck
       }));
       
-    const vacationEvents: CombinedEvent[] = vacations
+    const vacationEvents = (personnelCosts.filter(p => 'startDate' in p) as Vacation[])
       .map(v => ({
         id: v.id!,
         type: 'vacation',
@@ -276,7 +258,7 @@ export default function DashboardPage() {
       .sort((a, b) => a.date.getTime() - b.date.getTime())
       .slice(0, 5);
 
-  }, [events, vacations]);
+  }, [events, personnelCosts]);
 
 
    const pieChartData = useMemo(() => {
@@ -300,7 +282,7 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stat.amount}</div>}
+              {loadingData ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stat.amount}</div>}
             </CardContent>
           </Card>
         ))}
@@ -346,7 +328,7 @@ export default function DashboardPage() {
                 </CardAction>
               </CardHeader>
               <CardContent className="pl-2">
-                {loading ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
+                {loadingData ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
                 (chartType === 'bar' ? (
                     <ResponsiveContainer width="100%" height={350}>
                         <BarChart data={chartData}>
@@ -354,12 +336,8 @@ export default function DashboardPage() {
                             <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
-                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" >
-                                <LabelList dataKey="entradas" position="top" formatter={(value: number) => formatCurrency(value)} fontSize={10}/>
-                            </Bar>
-                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
-                                <LabelList dataKey="saidas" position="top" formatter={(value: number) => formatCurrency(value)} fontSize={10}/>
-                            </Bar>
+                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas" />
+                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" />
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
@@ -395,7 +373,7 @@ export default function DashboardPage() {
                 <CardDescription>Seus 5 próximos compromissos.</CardDescription>
               </CardHeader>
               <CardContent>
-                {loading ? <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
+                {loadingData ? <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
                 upcomingEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                         <div className="p-4 bg-muted rounded-full mb-4">
@@ -424,16 +402,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
-    {user && activeCompany?.id && (
-        <EventFormModal
-            isOpen={isEventModalOpen}
-            onClose={closeEventModal}
-            userId={user.uid}
-            companyId={activeCompany.id}
-            event={null}
-            selectedDate={selectedEventDate}
-        />
-    )}
     </>
   )
 }

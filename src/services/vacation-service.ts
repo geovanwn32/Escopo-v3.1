@@ -1,4 +1,5 @@
 
+
 import type { Employee } from "@/types/employee";
 import { differenceInMonths, differenceInDays, getDaysInMonth, addMonths } from 'date-fns';
 
@@ -41,7 +42,6 @@ const irrfBrackets = [
     { limit: Infinity, rate: 0.275, deduction: 896.00 },
 ];
 const irrfDependentDeduction = 189.59;
-const simplifiedDeduction = 564.80;
 
 // --- Funções de Cálculo de Imposto ---
 function calculateINSS(base: number, description: string): VacationEvent | null {
@@ -73,38 +73,26 @@ function calculateIRRF(base: number, dependents: number, inssDeduction: number, 
     const baseAfterInss = base - inssDeduction;
     if (baseAfterInss <= 0) return null;
     
-    // Deductions for dependents
     const totalDependentDeduction = dependents * irrfDependentDeduction;
     const baseAfterDependents = baseAfterInss - totalDependentDeduction;
 
-    // Simplified deduction is an option for the taxpayer
-    const baseSimplified = baseAfterInss - simplifiedDeduction;
-
-    let irrfStandard = 0;
+    let irrfValue = 0;
+    let rate = 0;
     for (const bracket of irrfBrackets) {
         if (baseAfterDependents <= bracket.limit) {
-            irrfStandard = (baseAfterDependents * bracket.rate) - bracket.deduction;
-            break;
-        }
-    }
-    
-    let irrfSimplified = 0;
-     for (const bracket of irrfBrackets) {
-        if (baseSimplified <= bracket.limit) {
-            irrfSimplified = (baseSimplified * bracket.rate) - bracket.deduction;
+            irrfValue = (baseAfterDependents * bracket.rate) - bracket.deduction;
+            rate = bracket.rate * 100;
             break;
         }
     }
 
-    const finalIrrf = Math.max(0, Math.min(irrfStandard, irrfSimplified));
-
-    if (finalIrrf <= 0) return null;
+    if (irrfValue <= 0) return null;
 
      return {
         descricao: `IRRF sobre ${description}`,
-        referencia: '',
+        referencia: `${rate.toFixed(2)}%`,
         provento: 0,
-        desconto: parseFloat(finalIrrf.toFixed(2)),
+        desconto: parseFloat(irrfValue.toFixed(2)),
     };
 }
 
@@ -169,7 +157,7 @@ export function calculateVacation(params: VacationParams): VacationResult {
     // --- DESCONTOS ---
     
     // INSS
-    const inssBase = normalVacationPay; // INSS incide apenas sobre as férias normais
+    const inssBase = normalVacationPay + oneThirdBonus; // INSS incide sobre o terço também
     const inssEvent = calculateINSS(inssBase, 'Férias');
     if (inssEvent) events.push(inssEvent);
     const inssValue = inssEvent?.desconto || 0;

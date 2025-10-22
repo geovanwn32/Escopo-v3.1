@@ -1,4 +1,5 @@
 
+
 import type { Employee } from "@/types/employee";
 import { differenceInMonths, differenceInDays, getDaysInMonth, addMonths } from 'date-fns';
 
@@ -21,7 +22,6 @@ export interface TerminationResult {
     events: TerminationEvent[];
     totalProventos: number;
     totalDescontos: number;
-
     liquido: number;
 }
 

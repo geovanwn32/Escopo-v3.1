@@ -1,4 +1,5 @@
 
+
 export type { Aliquota, EsferaTributaria } from './aliquota';
 export type { BankTransaction } from './bank-transaction';
 export type { Company, EstablishmentData } from './company';
