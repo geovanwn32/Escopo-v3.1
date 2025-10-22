@@ -38,7 +38,7 @@ const prompt = ai.definePrompt({
     
     Dados Financeiros:
     {{#each data}}
-    - Mês: {{this.month}}, Receitas: R$ {{this.entradas}}, Despesas: R$ {{this.saidas}}, Lucro/Prejuízo: R$ {{math this.entradas '-' this.saidas}}
+    - Mês: {{this.month}}, Receitas: R$ {{this.entradas}}, Despesas: R$ {{this.saidas}}
     {{/each}}
 
     Com base na análise comparativa mês a mês, gere uma análise estruturada contendo:
