@@ -224,7 +224,7 @@ export default function FiscalPage() {
     }));
     toast({ title: 'Lista de XMLs atualizada!'})
 
-  }, [launches]);
+  }, [launches, toast]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || !user || !activeCompany) return;
@@ -268,12 +268,12 @@ export default function FiscalPage() {
             }
             return null;
         };
-
+        
         const isNFe = xmlDoc.querySelector('infNFe');
-        const isNfsePadrao = xmlDoc.querySelector('CompNfse, NFSe');
+        const isNfsePadrao = xmlDoc.querySelector('CompNfse');
         const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta');
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
-
+        
         let nfseVersion = '';
         let fileValue = 0;
 
@@ -292,15 +292,15 @@ export default function FiscalPage() {
 
         } else if (isNfsePadrao || isNfseAbrasf) {
             const nfseNode = xmlDoc.querySelector('Nfse, NFSe');
-            nfseVersion = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('CompNfse')?.getAttribute('versao') || '2.04';
+            nfseVersion = nfseNode?.getAttribute('versao') || '1.00';
             
             const serviceNode = xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') || nfseNode;
             const declaracaoServicoNode = xmlDoc.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || serviceNode;
 
             if (serviceNode) {
                 const prestadorCnpj = getCnpjCpfFromNode(declaracaoServicoNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
-                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode;
-                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj']) : null;
+                const tomadorNode = declaracaoServicoNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode;
+                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'IdentificacaoTomador > CpfCnpj > Cpf', 'CpfCnpj > Cnpj', 'CpfCnpj > Cpf']) : null;
                 
                 const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
                 const codigoVerificacao = (serviceNode.querySelector('CodigoVerificacao'))?.textContent;
@@ -461,6 +461,13 @@ endDate.setHours(23,59,59,999);
       default:
         return 'N/A';
     }
+  };
+
+  const clearLaunchesFilters = () => {
+    setFilterKey('');
+    setFilterType('');
+    setFilterStartDate(undefined);
+    setFilterEndDate(undefined);
   };
 
 
