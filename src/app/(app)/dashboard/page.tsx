@@ -172,14 +172,29 @@ export default function DashboardPage() {
     });
 
     personnelCosts.forEach(item => {
-        const itemDate = (item as any).period 
-            ? parse(`01/${(item as any).period}`, 'dd/MM/yyyy', new Date())
-            : (item as any).startDate || (item as any).terminationDate || (item as any).createdAt?.toDate();
-        
+        // Unify date extraction
+        let itemDate;
+        if ('period' in item && typeof item.period === 'string') {
+            itemDate = parse(`01/${item.period}`, 'dd/MM/yyyy', new Date());
+        } else if ('startDate' in item && (item as any).startDate) {
+            itemDate = (item as any).startDate instanceof Timestamp ? (item as any).startDate.toDate() : new Date((item as any).startDate);
+        } else if ('terminationDate' in item && (item as any).terminationDate) {
+             itemDate = (item as any).terminationDate instanceof Timestamp ? (item as any).terminationDate.toDate() : new Date((item as any).terminationDate);
+        } else if ('createdAt' in item && (item as any).createdAt) {
+             itemDate = (item as any).createdAt instanceof Timestamp ? (item as any).createdAt.toDate() : new Date((item as any).createdAt);
+        }
+
         if (!itemDate || !isValid(itemDate)) return;
 
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
-        const value = (item as any).totals?.totalProventos ?? (item as any).result?.totalProventos ?? 0;
+        
+        // Unify value extraction
+        let value = 0;
+        if ('totals' in item) { // Payroll and RCI
+            value = (item as any).totals?.totalProventos ?? 0;
+        } else if ('result' in item) { // Vacation, Termination, Thirteenth
+            value = (item as any).result?.totalProventos ?? 0;
+        }
         
         if(value > 0) {
             totalSaidas += value;
@@ -375,10 +390,10 @@ export default function DashboardPage() {
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
                             <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas">
-                               <LabelList dataKey="entradas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? new Intl.NumberFormat('pt-BR', { notation: 'compact', compactDisplay: 'short' }).format(value) : ''} />
+                               <LabelList dataKey="entradas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
                             </Bar>
                             <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
-                                <LabelList dataKey="saidas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? new Intl.NumberFormat('pt-BR', { notation: 'compact', compactDisplay: 'short' }).format(value) : ''} />
+                                <LabelList dataKey="saidas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
