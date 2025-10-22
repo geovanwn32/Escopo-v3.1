@@ -214,11 +214,11 @@ export default function DashboardPage() {
     } catch (error) {
         console.error("Error fetching financial analysis:", error);
         setFinancialAnalysis(null);
-        toast({ variant: 'destructive', title: 'Falha na Análise Financeira', description: 'Não foi possível carregar o insight da IA.' });
+        // Do not toast here, it's annoying if it fails often. The UI will show a message.
     } finally {
         setLoadingAnalysis(false);
     }
-  }, [activeCompany, chartData, toast]);
+  }, [activeCompany, chartData]);
 
   useEffect(() => {
     if (!loadingData && activeCompany) {
