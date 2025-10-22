@@ -6,7 +6,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -184,6 +184,47 @@ export default function FiscalPage() {
         unsubscribes.forEach(unsub => unsub());
     };
   }, [activeCompany, user, toast]);
+
+  const refreshXmlFileStatus = useCallback(() => {
+    if (launches.length === 0) {
+        // If there are no launches, all files must be pending
+        setXmlFiles(prevFiles => prevFiles.map(f => ({ ...f, status: 'pending' })));
+        return;
+    }
+
+    const launchedItems = new Map<string, { valor: number, status: string }>();
+    launches.forEach(launch => {
+        const key = launch.chaveNfe || `${launch.numeroNfse}-${launch.codigoVerificacaoNfse}-${launch.versaoNfse}`;
+        if (key) {
+            launchedItems.set(key, {
+                valor: launch.valorTotalNota || launch.valorLiquido || 0,
+                status: launch.status || 'Normal',
+            });
+        }
+    });
+
+    setXmlFiles(prevFiles => prevFiles.map(file => {
+        if (!file.key) return file; // Cannot check status without a key
+
+        const existingLaunch = launchedItems.get(file.key);
+        let newStatus: XmlFile['status'] = file.status;
+
+        if (existingLaunch) {
+            // It's considered 'launched' if it exists and status is Normal
+            if (existingLaunch.status === 'Normal') {
+                 newStatus = 'launched';
+            }
+        } else {
+             // If it's not in the launched list, it should be pending (unless it was cancelled)
+            if (file.status === 'launched') {
+                 newStatus = 'pending';
+            }
+        }
+        return { ...file, status: newStatus };
+    }));
+    toast({ title: 'Lista de XMLs atualizada!'})
+
+  }, [launches]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || !user || !activeCompany) return;
@@ -407,13 +448,6 @@ endDate.setHours(23,59,59,999);
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterStartDate, filterEndDate]);
 
-  const clearLaunchesFilters = () => {
-    setFilterKey("");
-    setFilterType("");
-    setFilterStartDate(undefined);
-    setFilterEndDate(undefined);
-  };
-  
   const getPartnerName = (launch: Launch): string => {
     switch (launch.type) {
       case 'entrada':
@@ -704,8 +738,8 @@ endDate.setHours(23,59,59,999);
                     />
                     </div>
                     <Select value={xmlTypeFilter} onValueChange={setXmlTypeFilter}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
-                            <SelectValue placeholder="Filtrar por Tipo" />
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="Tipo" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="entrada">Entrada</SelectItem>
@@ -715,8 +749,8 @@ endDate.setHours(23,59,59,999);
                         </SelectContent>
                     </Select>
                     <Select value={xmlStatusFilter} onValueChange={setXmlStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-[180px]">
-                            <SelectValue placeholder="Filtrar por Status" />
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="pending">Pendente</SelectItem>
@@ -724,9 +758,13 @@ endDate.setHours(23,59,59,999);
                             <SelectItem value="cancelled">Cancelado</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Button variant="ghost" onClick={clearXmlFilters} className="sm:ml-auto">
+                    <Button variant="ghost" onClick={clearXmlFilters}>
                         <FilterX className="mr-2 h-4 w-4" />
-                        Limpar Filtros
+                        Limpar
+                    </Button>
+                    <Button variant="outline" onClick={refreshXmlFileStatus} className="sm:ml-auto">
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Atualizar
                     </Button>
                 </div>
                 <Table>
@@ -994,3 +1032,5 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
+
+    
