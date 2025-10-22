@@ -169,17 +169,17 @@ export default function PGDASPage() {
             const getRevenue = async (startDate: Date, endDate: Date, types: string[]): Promise<number> => {
                 const q = query(launchesRef, 
                     where('date', '>=', Timestamp.fromDate(startDate)), 
-                    where('date', '<=', Timestamp.fromDate(endDate)),
-                    where('type', 'in', types)
+                    where('date', '<=', Timestamp.fromDate(endDate))
                 );
                 const snapshot = await getDocs(q);
-                return snapshot.docs.reduce((acc, doc) => {
-                    const launch = doc.data() as Launch;
-                    // Ensure only normal status launches are considered
-                    if (launch.status === 'Normal') {
-                         return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
-                    }
-                    return acc;
+
+                // Filter by type and status in memory
+                const relevantLaunches = snapshot.docs
+                    .map(doc => doc.data() as Launch)
+                    .filter(launch => types.includes(launch.type) && launch.status === 'Normal');
+
+                return relevantLaunches.reduce((acc, launch) => {
+                    return acc + (launch.valorTotalNota || launch.valorLiquido || 0);
                 }, 0);
             };
 
