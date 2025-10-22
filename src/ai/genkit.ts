@@ -9,7 +9,7 @@ export const ai = genkit({
   plugins: [
     googleAI({
       apiVersion: 'v1beta',
-      model: 'gemini-pro', // O modelo é definido aqui
+      model: 'gemini-pro',
     }),
   ],
 });
