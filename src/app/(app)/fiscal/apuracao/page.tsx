@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Launch } from '@/app/(app)/fiscal/page';
 import type { Payroll } from '@/types/payroll';
@@ -93,7 +93,8 @@ export default function ApuracaoPage() {
             const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
             const launchesQuery = query(launchesRef, 
                 where('date', '>=', Timestamp.fromDate(startDate)),
-                where('date', '<=', Timestamp.fromDate(endDate))
+                where('date', '<=', Timestamp.fromDate(endDate)),
+                orderBy('date', 'desc')
             );
             const launchesSnap = await getDocs(launchesQuery);
             const launches = launchesSnap.docs.map(doc => doc.data() as Launch);
