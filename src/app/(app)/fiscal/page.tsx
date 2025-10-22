@@ -193,10 +193,9 @@ export default function FiscalPage() {
     );
     if (files.length === 0) return;
 
-    // Get all existing launched keys (NFe chave or NFS-e identifier)
     const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
     const existingLaunchesSnap = await getDocs(launchesRef);
-    const launchedKeys = new Set(existingLaunchesSnap.docs.map(doc => doc.data().chaveNfe || doc.data().numeroNfse).filter(Boolean));
+    const launchedKeys = new Set(existingLaunchesSnap.docs.map(doc => doc.data().chaveNfe || `${doc.data().numeroNfse}-${doc.data().codigoVerificacaoNfse}-${doc.data().versaoNfse}`).filter(Boolean));
     
     const newFilesPromises = files.map(async (file): Promise<XmlFile | null> => {
         const fileContent = await file.text();
@@ -224,6 +223,8 @@ export default function FiscalPage() {
         const isNfseAbrasf = xmlDoc.querySelector('ConsultarNfseServicoPrestadoResposta');
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
 
+        let nfseVersion = '';
+
         if (isCancelled) {
             type = 'cancelamento';
             status = 'cancelled';
@@ -238,23 +239,26 @@ export default function FiscalPage() {
             else if (destCnpj === normalizedActiveCnpj) type = 'entrada';
 
         } else if (isNfsePadrao || isNfseAbrasf) {
-            const nfseNode = isNfseAbrasf 
-                ? xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') 
-                : (xmlDoc.querySelector('InfNfse') || isNfsePadrao);
+            const nfseNode = xmlDoc.querySelector('Nfse, NFSe') || xmlDoc.querySelector('CompNfse');
+            nfseVersion = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('NFSe')?.getAttribute('versao') || '1.00';
+            
+            const serviceNode = isNfseAbrasf ? xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') : (xmlDoc.querySelector('InfNfse') || nfseNode);
+            
+            if (serviceNode) {
+                const prestadorCnpj = getCnpjCpfFromNode(serviceNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
+                const tomadorNode = serviceNode.querySelector('TomadorServico, Tomador');
+                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'CNPJ', 'CPF']) : null;
+                const declaracaoTomadorCnpj = getCnpjCpfFromNode(xmlDoc.querySelector('DeclaracaoPrestacaoServico'), ['TomadorServico > IdentificacaoTomador > CpfCnpj > Cnpj']);
+                const finalTomadorCnpj = tomadorCnpj || declaracaoTomadorCnpj;
 
-            if (nfseNode) {
-                const prestadorNode = isNfseAbrasf ? nfseNode.querySelector('Prestador') : nfseNode.querySelector('PrestadorServico');
-                const tomadorNode = isNfseAbrasf ? nfseNode.querySelector('TomadorServico') : nfseNode.querySelector('Tomador');
+                const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
+                const codigoVerificacao = (serviceNode.querySelector('CodigoVerificacao') || xmlDoc.querySelector('CodigoVerificacao'))?.textContent;
+                key = `${numeroNfse}-${codigoVerificacao}-${nfseVersion}`;
                 
-                const prestadorCnpj = getCnpjCpfFromNode(prestadorNode, ['CpfCnpj > Cnpj', 'Cnpj', 'CNPJ']);
-                const tomadorCnpj = getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'CpfCnpj > Cnpj', 'CNPJ', 'CPF']);
-
-                const numeroNfse = (xmlDoc.querySelector('Numero') || xmlDoc.querySelector('nNFSe'))?.textContent;
-                key = numeroNfse || undefined;
                 if (key && launchedKeys.has(key)) status = 'launched';
 
                 if (prestadorCnpj === normalizedActiveCnpj) type = 'servico';
-                else if (tomadorCnpj === normalizedActiveCnpj) type = 'entrada';
+                else if (finalTomadorCnpj === normalizedActiveCnpj) type = 'entrada';
             }
         }
 
@@ -269,7 +273,7 @@ export default function FiscalPage() {
         }
 
         const fileData = { name: file.name, type: file.type, size: file.size, lastModified: file.lastModified };
-        return { file: fileData, content: fileContent, status, type, key };
+        return { file: fileData, content: fileContent, status, type, key, versaoNfse: nfseVersion };
     });
 
     const newFiles = (await Promise.all(newFilesPromises)).filter(Boolean) as XmlFile[];
@@ -314,8 +318,7 @@ export default function FiscalPage() {
         const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, launch.id);
         await deleteDoc(launchRef);
         
-        // Find the corresponding XML file and set its status back to 'pending'
-        const keyToMatch = launch.chaveNfe || launch.numeroNfse;
+        const keyToMatch = launch.chaveNfe || `${launch.numeroNfse}-${launch.codigoVerificacaoNfse}-${launch.versaoNfse}`;
         setXmlFiles(files => 
             files.map(f => 
                 f.key === keyToMatch ? { ...f, status: 'pending' } : f
@@ -489,12 +492,17 @@ endDate.setHours(23,59,59,999);
         const { xmlFile } = options;
         if (xmlFile.key) {
              const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-             const qNFe = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
-             const qNfse = query(launchesRef, where("numeroNfse", "==", xmlFile.key));
+             let q;
+             if (xmlFile.type === 'servico') {
+                 const [numero, codigo, versao] = xmlFile.key.split('-');
+                 q = query(launchesRef, where("numeroNfse", "==", numero), where("codigoVerificacaoNfse", "==", codigo), where("versaoNfse", "==", versao));
+             } else {
+                 q = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
+             }
              
-             const [nfeSnapshot, nfseSnapshot] = await Promise.all([getDocs(qNFe), getDocs(qNfse)]);
+             const querySnapshot = await getDocs(q);
              
-             if (!nfeSnapshot.empty || !nfseSnapshot.empty) {
+             if (!querySnapshot.empty) {
                 toast({
                     variant: "destructive",
                     title: "Nota Já Lançada",

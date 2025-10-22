@@ -41,6 +41,7 @@ export interface XmlFile {
   status: 'pending' | 'launched' | 'error' | 'cancelled';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   key?: string; // NFe key or NFS-e unique identifier
+  versaoNfse?: string;
 }
 
 export interface EfdFile {
@@ -62,6 +63,8 @@ export interface Launch {
     date: Date;
     chaveNfe?: string;
     numeroNfse?: string;
+    codigoVerificacaoNfse?: string;
+    versaoNfse?: string;
     financialStatus?: 'pendente' | 'pago' | 'vencido';
     observacoes?: string | null;
     

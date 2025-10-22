@@ -40,6 +40,7 @@ interface XmlFile {
   status: 'pending' | 'launched' | 'error' | 'cancelled';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   key?: string;
+  versaoNfse?: string;
 }
 
 export interface OpenModalOptions {
@@ -87,6 +88,8 @@ const launchSchema = z.object({
   // NF-e & NFS-e fields
   chaveNfe: z.string().optional().nullable(),
   numeroNfse: z.string().optional().nullable(),
+  codigoVerificacaoNfse: z.string().optional().nullable(),
+  versaoNfse: z.string().optional().nullable(),
   
   // NFS-e specific
   prestador: partySchema,
@@ -139,7 +142,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     const data: Partial<FormData> = {};
     
     const isNFe = xmlDoc.querySelector('infNFe');
-    const nfseNode = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta');
+    const isNfse = xmlDoc.querySelector('CompNfse, NFSe, ConsultarNfseServicoPrestadoResposta');
 
     let dateString: string | null = null;
     let dateObj: Date | undefined = undefined;
@@ -148,8 +151,8 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         const protNode = xmlDoc.querySelector('protNFe infProt');
         const dateSelectors = protNode ? ['dhRecbto'] : ['ide dhEmi', 'dEmi'];
         dateString = querySelectorText(protNode || xmlDoc, dateSelectors);
-    } else if (nfseNode) {
-        const serviceNode = nfseNode.querySelector('InfNfse') || nfseNode;
+    } else if (isNfse) {
+        const serviceNode = isNfse.querySelector('InfNfse') || isNfse;
         const dateSelectors = ['DataEmissao', 'dCompet', 'dtEmissao'];
         dateString = querySelectorText(serviceNode, dateSelectors);
     }
@@ -167,17 +170,21 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     const getTax = (selectors: string[], baseNode: Element | Document = xmlDoc) => parseFloat(querySelectorText(baseNode, selectors) || '0');
 
-    if (type === 'servico' && nfseNode) {
-        const servicoNode = nfseNode.querySelector('InfNfse') || nfseNode;
-        const declaracaoServicoNode = nfseNode.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || servicoNode;
+    if (type === 'servico' && isNfse) {
+        const nfseNode = xmlDoc.querySelector('Nfse, NFSe') || xmlDoc.querySelector('CompNfse');
+        data.versaoNfse = nfseNode?.getAttribute('versao') || xmlDoc.querySelector('NFSe')?.getAttribute('versao') || '1.00';
 
-        data.numeroNfse = querySelectorText(servicoNode, ['Numero', 'nNFSe']) || '';
+        const serviceNode = isNfse.querySelector('InfNfse') || isNfse;
+        const declaracaoServicoNode = xmlDoc.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || serviceNode;
+
+        data.numeroNfse = querySelectorText(serviceNode, ['Numero', 'nNFSe']) || '';
+        data.codigoVerificacaoNfse = querySelectorText(serviceNode, ['CodigoVerificacao']) || '';
         data.valorServicos = getTax(['Valores > ValorServicos', 'ValorServicos', 'vServ', 'vlrServicos'], declaracaoServicoNode);
-        data.valorLiquido = getTax(['ValoresNfse > ValorLiquidoNfse', 'ValorLiquidoNfse', 'vLiq', 'vNF'], servicoNode);
+        data.valorLiquido = getTax(['ValoresNfse > ValorLiquidoNfse', 'ValorLiquidoNfse', 'vLiq', 'vNF'], serviceNode);
         data.discriminacao = querySelectorText(declaracaoServicoNode, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ', 'infCpl']) || '';
         data.itemLc116 = querySelectorText(declaracaoServicoNode, ['Servico > ItemListaServico', 'ItemListaServico', 'cServico']) || '';
 
-        const valoresNode = declaracaoServicoNode.querySelector('Servico > Valores') || servicoNode;
+        const valoresNode = declaracaoServicoNode.querySelector('Servico > Valores') || serviceNode;
         data.valorPis = getTax(['ValorPis'], valoresNode);
         data.valorCofins = getTax(['ValorCofins'], valoresNode);
         data.valorIr = getTax(['ValorIr'], valoresNode);
@@ -213,6 +220,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
 const defaultLaunchValues: FormData = {
     fileName: '', type: '', status: 'Normal', date: new Date(), chaveNfe: '', numeroNfse: '',
+    codigoVerificacaoNfse: '', versaoNfse: '',
     prestador: { nome: '', cnpj: '' }, tomador: { nome: '', cnpj: '' },
     discriminacao: '', itemLc116: '', valorServicos: 0, valorLiquido: 0,
     emitente: { nome: '', cnpj: '' }, destinatario: { nome: '', cnpj: '' },
@@ -374,7 +382,7 @@ export const LaunchFormModal = ({
             const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, launch!.id);
             if (mode === 'create') {
                 await addDoc(launchRef, dataToSave);
-                onLaunchSuccess(dataToSave.chaveNfe || dataToSave.numeroNfse || '', dataToSave.status);
+                onLaunchSuccess(dataToSave.chaveNfe || `${dataToSave.numeroNfse}-${dataToSave.codigoVerificacaoNfse}-${dataToSave.versaoNfse}`, dataToSave.status);
             } else {
                 await updateDoc(launchRef as any, dataToSave);
             }
