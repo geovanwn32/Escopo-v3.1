@@ -174,7 +174,7 @@ export default function DashboardPage() {
     personnelCosts.forEach(item => {
         const itemDate = (item as any).period 
             ? parse(`01/${(item as any).period}`, 'dd/MM/yyyy', new Date())
-            : (item as any).startDate || (item as any).terminationDate;
+            : (item as any).startDate || (item as any).terminationDate || (item as any).createdAt?.toDate();
         
         if (!itemDate || !isValid(itemDate)) return;
 
@@ -447,5 +447,3 @@ export default function DashboardPage() {
     </>
   )
 }
-
-    
