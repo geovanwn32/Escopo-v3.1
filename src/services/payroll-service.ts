@@ -1,4 +1,5 @@
 
+
 import type { Employee } from "@/types/employee";
 import type { PayrollEvent } from "@/types";
 import { Socio } from "@/types";
@@ -99,23 +100,26 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
 
     const baseFGTS = events
         .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + e.provento, 0);
+        .reduce((acc, e) => acc + (e.provento || 0), 0);
 
     const baseINSS = events
         .filter(e => e.rubrica.incideINSS && e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + e.provento, 0);
+        .reduce((acc, e) => acc + (e.provento || 0), 0);
         
     const inss = calculateINSS(baseINSS, isSocio);
 
     const baseIRRF = events
         .filter(e => e.rubrica.incideIRRF && e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + e.provento, 0);
+        .reduce((acc, e) => acc + (e.provento || 0), 0);
     
     const numDependentesIRRF = !isSocio ? (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0 : 0;
+    
+    // IRRF is calculated on the base salary minus the INSS deduction.
     const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, inss.valor);
 
     const fgts = { valor: isSocio ? 0 : parseFloat((baseFGTS * 0.08).toFixed(2)) };
 
+    // Total discounts includes manual discounts, INSS, and IRRF.
     const totalDescontos = initialDescontos + inss.valor + irrf.valor;
     const liquido = totalProventos - totalDescontos;
 

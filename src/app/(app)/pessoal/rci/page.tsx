@@ -123,7 +123,7 @@ export default function RciPage() {
              updatedEvents.push({
                 id: 'irrf',
                 rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE PRÓ-LABORE', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
-                referencia: result.irrf.aliquota,
+                referencia: result.irrf.valor,
                 provento: 0,
                 desconto: result.irrf.valor,
             });
@@ -401,7 +401,8 @@ export default function RciPage() {
         );
     }
 
-    const formatNumberForDisplay = (num: number, options?: Intl.NumberFormatOptions) => {
+    const formatNumberForDisplay = (num?: number, options?: Intl.NumberFormatOptions) => {
+        if (num === undefined || num === null || isNaN(num)) return '0,00';
         return num.toLocaleString('pt-BR', {
             minimumFractionDigits: 2,
             ...options
