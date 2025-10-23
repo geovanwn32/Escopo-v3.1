@@ -174,8 +174,6 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         data.produtos = Array.from(infNFe.querySelectorAll('det')).map(det => {
             const prod = det.querySelector('prod');
             const imposto = det.querySelector('imposto');
-            const icms = imposto?.querySelector('ICMS');
-            const ipi = imposto?.querySelector('IPI');
             
             return {
                 codigo: querySelectorText(prod, ['cProd']),
@@ -186,11 +184,11 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
                 quantidade: getFloat(prod, 'qCom'),
                 valorUnitario: getFloat(prod, 'vUnCom'),
                 valorTotal: getFloat(prod, 'vProd'),
-                baseCalculo: getFloat(icms, 'vBC'),
-                vlrIcms: getFloat(icms, 'vICMS'),
-                vlrIpi: getFloat(ipi, 'vIPI'),
-                aliqIcms: getFloat(icms, 'pICMS'),
-                aliqIpi: getFloat(ipi, 'pIPI'),
+                baseCalculo: getFloat(imposto, 'vBC'),
+                vlrIcms: getFloat(imposto, 'vICMS'),
+                vlrIpi: getFloat(imposto, 'vIPI'),
+                aliqIcms: getFloat(imposto, 'pICMS'),
+                aliqIpi: getFloat(imposto, 'pIPI'),
             };
         });
 
