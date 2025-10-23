@@ -82,6 +82,8 @@ export default function FiscalPage() {
   const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
+  
+  const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -501,7 +503,7 @@ export default function FiscalPage() {
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    currentPage * itemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -1025,8 +1027,8 @@ export default function FiscalPage() {
       
       {user && activeCompany && (
         <FiscalClosingModal
-            isOpen={false}
-            onClose={() => {}}
+            isOpen={isClosingModalOpen}
+            onClose={() => setIsClosingModalOpen(false)}
             userId={user.uid}
             companyId={activeCompany.id}
         />
