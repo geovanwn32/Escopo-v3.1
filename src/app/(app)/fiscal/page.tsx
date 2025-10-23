@@ -359,22 +359,23 @@ export default function FiscalPage() {
     fileInputRef.current?.click();
   };
   
-  const handleLaunchSuccess = async (launchedKey: string, status: Launch['status']) => {
+  const handleLaunchSuccess = useCallback(async (launchedKey: string, status: Launch['status']) => {
      if (launchedKey) {
         const launchedLaunch = launches.find(l => (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey);
         const newValue = launchedLaunch?.valorTotalNota || launchedLaunch?.valorLiquido || 0;
 
         // Check for an older version of this launch and mark it as 'Substituida'
-        const oldLaunch = Array.from(launches.values()).find(l => 
+        const oldLaunch = launches.find(l => 
             (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey &&
             l.id !== launchedLaunch?.id
         );
         
         if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
-            const launchRef = doc(db, `users/${user!.uid}/companies/${activeCompany!.id}/launches`, oldLaunch.id);
-            await updateDoc(launchRef, { status: 'Substituida' });
+            if(user && activeCompany) {
+                const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, oldLaunch.id);
+                await updateDoc(launchRef, { status: 'Substituida' });
+            }
         }
-
 
         setXmlFiles(files => files.map(f => {
             if (f.key === launchedKey) {
@@ -383,7 +384,7 @@ export default function FiscalPage() {
             return f;
         }));
      }
-  }
+  }, [launches, user, activeCompany]);
 
   const handleDeleteLaunch = async (launch: Launch) => {
     if (!user || !activeCompany) return;
@@ -436,7 +437,7 @@ export default function FiscalPage() {
             const launchDate = new Date(launch.date);
             launchDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-endDate.setHours(23,59,59,999);
+            endDate.setHours(23,59,59,999);
             dateMatch = launchDate <= endDate;
         }
 
@@ -602,24 +603,6 @@ endDate.setHours(23,59,59,999);
   const closeModal = useCallback(() => {
     setModalOptions(null);
   }, []);
-
-  const renderedModal = useMemo(() => {
-    if (!modalOptions) return null;
-    return (
-      <LaunchFormModal 
-        isOpen={!!modalOptions}
-        onClose={closeModal}
-        initialData={modalOptions}
-        userId={user!.uid}
-        company={activeCompany!}
-        onLaunchSuccess={handleLaunchSuccess}
-        partners={partners}
-        products={products}
-        services={services}
-      />
-    );
-  }, [modalOptions, closeModal, user, activeCompany, handleLaunchSuccess, partners, products, services]);
-
 
   return (
     <div className="space-y-6">
@@ -1026,9 +1009,21 @@ endDate.setHours(23,59,59,999);
         )}
       </Card>
       
-      {modalOptions && user && activeCompany && renderedModal}
+      {modalOptions && user && activeCompany && (
+         <LaunchFormModal 
+            isOpen={!!modalOptions}
+            onClose={closeModal}
+            initialData={modalOptions}
+            userId={user.uid}
+            company={activeCompany}
+            onLaunchSuccess={handleLaunchSuccess}
+            partners={partners}
+            products={products}
+            services={services}
+        />
+      )}
       
-      {modalOptions === null && user && activeCompany && (
+      {user && activeCompany && (
         <FiscalClosingModal
             isOpen={false}
             onClose={() => {}}
@@ -1039,5 +1034,3 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
-
-    
