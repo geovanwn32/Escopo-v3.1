@@ -5,13 +5,13 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, Search, PlusCircle, Trash2, FileText, Save } from 'lucide-react';
 import { Launch, Company } from '@/types';
 import { format, isValid } from 'date-fns';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
@@ -26,16 +26,13 @@ import { upsertPartnerFromLaunch } from '@/services/partner-service';
 import type { Orcamento } from '@/types/orcamento';
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
-import { FileText } from 'lucide-react';
 import { Separator } from '../ui/separator';
+import { DateInput } from '../ui/date-input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+
 
 interface XmlFile {
-  file: {
-    name: string;
-    type: string;
-    size: number;
-    lastModified: number;
-  };
+  file: { name: string; type: string; size: number; lastModified: number; };
   content: string;
   status: 'pending' | 'launched' | 'error' | 'cancelled';
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
@@ -80,9 +77,9 @@ const productSchema = z.object({
 
 const launchSchema = z.object({
   fileName: z.string().default(''),
-  type: z.string().default(''),
+  type: z.string().min(1, "O tipo de lançamento é obrigatório"),
   status: z.enum(['Normal', 'Cancelado', 'Substituida']),
-  date: z.date(),
+  date: z.date({ required_error: "A data é obrigatória." }),
   observacoes: z.string().optional().nullable(),
 
   // NF-e & NFS-e fields
@@ -288,12 +285,12 @@ export const LaunchFormModal = ({
 }: LaunchFormModalProps) => {
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
     const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const { toast } = useToast();
 
     const form = useForm<FormData>({ 
         resolver: zodResolver(launchSchema),
-        defaultValues: { ...defaultLaunchValues, ...getInitialData(initialData, company) }
     });
     const { control, setValue, getValues, reset } = form;
 
@@ -301,6 +298,14 @@ export const LaunchFormModal = ({
         control,
         name: "produtos",
     });
+
+    // Initialize form when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            const data = getInitialData(initialData, company);
+            reset({ ...defaultLaunchValues, ...data });
+        }
+    }, [isOpen, initialData, company, reset]);
   
     const watchedFormValues = useWatch({ control });
 
@@ -347,14 +352,6 @@ export const LaunchFormModal = ({
     const { launch, mode = 'create' } = initialData;
     const isReadOnly = mode === 'view';
 
-    const formatCnpj = (cnpj?: string | null) => {
-        if (!cnpj) return '';
-        const cleaned = cnpj.replace(/\D/g, '');
-        if (cleaned.length === 11) return cleaned.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
-        if (cleaned.length !== 14) return cnpj;
-        return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-    };
-
     const handleSelectPartner = (partner: Partner) => {
         if (!partnerTarget) return;
         form.setValue(`${partnerTarget}.nome`, partner.razaoSocial);
@@ -370,17 +367,25 @@ export const LaunchFormModal = ({
 
     const handleSubmit = async (values: FormData) => {
         if (mode === 'view') { onClose(); return; }
+        setLoading(true);
         try {
-            const dataToSave = { ...values,
+            const dataToSave: any = { ...values,
                 emitente: values.emitente ? { nome: values.emitente.nome || null, cnpj: values.emitente.cnpj?.replace(/\D/g, '') || null } : null,
                 destinatario: values.destinatario ? { nome: values.destinatario.nome || null, cnpj: values.destinatario.cnpj?.replace(/\D/g, '') || null } : null,
                 prestador: values.prestador ? { nome: values.prestador.nome || null, cnpj: values.prestador.cnpj?.replace(/\D/g, '') || null } : null,
                 tomador: values.tomador ? { nome: values.tomador.nome || null, cnpj: values.tomador.cnpj?.replace(/\D/g, '') || null } : null,
+                updatedAt: serverTimestamp(),
             };
+            
+            if (mode === 'create') {
+                dataToSave.createdAt = serverTimestamp();
+            }
+
             if (values.produtos && values.produtos.length > 0) await upsertProductsFromLaunch(userId, company.id, values.produtos as Produto[]);
             const partnerType = dataToSave.type === 'entrada' ? 'fornecedor' : 'cliente';
             const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : (dataToSave.destinatario || dataToSave.tomador);
             if (partnerData?.cnpj && partnerData?.nome) await upsertPartnerFromLaunch(userId, company.id, { cpfCnpj: partnerData.cnpj, razaoSocial: partnerData.nome, type: partnerType });
+            
             const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, launch!.id);
             if (mode === 'create') {
                 await addDoc(launchRef, dataToSave);
@@ -389,35 +394,27 @@ export const LaunchFormModal = ({
                 await updateDoc(launchRef as any, dataToSave);
             }
             onClose();
-        } catch (error) { console.error(error); }
+        } catch (error) { 
+            console.error(error); 
+            toast({ variant: 'destructive', title: 'Erro ao Salvar', description: 'Ocorreu um erro ao salvar o lançamento.'});
+        } finally {
+            setLoading(false);
+        }
     };
   
     const getTitle = () => {
-        const { orcamento, xmlFile, manualLaunchType } = initialData;
+        const { orcamento, xmlFile } = initialData;
         if(orcamento) return `Lançamento do Orçamento ${String(orcamento.quoteNumber).padStart(4, '0')}`;
         if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
         return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
     };
-
-    const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string) => (
-        <AccordionItem value={partyName}>
-            <AccordionTrigger>{label}</AccordionTrigger>
-            <AccordionContent className="space-y-4 px-1">
-                <div className="space-y-2">
-                    <FormLabel>Razão Social</FormLabel>
-                    <div className="flex gap-2">
-                        <FormControl>
-                            <Input {...form.register(`${partyName}.nome`)} readOnly={isReadOnly} />
-                        </FormControl>
-                        <Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)} disabled={isReadOnly}><Search className="h-4 w-4"/></Button>
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <FormLabel>CNPJ / CPF</FormLabel>
-                    <FormControl><Input {...form.register(`${partyName}.cnpj`)} value={formatCnpj(form.watch(`${partyName}.cnpj`))} onChange={(e) => form.setValue(`${partyName}.cnpj`, e.target.value)} readOnly={isReadOnly} /></FormControl>
-                </div>
-            </AccordionContent>
-        </AccordionItem>
+    
+     const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string) => (
+        <div className="space-y-4 rounded-md border p-4">
+             <h4 className="font-semibold">{label}</h4>
+            <FormField control={control} name={`${partyName}.nome`} render={({ field }) => ( <FormItem><FormLabel>Razão Social</FormLabel><div className="flex gap-2"><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl><Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)} disabled={isReadOnly}><Search className="h-4 w-4"/></Button></div><FormMessage /></FormItem> )} />
+            <FormField control={control} name={`${partyName}.cnpj`} render={({ field }) => ( <FormItem><FormLabel>CNPJ / CPF</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
+        </div>
     );
 
     return (
@@ -435,101 +432,98 @@ export const LaunchFormModal = ({
                         </div>
                     </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4 max-h-[70vh] overflow-y-auto pr-4">
-                    <Accordion type="multiple" defaultValue={['general', 'emitter', 'recipient', 'products', 'service', 'taxes']} className="w-full">
-                        <AccordionItem value="general">
-                            <AccordionTrigger>Informações Gerais</AccordionTrigger>
-                            <AccordionContent className="space-y-4 px-1">
+                     <Tabs defaultValue="geral" className="w-full pt-4">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="geral">Geral</TabsTrigger>
+                            <TabsTrigger value="itens">{watchedFormValues.type === 'servico' ? 'Serviços' : 'Produtos'}</TabsTrigger>
+                            <TabsTrigger value="impostos">Impostos</TabsTrigger>
+                        </TabsList>
+                        <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
+                             <TabsContent value="geral" className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly || !!initialData.xmlFile} /></FormControl></FormItem> )} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><Input type="date" value={isValid(new Date(field.value)) ? format(new Date(field.value), 'yyyy-MM-dd') : ''} onChange={(e) => field.onChange(new Date(e.target.value + 'T00:00:00'))} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                                    <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
+                                    <FormField control={control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão/Competência</FormLabel><FormControl><DateInput value={field.value} onChange={field.onChange} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                    <FormField control={control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota Fiscal</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                                 </div>
-                                <FormField control={form.control} name="observacoes" render={({ field }) => ( <FormItem><FormLabel>Observações Internas</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        {form.getValues('type') === 'servico' ? (
-                            <>
-                            {renderPartyField('prestador', 'Prestador do Serviço')}
-                            {renderPartyField('tomador', 'Tomador do Serviço')}
-                            </>
-                        ) : (
-                            <>
-                            {renderPartyField('emitente', 'Emitente')}
-                            {renderPartyField('destinatario', 'Destinatário')}
-                            </>
-                        )}
-
-                        {form.getValues('type') === 'servico' ? (
-                            <AccordionItem value="service">
-                                <AccordionTrigger>Serviços e Valores</AccordionTrigger>
-                                <AccordionContent className="space-y-4 px-1">
-                                    <FormField control={form.control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <FormField control={form.control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                        <FormField control={form.control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                        <FormField control={form.control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly className="font-semibold" /></FormControl></FormItem> )} />
+                                <Separator />
+                                {watchedFormValues.type === 'servico' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {renderPartyField('prestador', 'Prestador do Serviço')}
+                                        {renderPartyField('tomador', 'Tomador do Serviço')}
                                     </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        ) : (
-                            <AccordionItem value="products">
-                                <AccordionTrigger>Produtos e Valores</AccordionTrigger>
-                                <AccordionContent className="space-y-4 px-1">
-                                    {fields.map((item, index) => (
-                                        <div key={item.id} className="p-3 border rounded-md bg-muted/50 relative">
-                                            <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
-                                                <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                                                <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => (<FormItem className="col-span-9"><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
-                                                <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
-                                                <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
-                                                <FormField control={control} name={`produtos.${index}.valorTotal`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input type="number" {...field} readOnly className="font-semibold"/></FormControl></FormItem>)} />
-                                                <div className="col-span-3 flex justify-end">
-                                                {!isReadOnly && <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>}
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {renderPartyField('emitente', 'Emitente')}
+                                        {renderPartyField('destinatario', 'Destinatário')}
+                                    </div>
+                                )}
+                                <FormField control={control} name="observacoes" render={({ field }) => ( <FormItem><FormLabel>Observações Internas</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                            </TabsContent>
+
+                            <TabsContent value="itens" className="space-y-4">
+                                 {watchedFormValues.type === 'servico' ? (
+                                    <div className="space-y-4">
+                                        <FormField control={control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação do Serviço</FormLabel><FormControl><Textarea {...field} readOnly={isReadOnly} rows={5} /></FormControl></FormItem> )} />
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <FormField control={control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item LC 116</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                            <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                            <FormField control={control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly className="font-semibold" /></FormControl></FormItem> )} />
+                                        </div>
+                                    </div>
+                                ) : (
+                                     <div className="space-y-4">
+                                        {fields.map((item, index) => (
+                                            <div key={item.id} className="p-3 border rounded-md bg-muted/50 relative">
+                                                <div className="grid grid-cols-12 gap-x-2 gap-y-4 items-end">
+                                                    <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                                    <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => (<FormItem className="col-span-9"><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                                    <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                                    <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field} onBlur={() => updateProductTotal(index)} readOnly={isReadOnly}/></FormControl></FormItem>)} />
+                                                    <FormField control={control} name={`produtos.${index}.valorTotal`} render={({ field }) => (<FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Total</FormLabel><FormControl><Input type="number" {...field} readOnly className="font-semibold"/></FormControl></FormItem>)} />
+                                                    <div className="col-span-3 flex justify-end">
+                                                    {!isReadOnly && <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/></Button>}
+                                                    </div>
                                                 </div>
                                             </div>
+                                        ))}
+                                        {!isReadOnly && (
+                                            <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({ codigo: '', descricao: '', ncm: '', cfop: '', quantidade: 1, valorUnitario: 0, valorTotal: 0 })}>
+                                                <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Produto
+                                            </Button>
+                                        )}
+                                        <Separator className="my-4"/>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor Total dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
+                                            <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
                                         </div>
-                                    ))}
-                                    {!isReadOnly && (
-                                        <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({ codigo: '', descricao: '', ncm: '', cfop: '', quantidade: 1, valorUnitario: 0, valorTotal: 0 })}>
-                                            <PlusCircle className="mr-2 h-4 w-4"/> Adicionar Produto
-                                        </Button>
-                                    )}
-                                    <Separator className="my-4"/>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <FormField control={form.control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor Total dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
-                                        <FormField control={form.control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly /></FormControl></FormItem> )} />
                                     </div>
-                                </AccordionContent>
-                            </AccordionItem>
-                        )}
-                        <AccordionItem value="taxes">
-                                <AccordionTrigger>Impostos</AccordionTrigger>
-                                <AccordionContent className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1">
-                                    <FormField control={form.control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    {form.getValues('type') === 'servico' ? (
-                                    <FormField control={form.control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                )}
+                            </TabsContent>
+                             <TabsContent value="impostos">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-1">
+                                    <FormField control={control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    {watchedFormValues.type === 'servico' ? (
+                                    <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                     ) : (
                                     <>
-                                    <FormField control={form.control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={form.control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                     </>
                                     )}
-                                </AccordionContent>
-                            </AccordionItem>
-                    </Accordion>
-                    </div>
+                                </div>
+                            </TabsContent>
+                        </div>
+                    </Tabs>
                     <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
-                    {mode !== 'view' && <Button type="submit">{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
+                    {mode !== 'view' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
                     </DialogFooter>
                     </form>
                     </Form>

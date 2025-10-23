@@ -426,7 +426,7 @@ export default function FiscalPage() {
     fileInputRef.current?.click();
   };
   
-  const handleLaunchSuccess = useCallback(async (launchedKey: string, status: Launch['status']) => {
+  const handleLaunchSuccess = useCallback((launchedKey: string, status: Launch['status']) => {
      if (launchedKey && user && activeCompany) {
         const launchedLaunch = launches.find(l => (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey);
         const newValue = launchedLaunch?.valorTotalNota || launchedLaunch?.valorLiquido || 0;
@@ -438,7 +438,7 @@ export default function FiscalPage() {
         
         if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
             const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, oldLaunch.id);
-            await updateDoc(launchRef, { status: 'Substituida' });
+            updateDoc(launchRef, { status: 'Substituida' });
         }
 
         setXmlFiles(files => files.map(f => {
@@ -599,7 +599,9 @@ export default function FiscalPage() {
   }
 
   const isLaunchLocked = (launch: Launch): boolean => {
-    const launchPeriod = format((launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date), 'yyyy-MM');
+    const launchDate = (launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date);
+    if (!isValid(launchDate)) return false;
+    const launchPeriod = format(launchDate, 'yyyy-MM');
     return closedPeriods.includes(launchPeriod);
   }
   
@@ -1098,8 +1100,8 @@ export default function FiscalPage() {
         )}
       </Card>
       
-      {modalOptions && user && activeCompany && (
-         <LaunchFormModal 
+       {modalOptions && user && activeCompany && (
+        <LaunchFormModal 
             isOpen={!!modalOptions}
             onClose={closeModal}
             initialData={modalOptions}
@@ -1111,7 +1113,7 @@ export default function FiscalPage() {
             services={services}
         />
       )}
-      
+
       {user && activeCompany && (
         <FiscalClosingModal
             isOpen={isClosingModalOpen}
@@ -1122,5 +1124,4 @@ export default function FiscalPage() {
       )}
     </div>
   );
-
-    
+}
