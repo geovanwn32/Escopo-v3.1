@@ -13,7 +13,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import type { Recibo } from "@/types/recibo";
 
 
 export default function PessoalPageWrapper() {
@@ -35,6 +36,7 @@ export default function PessoalPageWrapper() {
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [thirteenths, setThirteenths] = useState<Thirteenth[]>([]);
   const [vacations, setVacations] = useState<Vacation[]>([]);
+  const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
@@ -63,6 +65,9 @@ export default function PessoalPageWrapper() {
   const [rciPeriodFilter, setRciPeriodFilter] = useState('');
   const [rciStatusFilter, setRciStatusFilter] = useState('');
 
+  // Recibo Filters
+  const [reciboPayerFilter, setReciboPayerFilter] = useState('');
+  const [reciboDateFilter, setReciboDateFilter] = useState<Date | undefined>();
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -91,6 +96,7 @@ export default function PessoalPageWrapper() {
         setTerminations([]);
         setThirteenths([]);
         setVacations([]);
+        setRecibos([]);
         return;
     };
 
@@ -104,13 +110,15 @@ export default function PessoalPageWrapper() {
                 rcisSnap,
                 terminationsSnap,
                 thirteenthsSnap,
-                vacationsSnap
+                vacationsSnap,
+                recibosSnap,
             ] = await Promise.all([
                 getDocs(query(collection(db, `${companyPath}/payrolls`), orderBy('createdAt', 'desc'))),
                 getDocs(query(collection(db, `${companyPath}/rcis`), orderBy('createdAt', 'desc'))),
                 getDocs(query(collection(db, `${companyPath}/terminations`), orderBy('createdAt', 'desc'))),
                 getDocs(query(collection(db, `${companyPath}/thirteenths`), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, `${companyPath}/vacations`), orderBy('createdAt', 'desc')))
+                getDocs(query(collection(db, `${companyPath}/vacations`), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, `${companyPath}/recibos`), orderBy('data', 'desc')))
             ]);
 
             setPayrolls(payrollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as Payroll)));
@@ -118,6 +126,7 @@ export default function PessoalPageWrapper() {
             setTerminations(terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp)?.toDate() } as Termination)));
             setThirteenths(thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
             setVacations(vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp)?.toDate() } as Vacation)));
+            setRecibos(recibosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp)?.toDate() } as Recibo)));
             
         } catch (error) {
             console.error("Error fetching pessoal data:", error);
@@ -198,6 +207,20 @@ export default function PessoalPageWrapper() {
         });
     }, [terminations, terminationNameFilter, terminationStartDateFilter, terminationEndDateFilter]);
 
+    const filteredRecibos = useMemo(() => {
+        return recibos.filter(r => {
+            const nameMatch = r.pagadorNome.toLowerCase().includes(reciboPayerFilter.toLowerCase());
+            let dateMatch = true;
+            if (reciboDateFilter) {
+                const itemDate = new Date(r.date as Date);
+                const filterDate = new Date(reciboDateFilter);
+                dateMatch = itemDate.getFullYear() === filterDate.getFullYear() && itemDate.getMonth() === filterDate.getMonth() && itemDate.getDate() === filterDate.getDate();
+            }
+            return nameMatch && dateMatch;
+        });
+    }, [recibos, reciboPayerFilter, reciboDateFilter]);
+
+
   const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
       try {
@@ -209,6 +232,7 @@ export default function PessoalPageWrapper() {
         if (collectionName === 'terminations') setTerminations(prev => prev.filter(p => p.id !== docId));
         if (collectionName === 'thirteenths') setThirteenths(prev => prev.filter(p => p.id !== docId));
         if (collectionName === 'vacations') setVacations(prev => prev.filter(p => p.id !== docId));
+        if (collectionName === 'recibos') setRecibos(prev => prev.filter(p => p.id !== docId));
 
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
@@ -261,7 +285,7 @@ export default function PessoalPageWrapper() {
             </Button>
             <Button asChild className="w-full justify-start bg-green-100 text-green-800 hover:bg-green-200">
               <Link href="/pessoal/rci">
-                <span><ClipboardList className="mr-2 h-4 w-4" />Calcular RCI</span>
+                <span><FileText className="mr-2 h-4 w-4" />Calcular RCI (Pró-labore)</span>
               </Link>
             </Button>
             <Button asChild className="w-full justify-start bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
@@ -405,24 +429,27 @@ export default function PessoalPageWrapper() {
            )}
         </CardContent>
       </Card>
-       <Card>
+
+      <Card>
         <CardHeader>
-          <CardTitle>RCIs (Pró-labore) Salvos</CardTitle>
-          <CardDescription>Visualize os cálculos de pró-labore dos sócios.</CardDescription>
+          <CardTitle>Recibos Salvos</CardTitle>
+          <CardDescription>Visualize os recibos avulsos gerados.</CardDescription>
         </CardHeader>
         <CardContent>
-           <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
-                <Input placeholder="Filtrar por nome..." value={rciNameFilter} onChange={(e) => setRciNameFilter(e.target.value)} className="max-w-xs" />
-                <Input placeholder="Filtrar por período..." value={rciPeriodFilter} onChange={(e) => setRciPeriodFilter(e.target.value)} className="w-full sm:w-[180px]" />
-                <Select value={rciStatusFilter} onValueChange={setRciStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="draft">Rascunho</SelectItem>
-                        <SelectItem value="calculated">Calculada</SelectItem>
-                        <SelectItem value="finalized">Finalizada</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Button variant="ghost" onClick={() => { setRciNameFilter(''); setRciPeriodFilter(''); setRciStatusFilter(''); }} className="sm:ml-auto">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                <Input placeholder="Filtrar por pagador..." value={reciboPayerFilter} onChange={(e) => setReciboPayerFilter(e.target.value)} className="max-w-xs" />
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant={"outline"} className="w-full sm:w-[240px] justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {reciboDateFilter ? format(reciboDateFilter, "dd/MM/yyyy", { locale: ptBR }) : <span>Filtrar por Data</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={reciboDateFilter} onSelect={setReciboDateFilter} locale={ptBR} />
+                    </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={() => { setReciboPayerFilter(''); setReciboDateFilter(undefined); }} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
                 </Button>
             </div>
@@ -430,44 +457,33 @@ export default function PessoalPageWrapper() {
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : rcis.length === 0 ? (
+          ) : recibos.length === 0 ? (
              <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="p-4 bg-muted rounded-full mb-4">
-                  <ListChecks className="h-10 w-10 text-muted-foreground" />
+                  <FileText className="h-10 w-10 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-semibold">Nenhum RCI salvo</h3>
+              <h3 className="text-xl font-semibold">Nenhum recibo salvo</h3>
               <p className="text-muted-foreground mt-2">
-                {activeCompany ? 'Crie um novo RCI para começar.' : 'Selecione uma empresa para visualizar os RCIs salvos.'}
+                {activeCompany ? 'Crie um novo recibo para começar.' : 'Selecione uma empresa para visualizar os recibos.'}
               </p>
             </div>
            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sócio</TableHead>
-                  <TableHead>Período</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Líquido</TableHead>
-                   <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>Pagador</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRcis.map((rci) => (
-                  <TableRow key={rci.id}>
-                    <TableCell className="font-medium">{rci.socioName}</TableCell>
-                    <TableCell>{rci.period}</TableCell>
-                     <TableCell>
-                      <Badge 
-                        variant={getStatusVariant(rci.status)} 
-                        className={cn("capitalize", {
-                            'bg-green-600 hover:bg-green-600/90 text-white': rci.status === 'calculated',
-                        })}
-                      >
-                         {getStatusLabel(rci.status)}
-                      </Badge>
-                    </TableCell>
+                {filteredRecibos.map((recibo) => (
+                  <TableRow key={recibo.id}>
+                    <TableCell className="font-medium">{recibo.pagadorNome}</TableCell>
+                    <TableCell>{format(recibo.date as Date, 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-right font-mono">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rci.totals.liquido)}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recibo.valor)}
                     </TableCell>
                     <TableCell className="text-right">
                        <DropdownMenu>
@@ -479,7 +495,7 @@ export default function PessoalPageWrapper() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem asChild>
-                                <Link href={`/pessoal/rci?id=${rci.id}`}>
+                                <Link href={`/fiscal?receiptId=${recibo.id}`}>
                                     <Eye className="mr-2 h-4 w-4" />
                                     Acessar
                                 </Link>
@@ -495,12 +511,12 @@ export default function PessoalPageWrapper() {
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Esta ação não pode ser desfeita. O RCI será permanentemente removido.
+                                            Esta ação não pode ser desfeita. O recibo será permanentemente removido.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteGeneric('rcis', rci.id!, 'RCI')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        <AlertDialogAction onClick={() => handleDeleteGeneric('recibos', recibo.id!, 'Recibo')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
