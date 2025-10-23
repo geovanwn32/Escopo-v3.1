@@ -225,23 +225,30 @@ export default function FiscalPage() {
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
     
-    const currentMonthLaunches = launches.filter(l => {
-      const launchDate = (l.date as any)?.toDate ? (l.date as any).toDate() : new Date(l.date);
-      return isValid(launchDate) && isWithinInterval(launchDate, { start: monthStart, end: monthEnd });
+    const currentMonthItems: GenericLaunch[] = [
+        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
+        ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
+    ].filter(item => {
+      const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+      return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
     });
     
-    const faturamento = currentMonthLaunches
-        .filter(l => (l.type === 'saida' || l.type === 'servico') && l.status === 'Normal')
-        .reduce((sum, l) => sum + (l.valorLiquido || l.valorTotalNota || 0), 0);
+    const faturamento = currentMonthItems
+        .filter(item => item.docType === 'launch' && (item.type === 'saida' || item.type === 'servico') && item.status === 'Normal')
+        .reduce((sum, item) => sum + ((item as Launch).valorLiquido || (item as Launch).valorTotalNota || 0), 0);
         
-    const compras = currentMonthLaunches
-        .filter(l => l.type === 'entrada' && l.status === 'Normal')
-        .reduce((sum, l) => sum + (l.valorTotalNota || 0), 0);
+    const comprasNotas = currentMonthItems
+        .filter(item => item.docType === 'launch' && item.type === 'entrada' && item.status === 'Normal')
+        .reduce((sum, item) => sum + ((item as Launch).valorTotalNota || 0), 0);
         
-    const notasEmitidas = currentMonthLaunches.length;
+    const comprasRecibos = currentMonthItems
+        .filter(item => item.docType === 'recibo')
+        .reduce((sum, item) => sum + ((item as Recibo).valor || 0), 0);
 
-    return { faturamento, compras, notasEmitidas };
-  }, [launches]);
+    const notasEmitidas = currentMonthItems.filter(item => item.docType === 'launch').length;
+
+    return { faturamento, compras: comprasNotas + comprasRecibos, notasEmitidas };
+  }, [launches, recibos]);
   
   const monthlyChartData = useMemo(() => {
     const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
@@ -252,20 +259,24 @@ export default function FiscalPage() {
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         monthlyTotals[key] = { receitas: 0, despesas: 0 };
     }
+    
+    const allItems: GenericLaunch[] = [
+        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
+        ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
+    ];
 
-    launches.forEach(l => {
-        const value = l.valorLiquido || l.valorTotalNota || 0;
-        const launchDate = (l.date as any)?.toDate ? (l.date as any).toDate() : new Date(l.date);
-        
-        if (!isValid(launchDate)) return;
-
-        const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
+    allItems.forEach(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        if (!isValid(itemDate)) return;
+        const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
 
         if (monthlyTotals[key]) {
-            if (l.type === 'saida' || l.type === 'servico') {
-                monthlyTotals[key].receitas += value;
-            } else if (l.type === 'entrada') {
-                monthlyTotals[key].despesas += value;
+            if (item.docType === 'launch' && (item.type === 'saida' || item.type === 'servico')) {
+                monthlyTotals[key].receitas += (item.valorLiquido || item.valorTotalNota || 0);
+            } else if (item.docType === 'launch' && item.type === 'entrada') {
+                monthlyTotals[key].despesas += (item.valorTotalNota || 0);
+            } else if (item.docType === 'recibo') {
+                 monthlyTotals[key].despesas += (item.valor || 0);
             }
         }
     });
@@ -274,7 +285,7 @@ export default function FiscalPage() {
         const [year, month] = key.split('-').map(Number);
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
-  }, [launches]);
+  }, [launches, recibos]);
 
 
   const refreshXmlFileStatus = useCallback(() => {
@@ -501,8 +512,8 @@ export default function FiscalPage() {
         ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
     ];
     return combined.sort((a, b) => {
-        const dateA = (a.date as Timestamp)?.toDate ? (a.date as Timestamp).toDate() : new Date(a.date);
-        const dateB = (b.date as Timestamp)?.toDate ? (b.date as Timestamp).toDate() : new Date(b.date);
+        const dateA = (a.date as any)?.toDate ? (a.date as Timestamp).toDate() : new Date(a.date);
+        const dateB = (b.date as any)?.toDate ? (b.date as Timestamp).toDate() : new Date(b.date);
         return dateB.getTime() - dateA.getTime();
     });
 }, [launches, recibos]);
@@ -735,7 +746,7 @@ endDate.setHours(23,59,59,999);
                 </CardHeader>
                 <CardContent>
                     <div className="text-2xl font-bold text-red-700 dark:text-red-400">{formatCurrency(monthlySummary.compras)}</div>
-                    <p className="text-xs text-muted-foreground">Soma de NF-e de entrada.</p>
+                    <p className="text-xs text-muted-foreground">Soma de NF-e de entrada e Recibos.</p>
                 </CardContent>
             </Card>
              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
@@ -1160,3 +1171,5 @@ endDate.setHours(23,59,59,999);
     </div>
   );
 }
+
+    
