@@ -71,7 +71,9 @@ export default function FiscalPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  const [modalOptions, setModalOptions] = useState<OpenModalOptions | null>(null);
+  // State management for the modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentModalData, setCurrentModalData] = useState<OpenModalOptions | null>(null);
   
   // Data for modals
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -96,6 +98,17 @@ export default function FiscalPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+
+   // Modal control functions
+  const openModal = useCallback((options: OpenModalOptions) => {
+    setCurrentModalData(options);
+    setIsModalOpen(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setCurrentModalData(null); // Clear data on close
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -613,14 +626,6 @@ export default function FiscalPage() {
        toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
     }
   }
-  
-  const openModal = useCallback((options: OpenModalOptions) => {
-     setModalOptions(options);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setModalOptions(null);
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -1087,11 +1092,11 @@ export default function FiscalPage() {
         )}
       </Card>
       
-       {modalOptions && user && activeCompany && (
+       {isModalOpen && user && activeCompany && (
         <LaunchFormModal 
-            isOpen={!!modalOptions}
+            isOpen={isModalOpen}
             onClose={closeModal}
-            initialData={modalOptions}
+            initialData={currentModalData || {}}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
@@ -1112,5 +1117,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
