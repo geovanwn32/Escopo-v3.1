@@ -73,12 +73,10 @@ export default function FiscalPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  // State management for the modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentModalData, setCurrentModalData] = useState<OpenModalOptions | null>(null);
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   
-  // Data for modals
   const [partners, setPartners] = useState<Partner[]>([]);
   const [products, setProducts] = useState<Produto[]>([]);
   const [services, setServices] = useState<Servico[]>([]);
@@ -142,71 +140,69 @@ export default function FiscalPage() {
     }
   }, [xmlFiles, activeCompany]);
 
-  useEffect(() => {
-    if (!activeCompany || !user) {
-        setLoadingData(false);
-        setLaunches([]);
-        setOrcamentos([]);
-        setClosedPeriods([]);
-        setPartners([]);
-        setProducts([]);
-        setServices([]);
-        return;
-    };
-
-    setLoadingData(true);
-    let activeListeners = 6;
-    const onDone = () => {
-        activeListeners--;
-        if (activeListeners === 0) setLoadingData(false);
+  const fetchData = useCallback(async () => {
+    if (!user || !activeCompany) {
+      setLoadingData(false);
+      return;
     }
     
-    // Generic function to create a listener
-    const createListener = (collectionName: string, setData: (data: any[]) => void, toastTitle: string, orderByField: string = 'date') => {
-        const ref = collection(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`);
-        const q = query(ref, orderBy(orderByField, 'desc'));
-
-        return onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                const docData = doc.data();
-                // Convert all known timestamp fields to Date objects
-                const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
-                for(const field of dateFields) {
-                    if (docData[field] instanceof Timestamp) {
-                        docData[field] = docData[field].toDate();
-                    }
-                }
-                return { id: doc.id, ...docData };
-            });
-            setData(data);
-            onDone();
-        }, (error) => {
-            console.error(`Error fetching ${collectionName}: `, error);
-            toast({ variant: "destructive", title: toastTitle });
-            onDone();
-        });
-    };
-
-    const unsubscribes = [
-      createListener('launches', setLaunches, "Erro ao buscar lançamentos", "date"),
-      createListener('orcamentos', setOrcamentos, "Erro ao buscar orçamentos", "createdAt"),
-      createListener('partners', setPartners, "Erro ao buscar parceiros", "razaoSocial"),
-      createListener('produtos', setProducts, "Erro ao buscar produtos", "descricao"),
-      createListener('servicos', setServices, "Erro ao buscar serviços", "descricao"),
-      
-      // Listener for fiscal closures
-      onSnapshot(collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`), (snapshot) => {
-        const periods = snapshot.docs.map(doc => doc.id);
-        setClosedPeriods(periods);
-        onDone();
-      }, (error) => { console.error("Error fetching closures: ", error); toast({ variant: "destructive", title: "Erro ao buscar períodos fechados" }); onDone(); })
+    setLoadingData(true);
+    
+    const collectionsToFetch = [
+        { name: 'launches', setter: setLaunches, orderBy: 'date' },
+        { name: 'orcamentos', setter: setOrcamentos, orderBy: 'createdAt' },
+        { name: 'partners', setter: setPartners, orderBy: 'razaoSocial' },
+        { name: 'produtos', setter: setProducts, orderBy: 'descricao' },
+        { name: 'servicos', setter: setServices, orderBy: 'descricao' },
     ];
+    
+    const unsubscribes: (() => void)[] = [];
 
+    try {
+        const createListener = (collectionName: string, setData: (data: any[]) => void, orderByField: string) => {
+            const ref = collection(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`);
+            const q = query(ref, orderBy(orderByField, 'desc'));
+            const unsub = onSnapshot(q, (snapshot) => {
+                 const data = snapshot.docs.map(doc => {
+                    const docData = doc.data();
+                    const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
+                    for(const field of dateFields) {
+                        if (docData[field] instanceof Timestamp) {
+                            docData[field] = docData[field].toDate();
+                        }
+                    }
+                    return { id: doc.id, ...docData };
+                });
+                setData(data);
+            }, (error) => {
+                console.error(`Error fetching ${collectionName}: `, error);
+                toast({ variant: "destructive", title: `Erro ao buscar ${collectionName}` });
+            });
+            unsubscribes.push(unsub);
+        };
+        
+        collectionsToFetch.forEach(c => createListener(c.name, c.setter, c.orderBy));
 
-    return () => {
-        unsubscribes.forEach(unsub => unsub());
-    };
-  }, [activeCompany, user, toast]);
+        const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
+        const unsubClosures = onSnapshot(closuresRef, (snapshot) => {
+            const periods = snapshot.docs.map(doc => doc.id);
+            setClosedPeriods(periods);
+        });
+        unsubscribes.push(unsubClosures);
+
+    } catch (error) {
+         console.error("Error setting up listeners:", error);
+    } finally {
+        setLoadingData(false);
+    }
+    
+    return () => unsubscribes.forEach(unsub => unsub());
+
+  }, [user, activeCompany, toast]);
+
+  useEffect(() => {
+      fetchData();
+  }, [fetchData]);
   
   const monthlySummary = useMemo(() => {
     const now = new Date();
@@ -267,7 +263,6 @@ export default function FiscalPage() {
 
   const refreshXmlFileStatus = useCallback(() => {
     if (launches.length === 0) {
-        // If there are no launches, all files must be pending
         setXmlFiles(prevFiles => prevFiles.map(f => ({ ...f, status: 'pending' })));
         return;
     }
@@ -284,18 +279,16 @@ export default function FiscalPage() {
     });
 
     setXmlFiles(prevFiles => prevFiles.map(file => {
-        if (!file.key) return file; // Cannot check status without a key
+        if (!file.key) return file;
 
         const existingLaunch = launchedItems.get(file.key);
         let newStatus: XmlFile['status'] = file.status;
 
         if (existingLaunch) {
-            // It's considered 'launched' if it exists and status is Normal
             if (existingLaunch.status === 'Normal') {
                  newStatus = 'launched';
             }
         } else {
-             // If it's not in the launched list, it should be pending (unless it was cancelled)
             if (file.status === 'launched') {
                  newStatus = 'pending';
             }
@@ -448,7 +441,8 @@ export default function FiscalPage() {
          }
          return f;
      }));
-  }, [user, activeCompany]);
+     fetchData(); // Refetch data to update the launches list
+  }, [user, activeCompany, fetchData]);
 
   const handleDeleteLaunch = async (launch: Launch) => {
     if (!user || !activeCompany) return;
@@ -466,6 +460,7 @@ export default function FiscalPage() {
         toast({
             title: "Lançamento excluído com sucesso!"
         });
+        fetchData(); // Refetch data
     } catch (error) {
         console.error("Error deleting launch: ", error);
         toast({
@@ -536,7 +531,6 @@ export default function FiscalPage() {
   };
 
 
-  // XML files filtering and pagination logic
   const filteredXmlFiles = useMemo(() => {
     return xmlFiles.filter(file => {
         const nameMatch = file.file.name.toLowerCase().includes(xmlNameFilter.toLowerCase());
@@ -610,6 +604,7 @@ export default function FiscalPage() {
      try {
          await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
          toast({ title: "Orçamento excluído com sucesso." });
+         fetchData();
      } catch (error) {
         toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
      }
@@ -704,8 +699,6 @@ export default function FiscalPage() {
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })}><ArrowUpRightSquare className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-green-100 text-green-800 hover:bg-green-200"><ArrowDownLeftSquare className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
           <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
@@ -1092,7 +1085,7 @@ export default function FiscalPage() {
         )}
       </Card>
       
-       {user && activeCompany && 
+       {isModalOpen && user && activeCompany && 
         <MemoizedLaunchFormModal 
             isOpen={isModalOpen}
             onClose={closeModal}
@@ -1117,5 +1110,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
