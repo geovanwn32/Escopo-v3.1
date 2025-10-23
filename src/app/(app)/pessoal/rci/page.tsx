@@ -94,8 +94,12 @@ export default function RciPage() {
         }
     }, [user]);
 
-    const recalculateAndSetState = useCallback((currentEvents: RciEvent[], socio: Socio | null): PayrollCalculationResult | null => {
-        if (!socio) return null;
+    const recalculateAndSetState = useCallback((currentEvents: RciEvent[], socio: Socio | null) => {
+        if (!socio) {
+            setCalculationResult(null);
+            setEvents([]);
+            return;
+        }
         
         const mockSocioAsEmployee: any = {
           ...socio,
@@ -106,31 +110,7 @@ export default function RciPage() {
 
         const result = calculatePayroll(mockSocioAsEmployee, currentEvents);
         setCalculationResult(result);
-            
-        let updatedEvents = currentEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
-
-        if (result.inss.valor > 0) {
-             updatedEvents.push({
-                id: 'inss',
-                rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE PRÓ-LABORE', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
-                referencia: result.inss.aliquota,
-                provento: 0,
-                desconto: result.inss.valor,
-            });
-        }
-        
-        if (result.irrf.valor > 0) {
-             updatedEvents.push({
-                id: 'irrf',
-                rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE PRÓ-LABORE', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
-                referencia: result.irrf.valor,
-                provento: 0,
-                desconto: result.irrf.valor,
-            });
-        }
-        
-        setEvents(updatedEvents);
-        return result;
+        setEvents(result.events as RciEvent[]);
     }, []);
 
     useEffect(() => {
@@ -191,7 +171,7 @@ export default function RciPage() {
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const sanitizedValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
         
-        let updatedEvents = events.map(event =>
+        const updatedEvents = events.map(event =>
             event.id === eventId ? { ...event, [field]: sanitizedValue } : event
         );
         

@@ -25,6 +25,7 @@ const irrfDependentDeduction = 189.59;
 const simplifiedDeduction = 564.80;
 
 export interface PayrollCalculationResult {
+    events: PayrollEvent[];
     totalProventos: number;
     totalDescontos: number;
     liquido: number;
@@ -107,6 +108,13 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
         .reduce((acc, e) => acc + (e.provento || 0), 0);
         
     const inss = calculateINSS(baseINSS, isSocio);
+    const inssEvent: PayrollEvent = {
+        id: 'inss',
+        rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
+        referencia: inss.aliquota,
+        provento: 0,
+        desconto: inss.valor,
+    };
 
     const baseIRRF = events
         .filter(e => e.rubrica.incideIRRF && e.rubrica.tipo === 'provento')
@@ -114,16 +122,26 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
     
     const numDependentesIRRF = !isSocio ? (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0 : 0;
     
-    // IRRF is calculated on the base salary minus the INSS deduction.
     const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, inss.valor);
+    const irrfEvent: PayrollEvent = {
+        id: 'irrf',
+        rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
+        referencia: irrf.rate,
+        provento: 0,
+        desconto: irrf.value,
+    };
 
     const fgts = { valor: isSocio ? 0 : parseFloat((baseFGTS * 0.08).toFixed(2)) };
+    
+    const finalEvents = [...events];
+    if (inss.valor > 0) finalEvents.push(inssEvent);
+    if (irrf.value > 0) finalEvents.push(irrfEvent);
 
-    // Total discounts includes manual discounts, INSS, and IRRF.
-    const totalDescontos = initialDescontos + inss.valor + irrf.valor;
+    const totalDescontos = finalEvents.filter(e => e.rubrica.tipo === 'desconto').reduce((acc, e) => acc + (e.desconto || 0), 0);
     const liquido = totalProventos - totalDescontos;
 
     return {
+        events: finalEvents,
         totalProventos: parseFloat(totalProventos.toFixed(2)),
         totalDescontos: parseFloat(totalDescontos.toFixed(2)),
         liquido: parseFloat(liquido.toFixed(2)),
