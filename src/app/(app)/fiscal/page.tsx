@@ -272,11 +272,11 @@ export default function FiscalPage() {
 
         if (monthlyTotals[key]) {
             if (item.docType === 'launch' && (item.type === 'saida' || item.type === 'servico')) {
-                monthlyTotals[key].receitas += (item.valorLiquido || item.valorTotalNota || 0);
+                monthlyTotals[key].receitas += ((item as Launch).valorLiquido || (item as Launch).valorTotalNota || 0);
             } else if (item.docType === 'launch' && item.type === 'entrada') {
-                monthlyTotals[key].despesas += (item.valorTotalNota || 0);
+                monthlyTotals[key].despesas += ((item as Launch).valorTotalNota || 0);
             } else if (item.docType === 'recibo') {
-                 monthlyTotals[key].despesas += (item.valor || 0);
+                 monthlyTotals[key].despesas += ((item as Recibo).valor || 0);
             }
         }
     });
@@ -478,10 +478,10 @@ export default function FiscalPage() {
         const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, launch.id);
         await deleteDoc(launchRef);
         
-        if (launch.docType === 'launch' && launch.chaveNfe) {
+        if (launch.docType === 'launch' && (launch as Launch).chaveNfe) {
              setXmlFiles(files => 
                 files.map(f => 
-                    f.key === launch.chaveNfe ? { ...f, status: 'pending' } : f
+                    f.key === (launch as Launch).chaveNfe ? { ...f, status: 'pending' } : f
                 )
             );
         }
@@ -524,13 +524,13 @@ export default function FiscalPage() {
         let keyMatch = true;
         if(filterKey){
             if(item.docType === 'launch') {
-                keyMatch = item.chaveNfe?.includes(filterKey) || item.numeroNfse?.includes(filterKey) || false;
+                keyMatch = (item as Launch).chaveNfe?.includes(filterKey) || (item as Launch).numeroNfse?.includes(filterKey) || false;
             } else {
-                keyMatch = item.numero?.includes(filterKey) || item.pagadorNome.toLowerCase().includes(filterKey.toLowerCase()) || false;
+                keyMatch = (item as Recibo).numero?.includes(filterKey) || (item as Recibo).pagadorNome.toLowerCase().includes(filterKey.toLowerCase()) || false;
             }
         }
         
-        const typeMatch = filterType ? (item.docType === 'recibo' ? 'recibo' : item.type) === filterType : true;
+        const typeMatch = filterType ? (item.docType === 'recibo' ? 'recibo' : (item as Launch).type) === filterType : true;
         
         let dateMatch = true;
         if (filterStartDate) {
@@ -544,7 +544,7 @@ export default function FiscalPage() {
             const itemDate = new Date(item.date as Date);
             itemDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-endDate.setHours(23,59,59,999);
+            endDate.setHours(23,59,59,999);
             dateMatch = itemDate <= endDate;
         }
 
@@ -558,18 +558,18 @@ endDate.setHours(23,59,59,999);
 
   const getPartnerName = (item: GenericLaunch): string => {
     if (item.docType === 'recibo') {
-        return item.pagadorNome;
+        return (item as Recibo).pagadorNome;
     }
     // Logic for Launch
-    switch (item.type) {
+    switch ((item as Launch).type) {
       case 'entrada':
-        return item.emitente?.nome || 'N/A';
+        return (item as Launch).emitente?.nome || 'N/A';
       case 'saida':
-         if (item.destinatario?.nome) return item.destinatario.nome;
-         if (item.tomador?.nome) return item.tomador.nome;
+         if ((item as Launch).destinatario?.nome) return (item as Launch).destinatario.nome;
+         if ((item as Launch).tomador?.nome) return (item as Launch).tomador.nome;
          return 'N/A';
       case 'servico':
-        return item.tomador?.nome || 'N/A';
+        return (item as Launch).tomador?.nome || 'N/A';
       default:
         return 'N/A';
     }
@@ -611,7 +611,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredItems.length / launchesItemsPerPage);
   const paginatedItems = filteredItems.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    currentPage * launchesItemsPerPage
+    launchesCurrentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
