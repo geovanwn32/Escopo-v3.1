@@ -427,21 +427,18 @@ export default function FiscalPage() {
   };
   
   const handleLaunchSuccess = useCallback(async (launchedKey: string, status: Launch['status']) => {
-     if (launchedKey) {
+     if (launchedKey && user && activeCompany) {
         const launchedLaunch = launches.find(l => (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey);
         const newValue = launchedLaunch?.valorTotalNota || launchedLaunch?.valorLiquido || 0;
 
-        // Check for an older version of this launch and mark it as 'Substituida'
         const oldLaunch = launches.find(l => 
             (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey &&
             l.id !== launchedLaunch?.id
         );
         
         if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
-            if(user && activeCompany) {
-                const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, oldLaunch.id);
-                await updateDoc(launchRef, { status: 'Substituida' });
-            }
+            const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, oldLaunch.id);
+            await updateDoc(launchRef, { status: 'Substituida' });
         }
 
         setXmlFiles(files => files.map(f => {
@@ -568,7 +565,7 @@ export default function FiscalPage() {
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesItemsPerPage * launchesCurrentPage
+    launchesCurrentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -629,21 +626,8 @@ export default function FiscalPage() {
   }
   
   const openModal = useCallback((options: OpenModalOptions) => {
-     if (options.xmlFile && user && activeCompany) {
-        const { xmlFile } = options;
-        if (xmlFile.key) {
-             const launchesRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/launches`);
-             let q;
-             if (xmlFile.type === 'servico' || xmlFile.type === 'entrada') {
-                 const [numero, codigo, versao] = xmlFile.key.split('-');
-                 q = query(launchesRef, where("numeroNfse", "==", numero), where("codigoVerificacaoNfse", "==", codigo), where("versaoNfse", "==", versao));
-             } else {
-                 q = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
-             }
-        }
-    }
-    setModalOptions(options);
-  }, [user, activeCompany]);
+     setModalOptions(options);
+  }, []);
 
   const closeModal = useCallback(() => {
     setModalOptions(null);
@@ -1138,4 +1122,5 @@ export default function FiscalPage() {
       )}
     </div>
   );
-}
+
+    
