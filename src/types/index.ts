@@ -1,5 +1,4 @@
 
-
 export type { Aliquota, EsferaTributaria } from './aliquota';
 export type { BankTransaction } from './bank-transaction';
 export type { Company, EstablishmentData } from './company';
@@ -61,42 +60,57 @@ export interface Launch {
     type: 'entrada' | 'saida' | 'servico';
     status: 'Normal' | 'Cancelado' | 'Substituida';
     date: Date;
-    chaveNfe?: string;
-    numeroNfse?: string;
+    chaveNfe?: string | null;
+    numeroNfse?: string | null;
+    serie?: string | null;
     codigoVerificacaoNfse?: string;
     versaoNfse?: string;
     financialStatus?: 'pendente' | 'pago' | 'vencido';
     observacoes?: string | null;
     
-    // NFS-e fields
-    prestador?: { nome: string; cnpj: string; };
-    tomador?: { nome: string; cnpj: string; };
-    discriminacao?: string;
-    itemLc116?: string;
-    valorServicos?: number;
-    valorLiquido?: number;
-    valorPis?: number;
-    valorCofins?: number;
-    valorIr?: number;
-    valorInss?: number;
-    valorCsll?: number;
-    valorIss?: number;
+    // Parties
+    emitente?: { nome: string; cnpj: string; } | null;
+    destinatario?: { nome: string; cnpj: string; } | null;
+    prestador?: { nome: string; cnpj: string; } | null;
+    tomador?: { nome: string; cnpj: string; } | null;
+    
+    // NFS-e specific
+    discriminacao?: string | null;
+    itemLc116?: string | null;
+    valorServicos?: number | null;
+    
+    // NF-e specific
+    valorProdutos?: number | null;
+    valorTotalNota?: number | null;
+    modalidadeFrete?: string | null;
 
+    // Taxes
+    valorPis?: number | null;
+    valorCofins?: number | null;
+    valorIr?: number | null;
+    valorInss?: number | null;
+    valorCsll?: number | null;
+    valorIss?: number | null;
+    valorIpi?: number | null;
+    valorIcms?: number | null;
+    valorLiquido?: number | null;
 
-    // NF-e fields
-    emitente?: { nome: string; cnpj: string; };
-    destinatario?: { nome: string; cnpj: string; };
-    valorProdutos?: number;
-    valorTotalNota?: number;
-    valorIpi?: number;
-    valorIcms?: number;
     produtos?: {
-      codigo?: string;
-      descricao?: string;
-      ncm?: string;
-      cfop?: string;
+      codigo?: string | null;
+      descricao: string;
+      ncm?: string | null;
+      cfop?: string | null;
+      unidade?: string | null;
       quantidade: number;
       valorUnitario: number;
       valorTotal: number;
+      baseCalculo?: number | null;
+      vlrIcms?: number | null;
+      vlrIpi?: number | null;
+      aliqIcms?: number | null;
+      aliqIpi?: number | null;
     }[];
 }
+
+
+    
