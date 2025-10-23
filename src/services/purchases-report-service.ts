@@ -68,7 +68,7 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
     const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
     
-    let launchesQuery = query(launchesRef, where('type', '==', 'entrada'));
+    let launchesQuery = query(launchesRef);
     let recibosQuery = query(recibosRef);
 
     if (dateRange.from) {
@@ -87,10 +87,13 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
         getDocs(recibosQuery)
     ]);
     
-    const purchases: (Launch | Recibo)[] = [
-        ...launchesSnapshot.docs.map(doc => ({ ...doc.data() } as Launch)),
-        ...recibosSnapshot.docs.map(doc => ({ ...doc.data() } as Recibo))
-    ];
+    const launches = launchesSnapshot.docs
+        .map(doc => ({ ...doc.data() } as Launch))
+        .filter(launch => launch.type === 'entrada'); // Filter for 'entrada' on the client
+        
+    const recibos = recibosSnapshot.docs.map(doc => ({ ...doc.data() } as Recibo));
+
+    const purchases: (Launch | Recibo)[] = [...launches, ...recibos];
 
     // Sort client-side by date
     purchases.sort((a, b) => {
