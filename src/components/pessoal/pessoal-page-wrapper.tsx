@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import type { Recibo } from "@/types/recibo";
 
@@ -126,7 +126,12 @@ export default function PessoalPageWrapper() {
             setTerminations(terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp)?.toDate() } as Termination)));
             setThirteenths(thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
             setVacations(vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp)?.toDate() } as Vacation)));
-            setRecibos(recibosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp)?.toDate() } as Recibo)));
+            setRecibos(recibosSnap.docs.map(doc => {
+                const data = doc.data();
+                // Ensure date is a JS Date object
+                const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
+                return { id: doc.id, ...data, date } as Recibo;
+            }));
             
         } catch (error) {
             console.error("Error fetching pessoal data:", error);
@@ -481,7 +486,7 @@ export default function PessoalPageWrapper() {
                 {filteredRecibos.map((recibo) => (
                   <TableRow key={recibo.id}>
                     <TableCell className="font-medium">{recibo.pagadorNome}</TableCell>
-                    <TableCell>{format(recibo.date as Date, 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{isValid(recibo.date as Date) ? format(recibo.date as Date, 'dd/MM/yyyy') : 'Data inválida'}</TableCell>
                     <TableCell className="text-right font-mono">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(recibo.valor)}
                     </TableCell>
