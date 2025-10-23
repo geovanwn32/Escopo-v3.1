@@ -62,6 +62,8 @@ const formatCurrency = (value: number) => {
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
+
 
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
@@ -71,9 +73,10 @@ export default function FiscalPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  // State management for the modal
+  // State management for the modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentModalData, setCurrentModalData] = useState<OpenModalOptions | null>(null);
+  const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   
   // Data for modals
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -92,8 +95,6 @@ export default function FiscalPage() {
   const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
-  
-  const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -1091,8 +1092,8 @@ export default function FiscalPage() {
         )}
       </Card>
       
-       {isModalOpen && user && activeCompany && (
-        <LaunchFormModal 
+       {user && activeCompany && 
+        <MemoizedLaunchFormModal 
             isOpen={isModalOpen}
             onClose={closeModal}
             initialData={currentModalData || {}}
@@ -1103,7 +1104,7 @@ export default function FiscalPage() {
             products={products}
             services={services}
         />
-      )}
+      }
 
       {user && activeCompany && (
         <FiscalClosingModal
