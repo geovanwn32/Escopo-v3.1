@@ -503,7 +503,7 @@ export default function FiscalPage() {
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    currentPage * itemsPerPage
+    launchesCurrentPage * launchesItemsPerPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
