@@ -225,30 +225,30 @@ export default function FiscalPage() {
     const monthStart = startOfMonth(now);
     const monthEnd = endOfMonth(now);
     
-    const currentMonthItems: GenericLaunch[] = [
-        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
-        ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
-    ].filter(item => {
-      const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
-      return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
+    const currentMonthLaunches = launches.filter(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
     });
-    
-    const faturamento = currentMonthItems
-        .filter(item => item.docType === 'launch' && (item.type === 'saida' || item.type === 'servico') && item.status === 'Normal')
-        .reduce((sum, item) => sum + ((item as Launch).valorLiquido || (item as Launch).valorTotalNota || 0), 0);
-        
-    const comprasNotas = currentMonthItems
-        .filter(item => item.docType === 'launch' && item.type === 'entrada' && item.status === 'Normal')
-        .reduce((sum, item) => sum + ((item as Launch).valorTotalNota || 0), 0);
-        
-    const comprasRecibos = currentMonthItems
-        .filter(item => item.docType === 'recibo')
-        .reduce((sum, item) => sum + ((item as Recibo).valor || 0), 0);
 
-    const notasEmitidas = currentMonthItems.filter(item => item.docType === 'launch').length;
+    const currentMonthRecibos = recibos.filter(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
+    });
+
+    const faturamento = currentMonthLaunches
+        .filter(item => (item.type === 'saida' || item.type === 'servico') && item.status === 'Normal')
+        .reduce((sum, item) => sum + (item.valorLiquido || item.valorTotalNota || 0), 0);
+        
+    const comprasNotas = currentMonthLaunches
+        .filter(item => item.type === 'entrada' && item.status === 'Normal')
+        .reduce((sum, item) => sum + (item.valorTotalNota || 0), 0);
+
+    const comprasRecibos = currentMonthRecibos.reduce((sum, item) => sum + (item.valor || 0), 0);
+
+    const notasEmitidas = currentMonthLaunches.length;
 
     return { faturamento, compras: comprasNotas + comprasRecibos, notasEmitidas };
-  }, [launches, recibos]);
+}, [launches, recibos]);
   
   const monthlyChartData = useMemo(() => {
     const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
@@ -260,24 +260,26 @@ export default function FiscalPage() {
         monthlyTotals[key] = { receitas: 0, despesas: 0 };
     }
     
-    const allItems: GenericLaunch[] = [
-        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
-        ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
-    ];
-
-    allItems.forEach(item => {
+    launches.forEach(item => {
         const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
         if (!isValid(itemDate)) return;
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
 
         if (monthlyTotals[key]) {
-            if (item.docType === 'launch' && (item.type === 'saida' || item.type === 'servico')) {
-                monthlyTotals[key].receitas += ((item as Launch).valorLiquido || (item as Launch).valorTotalNota || 0);
-            } else if (item.docType === 'launch' && item.type === 'entrada') {
-                monthlyTotals[key].despesas += ((item as Launch).valorTotalNota || 0);
-            } else if (item.docType === 'recibo') {
-                 monthlyTotals[key].despesas += ((item as Recibo).valor || 0);
+            if (item.type === 'saida' || item.type === 'servico') {
+                monthlyTotals[key].receitas += (item.valorLiquido || item.valorTotalNota || 0);
+            } else if (item.type === 'entrada') {
+                monthlyTotals[key].despesas += (item.valorTotalNota || 0);
             }
+        }
+    });
+
+    recibos.forEach(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        if (!isValid(itemDate)) return;
+        const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
+        if(monthlyTotals[key]) {
+            monthlyTotals[key].despesas += item.valor || 0;
         }
     });
     
