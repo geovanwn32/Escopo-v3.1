@@ -8,8 +8,8 @@ import { Loader2, BookCheck, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BackgroundCircles } from '@/components/auth/background-circles';
 import { motion } from 'framer-motion';
+import { BackgroundPaths } from '@/components/auth/background-paths';
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -32,7 +32,7 @@ export default function Home() {
   }
 
   return (
-    <BackgroundCircles>
+    <BackgroundPaths>
       <div className="relative z-10 flex flex-col items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -68,6 +68,6 @@ export default function Home() {
           </Card>
         </motion.div>
       </div>
-    </BackgroundCircles>
+    </BackgroundPaths>
   );
 }
