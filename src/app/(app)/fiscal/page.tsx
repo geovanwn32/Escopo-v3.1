@@ -427,28 +427,15 @@ export default function FiscalPage() {
   };
   
   const handleLaunchSuccess = useCallback((launchedKey: string, status: Launch['status']) => {
-     if (launchedKey && user && activeCompany) {
-        const launchedLaunch = launches.find(l => (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey);
-        const newValue = launchedLaunch?.valorTotalNota || launchedLaunch?.valorLiquido || 0;
+     if (!launchedKey || !user || !activeCompany) return;
 
-        const oldLaunch = launches.find(l => 
-            (l.chaveNfe || `${l.numeroNfse}-${l.codigoVerificacaoNfse}-${l.versaoNfse}`) === launchedKey &&
-            l.id !== launchedLaunch?.id
-        );
-        
-        if (oldLaunch && Math.abs((oldLaunch.valorTotalNota || oldLaunch.valorLiquido || 0) - newValue) > 0.01) {
-            const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, oldLaunch.id);
-            updateDoc(launchRef, { status: 'Substituida' });
-        }
-
-        setXmlFiles(files => files.map(f => {
-            if (f.key === launchedKey) {
-                return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
-            }
-            return f;
-        }));
-     }
-  }, [launches, user, activeCompany]);
+     setXmlFiles(files => files.map(f => {
+         if (f.key === launchedKey) {
+             return { ...f, status: status === 'Cancelado' ? 'cancelled' : 'launched' };
+         }
+         return f;
+     }));
+  }, [user, activeCompany]);
 
   const handleDeleteLaunch = async (launch: Launch) => {
     if (!user || !activeCompany) return;
@@ -1125,3 +1112,5 @@ export default function FiscalPage() {
     </div>
   );
 }
+
+    

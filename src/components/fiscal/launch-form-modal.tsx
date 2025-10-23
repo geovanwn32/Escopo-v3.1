@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -299,9 +299,8 @@ export const LaunchFormModal = ({
         name: "produtos",
     });
 
-    // Initialize form when modal opens
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && initialData) {
             const data = getInitialData(initialData, company);
             reset({ ...defaultLaunchValues, ...data });
         }
@@ -349,7 +348,7 @@ export const LaunchFormModal = ({
         setValue(`produtos.${index}.valorTotal`, parseFloat(total.toFixed(2)));
     };
     
-    const { launch, mode = 'create' } = initialData;
+    const { mode = 'create' } = initialData;
     const isReadOnly = mode === 'view';
 
     const handleSelectPartner = (partner: Partner) => {
@@ -386,7 +385,7 @@ export const LaunchFormModal = ({
             const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : (dataToSave.destinatario || dataToSave.tomador);
             if (partnerData?.cnpj && partnerData?.nome) await upsertPartnerFromLaunch(userId, company.id, { cpfCnpj: partnerData.cnpj, razaoSocial: partnerData.nome, type: partnerType });
             
-            const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, launch!.id);
+            const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, initialData.launch!.id);
             if (mode === 'create') {
                 await addDoc(launchRef, dataToSave);
                 onLaunchSuccess(dataToSave.chaveNfe || `${dataToSave.numeroNfse}-${dataToSave.codigoVerificacaoNfse}-${dataToSave.versaoNfse}`, dataToSave.status);
@@ -541,3 +540,5 @@ export const LaunchFormModal = ({
         </>
     );
 };
+
+    
