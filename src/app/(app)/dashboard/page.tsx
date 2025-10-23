@@ -190,9 +190,9 @@ export default function DashboardPage() {
         
         // Unify value extraction
         let value = 0;
-        if ('totals' in item) { // Payroll and RCI
+        if ('totals' in item && item.totals) { // Payroll and RCI
             value = (item as any).totals?.totalProventos ?? 0;
-        } else if ('result' in item) { // Vacation, Termination, Thirteenth
+        } else if ('result' in item && item.result) { // Vacation, Termination, Thirteenth
             value = (item as any).result?.totalProventos ?? 0;
         }
         
@@ -390,10 +390,10 @@ export default function DashboardPage() {
                             <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
                             <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas">
-                               <LabelList dataKey="entradas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
+                               <LabelList dataKey="entradas" position="insideTop" className="fill-black" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
                             </Bar>
                             <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
-                                <LabelList dataKey="saidas" position="insideTop" className="fill-white" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
+                                <LabelList dataKey="saidas" position="insideTop" className="fill-black" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -462,3 +462,5 @@ export default function DashboardPage() {
     </>
   )
 }
+
+    
