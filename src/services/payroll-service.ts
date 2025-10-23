@@ -1,5 +1,4 @@
 
-
 import type { Employee } from "@/types/employee";
 import type { PayrollEvent } from "@/types";
 import { Socio } from "@/types";
@@ -22,7 +21,7 @@ const irrfBrackets = [
     { limit: Infinity, rate: 0.275, deduction: 896.00 },
 ];
 const irrfDependentDeduction = 189.59;
-const simplifiedDeduction = 564.80; // 25% of the first bracket limit (2259.20)
+const simplifiedDeduction = 564.80;
 
 export interface PayrollCalculationResult {
     totalProventos: number;
@@ -66,39 +65,24 @@ function calculateINSS(baseInss: number, isSocio: boolean): { valor: number; ali
 }
 
 
-function calculateIRRF(baseIrrf: number, numDependents: number): { value: number, rate: number } {
-    if (baseIrrf <= 0) return { value: 0, rate: 0 };
+function calculateIRRF(baseIrrf: number, dependents: number, inssDeduction: number): { value: number, rate: number } {
+    const baseAfterInss = baseIrrf - inssDeduction;
+    if (baseAfterInss <= 0) return { value: 0, rate: 0 };
     
-    const totalDependentDeduction = numDependents * irrfDependentDeduction;
+    const totalDependentDeduction = dependents * irrfDependentDeduction;
+    const baseAfterDependents = baseAfterInss - totalDependentDeduction;
     
-    // Calculation with standard deductions
-    const baseAfterDependents = baseIrrf - totalDependentDeduction;
-    let irrfStandard = 0;
-    let rateStandard = 0;
+    let irrfValue = 0;
+    let rate = 0;
     for (const bracket of irrfBrackets) {
         if (baseAfterDependents <= bracket.limit) {
-            irrfStandard = (baseAfterDependents * bracket.rate) - bracket.deduction;
-            rateStandard = bracket.rate * 100;
-            break;
-        }
-    }
-    
-    // Calculation with simplified deduction
-    const baseSimplified = baseIrrf - simplifiedDeduction;
-    let irrfSimplified = 0;
-    let rateSimplified = 0;
-     for (const bracket of irrfBrackets) {
-        if (baseSimplified <= bracket.limit) {
-            irrfSimplified = (baseSimplified * bracket.rate) - bracket.deduction;
-            rateSimplified = bracket.rate * 100;
+            irrfValue = (baseAfterDependents * bracket.rate) - bracket.deduction;
+            rate = bracket.rate * 100;
             break;
         }
     }
 
-    const finalIrrf = Math.max(0, Math.min(irrfStandard, irrfSimplified));
-    const finalRate = irrfStandard <= irrfSimplified ? rateStandard : rateSimplified;
-
-    return { value: parseFloat(finalIrrf.toFixed(2)), rate: finalRate };
+    return { value: parseFloat(Math.max(0, irrfValue).toFixed(2)), rate };
 }
 
 
@@ -118,12 +102,12 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
     const baseIRRFProventos = events
         .filter(e => e.rubrica.incideIRRF && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
-    const baseIRRF = baseIRRFProventos - inss.valor;
+    const baseIRRF = baseIRRFProventos; // Calculate base before INSS deduction for IRRF
     
-    const numDependentesIRRF = (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0;
-    const irrf = calculateIRRF(baseIRRF, numDependentesIRRF);
+    const numDependentesIRRF = !isSocio ? (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0 : 0;
+    const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, inss.valor);
 
-    const fgts = { valor: parseFloat((baseFGTS * 0.08).toFixed(2)) };
+    const fgts = { valor: isSocio ? 0 : parseFloat((baseFGTS * 0.08).toFixed(2)) };
 
     const totalProventos = events
         .filter(e => e.rubrica.tipo === 'provento')

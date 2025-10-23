@@ -97,21 +97,17 @@ export default function RciPage() {
     const recalculateAndSetState = useCallback((currentEvents: RciEvent[], socio: Socio | null): PayrollCalculationResult | null => {
         if (!socio) return null;
         
-        // This is a bit of a hack, but we can reuse the payroll service by mocking an employee object
         const mockSocioAsEmployee: any = {
           ...socio,
           salarioBase: socio.proLabore,
-          dependentes: [], // Sócios don't have dependents for payroll purposes
-          isSocio: true, // Add a flag to identify as socio
+          dependentes: [], 
+          isSocio: true,
         }
 
         const result = calculatePayroll(mockSocioAsEmployee, currentEvents);
         setCalculationResult(result);
             
-        let updatedEvents = [...currentEvents];
-
-        // Remove old calculated events before adding new ones
-        updatedEvents = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
+        let updatedEvents = currentEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
 
         if (result.inss.valor > 0) {
              updatedEvents.push({
