@@ -90,13 +90,13 @@ const AnimatedGrid = () => (
             ease: "linear",
         }}
     >
-        <div className="h-full w-full [background-image:repeating-linear-gradient(100deg,#64748B_0%,#64748B_1px,transparent_1px,transparent_4%)] opacity-20" />
+        <div className="h-full w-full [background-image:repeating-linear-gradient(100deg,var(--border)_0%,var(--border)_1px,transparent_1px,transparent_4%)] opacity-20" />
     </motion.div>
 );
 
 export function BackgroundCircles({
     className,
-    variant = "primary",
+    variant = "senary",
     children,
 }: BackgroundCirclesProps) {
     const variantStyles = COLOR_VARIANTS[variant];
@@ -105,7 +105,7 @@ export function BackgroundCircles({
         <div
             className={clsx(
                 "relative flex h-screen w-full items-center justify-center overflow-hidden",
-                "bg-slate-900",
+                "bg-background",
                 className
             )}
         >
@@ -126,27 +126,17 @@ export function BackgroundCircles({
                             opacity: [0.8, 1, 0.8],
                         }}
                         transition={{
-                            duration: 5,
+                            duration: 15 + i * 5,
                             repeat: Number.POSITIVE_INFINITY,
                             ease: "easeInOut",
                         }}
                     >
-                        <div
-                            className={clsx(
-                                "absolute inset-0 rounded-full mix-blend-screen",
-                                `bg-[radial-gradient(ellipse_at_center,${variantStyles.gradient.replace(
-                                    "from-",
-                                    ""
-                                )}/10%,transparent_70%)]`
-                            )}
-                        />
                     </motion.div>
                 ))}
             </motion.div>
             {children}
             <div className="absolute inset-0 [mask-image:radial-gradient(90%_60%_at_50%_50%,#000_40%,transparent)]">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#0F766E/30%,transparent_70%)] blur-[120px]" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,#2DD4BF/15%,transparent)] blur-[80px]" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary))_0%,transparent_70%)] opacity-10 blur-3xl" />
             </div>
         </div>
     );
