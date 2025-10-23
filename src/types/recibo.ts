@@ -3,6 +3,7 @@ import type { FieldValue } from "firebase/firestore";
 
 export interface Recibo {
     id?: string;
+    tipo: 'Recibo' | 'Comprovante';
     numero: number;
     valor: number;
     pagadorNome: string; // "Recebi(emos) de"

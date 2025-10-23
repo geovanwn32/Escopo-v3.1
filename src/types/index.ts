@@ -17,6 +17,7 @@ export type { Pgdas, SimplesAnnexType } from './pgdas';
 export type { PreliminaryAdmission } from './preliminary-admission';
 export type { Produto } from './produto';
 export type { RCI, RciEvent, RciTotals } from './rci';
+export type { Recibo } from './recibo';
 export type { ReinfFile } from './reinf';
 export type { Rubrica } from './rubrica';
 export type { Servico } from './servico';
@@ -52,22 +53,6 @@ export interface EfdFile {
   createdAt: FieldValue | Date;
   userId: string;
   companyId: string;
-}
-
-export interface Recibo {
-    id?: string;
-    numero: number;
-    valor: number;
-    pagadorNome: string; // "Recebi(emos) de"
-    pagadorEndereco?: string;
-    valorPorExtenso: string;
-    referenteA: string;
-    data: FieldValue | Date;
-    emitenteId: string;
-    emitenteNome: string;
-    emitenteEndereco?: string;
-    createdAt?: FieldValue | Date;
-    updatedAt?: FieldValue | Date;
 }
 
 export interface Launch {

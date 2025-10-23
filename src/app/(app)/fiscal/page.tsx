@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -172,7 +171,7 @@ export default function FiscalPage() {
 
     const collectionsToFetch = [
       { name: 'launches', setter: setLaunches, orderByField: 'date' },
-      { name: 'recibos', setter: setRecibos, orderByField: 'date' },
+      { name: 'recibos', setter: setRecibos, orderByField: 'data' },
       { name: 'orcamentos', setter: setOrcamentos, orderByField: 'createdAt' },
       { name: 'partners', setter: setPartners, orderByField: 'razaoSocial' },
       { name: 'produtos', setter: setProducts, orderByField: 'descricao' },
@@ -186,7 +185,7 @@ export default function FiscalPage() {
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => {
           const docData = doc.data();
-          const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
+          const dateFields = ['date', 'data', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
           for (const field of dateFields) {
             if (docData[field] instanceof Timestamp) {
               docData[field] = docData[field].toDate();
@@ -227,7 +226,7 @@ export default function FiscalPage() {
     });
 
     const currentMonthRecibos = recibos.filter(item => {
-        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        const itemDate = (item.data as any)?.toDate ? (item.data as any).toDate() : new Date(item.data);
         return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
     });
 
@@ -271,7 +270,7 @@ export default function FiscalPage() {
     });
 
     recibos.forEach(item => {
-        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        const itemDate = (item.data as any)?.toDate ? (item.data as any).toDate() : new Date(item.data);
         if (!isValid(itemDate)) return;
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
         if(monthlyTotals[key]) {
@@ -511,7 +510,13 @@ export default function FiscalPage() {
     const genericLaunches: GenericLaunch[] = [
         ...launches.map(l => ({ ...l, docType: 'launch' as const })),
         ...recibos.map(r => ({ ...r, docType: 'recibo' as const })),
-    ].sort((a, b) => ((b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
+    ].sort((a, b) => {
+        const dateA = a.docType === 'launch' ? a.date : a.data;
+        const dateB = b.docType === 'launch' ? b.date : b.data;
+        const d1 = (dateA as any)?.toDate ? (dateA as any).toDate() : new Date(dateA);
+        const d2 = (dateB as any)?.toDate ? (dateB as any).toDate() : new Date(dateB);
+        return d2.getTime() - d1.getTime();
+    });
 
 
     return genericLaunches.filter(item => {
@@ -520,25 +525,24 @@ export default function FiscalPage() {
             if (item.docType === 'launch') {
                  keyMatch = item.chaveNfe?.includes(filterKey) || item.numeroNfse?.includes(filterKey) || false;
             } else {
-                 keyMatch = String(item.numero || '').includes(filterKey);
+                 keyMatch = String(item.numero || '').includes(filterKey) || item.referenteA.toLowerCase().includes(filterKey.toLowerCase());
             }
         }
         
         const typeMatch = filterType ? (item.docType === 'recibo' ? filterType === 'recibo' : item.type === filterType) : true;
         
         let dateMatch = true;
+        const itemDateRaw = item.docType === 'launch' ? item.date : item.data;
+        const itemDate = (itemDateRaw as any)?.toDate ? (itemDateRaw as any).toDate() : new Date(itemDateRaw);
+
         if (filterStartDate) {
-            const itemDate = new Date(item.date as Date);
-            itemDate.setHours(0,0,0,0);
             const startDate = new Date(filterStartDate);
             startDate.setHours(0,0,0,0);
             dateMatch = itemDate >= startDate;
         }
         if (filterEndDate && dateMatch) {
-            const itemDate = new Date(item.date as Date);
-            itemDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-endDate.setHours(23,59,59,999);
+            endDate.setHours(23,59,59,999);
             dateMatch = itemDate <= endDate;
         }
 
@@ -578,7 +582,7 @@ endDate.setHours(23,59,59,999);
   
   const getBadgeForLaunchType = (item: GenericLaunch) => {
     if (item.docType === 'recibo') {
-        return <Badge className="capitalize bg-indigo-100 text-indigo-800">Recibo</Badge>
+        return <Badge className="capitalize bg-indigo-100 text-indigo-800">{item.tipo}</Badge>
     }
     switch (item.type) {
         case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
@@ -625,7 +629,7 @@ endDate.setHours(23,59,59,999);
   const totalLaunchPages = Math.ceil(filteredItems.length / launchesItemsPerPage);
   const paginatedItems = filteredItems.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    (launchesCurrentPage * launchesItemsPerPage)
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -660,8 +664,8 @@ endDate.setHours(23,59,59,999);
   }
 
   const isLaunchLocked = (launch: GenericLaunch): boolean => {
-    if (launch.docType === 'recibo') return false; // Recibos might not have fiscal period locking
-    const launchDate = (launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date);
+    const launchDateRaw = launch.docType === 'launch' ? launch.date : launch.data;
+    const launchDate = (launchDateRaw as any)?.toDate ? (launchDateRaw as any).toDate() : new Date(launchDateRaw);
     if (!isValid(launchDate)) return false;
     const launchPeriod = format(launchDate, 'yyyy-MM');
     return closedPeriods.includes(launchPeriod);
@@ -709,10 +713,9 @@ endDate.setHours(23,59,59,999);
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><FileText className="mr-2 h-4 w-4" /> Lançamentos diversos</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
-          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><FileText className="mr-2 h-4 w-4" /> Lançar Recibos</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -1002,6 +1005,7 @@ endDate.setHours(23,59,59,999);
                         <SelectItem value="saida">Saída</SelectItem>
                         <SelectItem value="servico">Serviço</SelectItem>
                         <SelectItem value="recibo">Recibo</SelectItem>
+                        <SelectItem value="comprovante">Comprovante</SelectItem>
                     </SelectContent>
                 </Select>
                  <Popover>
@@ -1070,7 +1074,7 @@ endDate.setHours(23,59,59,999);
                             </TableRow>
                         ) : paginatedItems.map(item => (
                             <TableRow key={item.id} className={cn(isLaunchLocked(item) && 'bg-muted/30 hover:bg-muted/50')}>
-                                <TableCell>{new Intl.DateTimeFormat('pt-BR').format((item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date))}</TableCell>
+                                <TableCell>{format(item.docType === 'launch' ? (item.date as Date) : (item.data as Date), 'dd/MM/yyyy')}</TableCell>
                                 <TableCell>
                                     {getBadgeForLaunchType(item)}
                                 </TableCell>

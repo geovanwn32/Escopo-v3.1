@@ -17,6 +17,7 @@ import { DateInput } from '@/components/ui/date-input';
 import type { Company, Partner, Employee, Recibo } from '@/types';
 import { numberToWords } from '@/lib/number-to-words';
 import { EmitterSelectionModal } from './emitter-selection-modal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 export interface ReceiptModalOptions {
   receipt?: Recibo | null;
@@ -34,7 +35,8 @@ interface ReceiptFormModalProps {
 }
 
 const receiptSchema = z.object({
-  numero: z.coerce.number().min(1, "O número do recibo é obrigatório."),
+  tipo: z.enum(['Recibo', 'Comprovante']),
+  numero: z.coerce.number().min(1, "O número é obrigatório."),
   valor: z.string().min(1, "O valor é obrigatório.").transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0.01, "O valor deve ser maior que zero.")),
   pagadorNome: z.string().min(1, "O nome do pagador é obrigatório."),
   pagadorEndereco: z.string().optional(),
@@ -58,7 +60,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
   
   const form = useForm<FormData>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: { numero: 1, data: new Date() }
+    defaultValues: { numero: 1, data: new Date(), tipo: 'Recibo' }
   });
 
   useEffect(() => {
@@ -69,12 +71,13 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
           form.reset({
             ...receipt,
             valor: String(receipt.valor),
-            data: (receipt.date as any).toDate ? (receipt.date as any).toDate() : receipt.date,
+            data: (receipt.data as any).toDate ? (receipt.data as any).toDate() : receipt.data,
           });
           setSelectedEmitter({ id: receipt.emitenteId, name: receipt.emitenteNome, address: receipt.emitenteEndereco });
         }
       } else {
         form.reset({
+            tipo: 'Recibo',
             numero: 1, // Will be replaced by next number
             valor: '0',
             pagadorNome: '',
@@ -122,17 +125,17 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
             dataToSave.createdAt = serverTimestamp();
             const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
             await addDoc(recibosRef, dataToSave);
-            toast({ title: "Recibo Salvo!", description: `Recibo nº ${values.numero} criado com sucesso.` });
+            toast({ title: "Lançamento Salvo!", description: `${values.tipo} nº ${values.numero} criado com sucesso.` });
         } else if (initialData.receipt?.id) {
             const reciboRef = doc(db, `users/${userId}/companies/${company.id}/recibos`, initialData.receipt.id);
             await updateDoc(reciboRef, dataToSave);
-            toast({ title: "Recibo Atualizado!", description: `Recibo nº ${values.numero} atualizado com sucesso.` });
+            toast({ title: "Lançamento Atualizado!", description: `${values.tipo} nº ${values.numero} atualizado com sucesso.` });
         }
 
         onClose();
     } catch (error) {
         console.error("Error saving receipt:", error);
-        toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar o recibo." });
+        toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar o lançamento." });
     } finally {
         setLoading(false);
     }
@@ -145,16 +148,17 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
             <DialogHeader>
-              <DialogTitle>{mode === 'create' ? 'Lançar Novo Recibo' : 'Editar Recibo'}</DialogTitle>
-              <DialogDescription>Preencha os dados abaixo para gerar um novo recibo de pagamento.</DialogDescription>
+              <DialogTitle>{mode === 'create' ? 'Lançamentos Diversos' : 'Editar Lançamento'}</DialogTitle>
+              <DialogDescription>Preencha os dados abaixo para gerar um novo documento.</DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo de Documento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Recibo">Recibo</SelectItem><SelectItem value="Comprovante">Comprovante</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
               <div className="grid grid-cols-3 gap-4">
                 <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input type="number" {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="valor" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Valor (R$)</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
               </div>
               <FormItem>
-                <FormLabel>Valor por Extenso</FormLabel>
+                <FormLabel>Importância (Valor por Extenso)</FormLabel>
                 <Input value={valorPorExtenso} readOnly className="italic text-muted-foreground" />
               </FormItem>
               <FormField control={form.control} name="pagadorNome" render={({ field }) => ( <FormItem><FormLabel>Recebi(emos) de</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Nome do pagador..." /></FormControl><FormMessage /></FormItem> )} />
@@ -182,7 +186,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
               <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
               <Button type="submit" disabled={loading || isReadOnly}>
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Salvar Recibo
+                Salvar Lançamento
               </Button>
             </DialogFooter>
           </form>
