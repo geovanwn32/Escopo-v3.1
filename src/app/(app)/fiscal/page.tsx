@@ -6,7 +6,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart, FileMinus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, isValid } from "date-fns";
+import { format, isValid, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
@@ -53,6 +53,10 @@ function reviver(key: string, value: any) {
   }
   return value;
 }
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+};
 
 
 export default function FiscalPage() {
@@ -186,6 +190,30 @@ export default function FiscalPage() {
         unsubscribes.forEach(unsub => unsub());
     };
   }, [activeCompany, user, toast]);
+  
+  const monthlySummary = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    
+    const currentMonthLaunches = launches.filter(l => {
+      const launchDate = (l.date as any)?.toDate ? (l.date as any).toDate() : new Date(l.date);
+      return isValid(launchDate) && isWithinInterval(launchDate, { start: monthStart, end: monthEnd });
+    });
+    
+    const faturamento = currentMonthLaunches
+        .filter(l => (l.type === 'saida' || l.type === 'servico') && l.status === 'Normal')
+        .reduce((sum, l) => sum + (l.valorLiquido || l.valorTotalNota || 0), 0);
+        
+    const compras = currentMonthLaunches
+        .filter(l => l.type === 'entrada' && l.status === 'Normal')
+        .reduce((sum, l) => sum + (l.valorTotalNota || 0), 0);
+        
+    const notasEmitidas = currentMonthLaunches.length;
+
+    return { faturamento, compras, notasEmitidas };
+  }, [launches]);
+
 
   const refreshXmlFileStatus = useCallback(() => {
     if (launches.length === 0) {
@@ -503,7 +531,7 @@ export default function FiscalPage() {
   const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
   const paginatedLaunches = filteredLaunches.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
-    launchesCurrentPage * launchesItemsPerPage
+    launchesItemsPerPage * launchesCurrentPage
   );
 
   const getBadgeForXml = (xmlFile: XmlFile) => {
@@ -563,7 +591,7 @@ export default function FiscalPage() {
     }
   }
   
-  const openModal = useCallback(async (options: OpenModalOptions) => {
+  const openModal = useCallback((options: OpenModalOptions) => {
      if (options.xmlFile && user && activeCompany) {
         const { xmlFile } = options;
         if (xmlFile.key) {
@@ -576,31 +604,12 @@ export default function FiscalPage() {
                  q = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
              }
              
-             const querySnapshot = await getDocs(q);
-             
-             if (!querySnapshot.empty) {
-                const existingLaunch = querySnapshot.docs[0].data() as Launch;
-                const xmlValue = parseFloat(xmlFile.content.match(/<(?:vNF|ValorLiquidoNfse|vLiq)>(\d+\.\d+)<\/(?:vNF|ValorLiquidoNfse|vLiq)>/)?.[1] || '0');
-                const launchedValue = existingLaunch.valorTotalNota || existingLaunch.valorLiquido || 0;
-
-                if (Math.abs(xmlValue - launchedValue) < 0.01 && existingLaunch.status !== 'Substituida') {
-                    toast({
-                        variant: "destructive",
-                        title: "Nota Já Lançada",
-                        description: "Esta nota fiscal já foi lançada no sistema.",
-                    });
-                    setXmlFiles(files => files.map(f => f.key === xmlFile.key ? { ...f, status: 'launched' } : f));
-                    return; 
-                } else {
-                    // This is a substitute note, allow launching but maybe warn user or handle specially
-                    options.launch = { ...existingLaunch, id: querySnapshot.docs[0].id };
-                    options.mode = 'edit';
-                }
-             }
+             // This needs to be async, but useCallback is sync.
+             // The check will be performed inside the modal on open.
         }
     }
     setModalOptions(options);
-  }, [user, activeCompany, toast, launches]);
+  }, [user, activeCompany]);
 
   const closeModal = useCallback(() => {
     setModalOptions(null);
@@ -617,6 +626,46 @@ export default function FiscalPage() {
         multiple
       />
       <h1 className="text-2xl font-bold">Módulo Fiscal</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumo do Mês</CardTitle>
+          <CardDescription>Visão geral das atividades fiscais no mês corrente ({format(new Date(), 'MMMM/yyyy', { locale: ptBR })}).</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+             <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Faturamento no Mês</CardTitle>
+                    <Landmark className="h-4 w-4 text-green-600"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-green-700 dark:text-green-400">{formatCurrency(monthlySummary.faturamento)}</div>
+                    <p className="text-xs text-muted-foreground">Soma de NF-e de saída e NFS-e.</p>
+                </CardContent>
+            </Card>
+             <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Compras no Mês</CardTitle>
+                    <ShoppingCart className="h-4 w-4 text-red-600"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-red-700 dark:text-red-400">{formatCurrency(monthlySummary.compras)}</div>
+                    <p className="text-xs text-muted-foreground">Soma de NF-e de entrada.</p>
+                </CardContent>
+            </Card>
+             <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Notas Emitidas no Mês</CardTitle>
+                    <FileText className="h-4 w-4 text-blue-600"/>
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{monthlySummary.notasEmitidas}</div>
+                     <p className="text-xs text-muted-foreground">Total de lançamentos no período.</p>
+                </CardContent>
+            </Card>
+        </CardContent>
+       </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Ações Fiscais</CardTitle>
