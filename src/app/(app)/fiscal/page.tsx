@@ -6,7 +6,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart, FileMinus, TrendingUp } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +29,7 @@ import type { Partner } from "@/types/partner";
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import { XmlFile, Launch, Company } from "@/types";
-import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 
 
 // Helper to safely stringify with support for File objects
@@ -98,8 +98,7 @@ export default function FiscalPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-
-   // Modal control functions
+  
   const openModal = useCallback((options: OpenModalOptions) => {
     setCurrentModalData(options);
     setIsModalOpen(true);
@@ -107,7 +106,7 @@ export default function FiscalPage() {
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
-    setCurrentModalData(null); // Clear data on close
+    setCurrentModalData(null);
   }, []);
 
   useEffect(() => {
@@ -685,7 +684,7 @@ export default function FiscalPage() {
             </CardHeader>
             <CardContent>
                  <ResponsiveContainer width="100%" height={300}>
-                    <RechartsBarChart data={monthlyChartData}>
+                    <BarChart data={monthlyChartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                         <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
@@ -693,7 +692,7 @@ export default function FiscalPage() {
                         <Legend />
                         <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="despesas" fill="#dc2626" name="Despesas" radius={[4, 4, 0, 0]} />
-                    </RechartsBarChart>
+                    </BarChart>
                 </ResponsiveContainer>
             </CardContent>
         </Card>
@@ -1117,3 +1116,5 @@ export default function FiscalPage() {
     </div>
   );
 }
+
+    
