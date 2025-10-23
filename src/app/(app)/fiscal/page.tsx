@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -711,30 +712,30 @@ export default function FiscalPage() {
           <CardTitle>Ações Fiscais</CardTitle>
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><FileText className="mr-2 h-4 w-4" /> Lançamentos diversos</Button>
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
-          <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200 w-full"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200 w-full"><FileText className="mr-2 h-4 w-4" /> Lançamentos diversos</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200 w-full"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 w-full"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200 w-full" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
-           <Button asChild className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+           <Button asChild className="bg-purple-100 text-purple-800 hover:bg-purple-200 w-full">
              <Link href="/fiscal/inventario">
                 <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
              </Link>
           </Button>
-          <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200">
+          <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200 w-full">
              <Link href="/fiscal/calculo-inventario">
                 <Calculator className="mr-2 h-4 w-4" /> Calcular Inventário
              </Link>
           </Button>
-           <Button asChild className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200">
+           <Button asChild className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200 w-full">
              <Link href="/fiscal/orcamento">
                 <FileSignature className="mr-2 h-4 w-4" /> Gerar Orçamento
              </Link>
           </Button>
-          <Button asChild className="bg-sky-100 text-sky-800 hover:bg-sky-200">
+          <Button asChild className="bg-sky-100 text-sky-800 hover:bg-sky-200 w-full">
              <Link href="/fiscal/apuracao">
                 <Scale className="mr-2 h-4 w-4" /> Apuração de Impostos
              </Link>
