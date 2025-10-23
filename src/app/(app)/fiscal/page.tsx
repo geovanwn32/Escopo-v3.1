@@ -29,8 +29,13 @@ import type { Partner } from '@/types/partner';
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import type { Employee } from '@/types/employee';
-import { XmlFile, Launch, Company } from "@/types";
+import { XmlFile, Launch, Company, Recibo } from "@/types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import { ReceiptFormModal, ReceiptModalOptions } from "@/components/fiscal/receipt-form-modal";
+
+
+export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
+
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -61,17 +66,23 @@ const formatCurrency = (value: number) => {
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
+const MemoizedReceiptFormModal = React.memo(ReceiptFormModal);
+
 
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentModalData, setCurrentModalData] = useState<OpenModalOptions | null>(null);
+  const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
+  const [currentLaunchModalData, setCurrentLaunchModalData] = useState<OpenModalOptions | null>(null);
+  
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [currentReceiptModalData, setCurrentReceiptModalData] = useState<ReceiptModalOptions | null>(null);
 
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   
@@ -97,14 +108,24 @@ export default function FiscalPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const openModal = useCallback((options: OpenModalOptions) => {
-    setCurrentModalData(options);
-    setIsModalOpen(true);
+  const openLaunchModal = useCallback((options: OpenModalOptions) => {
+    setCurrentLaunchModalData(options);
+    setIsLaunchModalOpen(true);
   }, []);
 
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setCurrentModalData(null);
+  const closeLaunchModal = useCallback(() => {
+    setIsLaunchModalOpen(false);
+    setCurrentLaunchModalData(null);
+  }, []);
+  
+  const openReceiptModal = useCallback((options: ReceiptModalOptions) => {
+    setCurrentReceiptModalData(options);
+    setIsReceiptModalOpen(true);
+  }, []);
+
+  const closeReceiptModal = useCallback(() => {
+    setIsReceiptModalOpen(false);
+    setCurrentReceiptModalData(null);
   }, []);
 
 
@@ -150,6 +171,7 @@ export default function FiscalPage() {
     
     const collectionsToFetch = [
         { name: 'launches', setter: setLaunches, orderBy: 'date' },
+        { name: 'recibos', setter: setRecibos, orderBy: 'date' },
         { name: 'orcamentos', setter: setOrcamentos, orderBy: 'createdAt' },
         { name: 'partners', setter: setPartners, orderBy: 'razaoSocial' },
         { name: 'produtos', setter: setProducts, orderBy: 'descricao' },
@@ -215,6 +237,11 @@ export default function FiscalPage() {
         return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
     });
 
+    const currentMonthRecibos = recibos.filter(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        return isValid(itemDate) && isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
+    });
+
     const faturamento = currentMonthLaunches
         .filter(item => (item.type === 'saida' || item.type === 'servico') && item.status === 'Normal')
         .reduce((sum, item) => sum + (item.valorLiquido || item.valorTotalNota || 0), 0);
@@ -222,11 +249,13 @@ export default function FiscalPage() {
     const comprasNotas = currentMonthLaunches
         .filter(item => item.type === 'entrada' && item.status === 'Normal')
         .reduce((sum, item) => sum + (item.valorTotalNota || 0), 0);
+        
+    const comprasRecibos = currentMonthRecibos.reduce((sum, item) => sum + item.valor, 0);
 
-    const notasEmitidas = currentMonthLaunches.length;
+    const notasEmitidas = currentMonthLaunches.length + currentMonthRecibos.length;
 
-    return { faturamento, compras: comprasNotas, notasEmitidas };
-}, [launches]);
+    return { faturamento, compras: comprasNotas + comprasRecibos, notasEmitidas };
+}, [launches, recibos]);
   
   const monthlyChartData = useMemo(() => {
     const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
@@ -251,12 +280,21 @@ export default function FiscalPage() {
             }
         }
     });
+
+    recibos.forEach(item => {
+        const itemDate = (item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date);
+        if (!isValid(itemDate)) return;
+        const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
+        if(monthlyTotals[key]) {
+            monthlyTotals[key].despesas += item.valor;
+        }
+    });
     
     return Object.keys(monthlyTotals).map(key => {
         const [year, month] = key.split('-').map(Number);
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
-  }, [launches]);
+  }, [launches, recibos]);
 
 
   const refreshXmlFileStatus = useCallback(() => {
@@ -442,13 +480,16 @@ export default function FiscalPage() {
      fetchData(); // Refetch data to update the launches list
   }, [user, activeCompany, fetchData]);
 
-  const handleDeleteLaunch = async (launch: Launch) => {
+  const handleDeleteLaunch = async (launch: GenericLaunch) => {
     if (!user || !activeCompany || !launch.id) return;
+    
+    const collectionName = launch.docType === 'recibo' ? 'recibos' : 'launches';
+    
     try {
-        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, launch.id);
+        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, launch.id);
         await deleteDoc(launchRef);
         
-        if (launch.chaveNfe) {
+        if (launch.docType === 'launch' && launch.chaveNfe) {
              setXmlFiles(files => 
                 files.map(f => 
                     f.key === launch.chaveNfe ? { ...f, status: 'pending' } : f
@@ -478,13 +519,23 @@ export default function FiscalPage() {
 
   
   const filteredItems = useMemo(() => {
-    return launches.filter(item => {
+    const genericLaunches: GenericLaunch[] = [
+        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
+        ...recibos.map(r => ({ ...r, docType: 'recibo' as const })),
+    ].sort((a, b) => ((b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
+
+
+    return genericLaunches.filter(item => {
         let keyMatch = true;
         if(filterKey){
-            keyMatch = item.chaveNfe?.includes(filterKey) || item.numeroNfse?.includes(filterKey) || false;
+            if (item.docType === 'launch') {
+                 keyMatch = item.chaveNfe?.includes(filterKey) || item.numeroNfse?.includes(filterKey) || false;
+            } else {
+                 keyMatch = String(item.numero || '').includes(filterKey);
+            }
         }
         
-        const typeMatch = filterType ? item.type === filterType : true;
+        const typeMatch = filterType ? (item.docType === 'recibo' ? filterType === 'recibo' : item.type === filterType) : true;
         
         let dateMatch = true;
         if (filterStartDate) {
@@ -504,13 +555,14 @@ export default function FiscalPage() {
 
         return keyMatch && typeMatch && dateMatch;
     });
-  }, [launches, filterKey, filterType, filterStartDate, filterEndDate]);
+  }, [launches, recibos, filterKey, filterType, filterStartDate, filterEndDate]);
 
   useEffect(() => {
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterStartDate, filterEndDate]);
 
-  const getPartnerName = (item: Launch): string => {
+  const getPartnerName = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return item.pagadorNome;
     switch (item.type) {
       case 'entrada':
         return item.emitente?.nome || 'N/A';
@@ -524,6 +576,29 @@ export default function FiscalPage() {
         return 'N/A';
     }
   };
+
+  const getLaunchValue = (item: GenericLaunch): number => {
+    if (item.docType === 'recibo') return item.valor;
+    return item.valorLiquido || item.valorTotalNota || 0;
+  }
+  
+  const getLaunchDocRef = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return String(item.numero);
+    return item.chaveNfe || item.numeroNfse || 'N/A';
+  }
+  
+  const getBadgeForLaunchType = (item: GenericLaunch) => {
+    if (item.docType === 'recibo') {
+        return <Badge className="capitalize bg-indigo-100 text-indigo-800">Recibo</Badge>
+    }
+    switch (item.type) {
+        case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
+        case 'saida': return <Badge className="capitalize bg-blue-100 text-blue-800">{item.type}</Badge>;
+        case 'servico': return <Badge className="capitalize bg-yellow-100 text-yellow-800">{item.type}</Badge>;
+        default: return <Badge variant="secondary" className="capitalize">{item.type}</Badge>;
+    }
+  }
+
 
   const clearLaunchesFilters = () => {
     setFilterKey('');
@@ -581,7 +656,8 @@ export default function FiscalPage() {
     return <Badge variant={variantMap[xmlFile.status]} className={cn({'bg-green-600 hover:bg-green-700': xmlFile.status === 'launched' })}>{labelMap[xmlFile.status]}</Badge>
   }
   
-  const getBadgeForLaunchStatus = (status: Launch['status']) => {
+  const getBadgeForLaunchStatus = (status?: Launch['status']) => {
+    if (!status) return <Badge variant="secondary">Normal</Badge>;
     switch (status) {
         case 'Normal':
             return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
@@ -594,7 +670,8 @@ export default function FiscalPage() {
     }
   }
 
-  const isLaunchLocked = (launch: Launch): boolean => {
+  const isLaunchLocked = (launch: GenericLaunch): boolean => {
+    if (launch.docType === 'recibo') return false; // Recibos might not have fiscal period locking
     const launchDate = (launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date);
     if (!isValid(launchDate)) return false;
     const launchPeriod = format(launchDate, 'yyyy-MM');
@@ -642,10 +719,10 @@ export default function FiscalPage() {
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><FileText className="mr-2 h-4 w-4" /> Lançar Recibos</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -770,7 +847,7 @@ export default function FiscalPage() {
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openModal({ orcamento: orc, mode: 'create' })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => openLaunchModal({ orcamento: orc, mode: 'create' })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>
@@ -861,7 +938,7 @@ export default function FiscalPage() {
                             {getBadgeForXml(xmlFile)}
                         </TableCell>
                         <TableCell className="text-right space-x-2">
-                            <Button size="sm" onClick={() => openModal({ xmlFile, mode: 'create' })} disabled={xmlFile.status !== 'pending'}>
+                            <Button size="sm" onClick={() => openLaunchModal({ xmlFile, mode: 'create' })} disabled={xmlFile.status !== 'pending'}>
                                 {xmlFile.status === 'pending' ? <FileUp className="mr-2 h-4 w-4" /> : <Check className="mr-2 h-4 w-4" />}
                                 Lançar
                             </Button>
@@ -916,7 +993,7 @@ export default function FiscalPage() {
       <Card>
         <CardHeader>
           <CardTitle>Lançamentos Recentes</CardTitle>
-          <CardDescription>Visualize e filtre os lançamentos fiscais.</CardDescription>
+          <CardDescription>Visualize e filtre os lançamentos fiscais e recibos.</CardDescription>
         </CardHeader>
         <CardContent>
             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
@@ -934,6 +1011,7 @@ export default function FiscalPage() {
                         <SelectItem value="entrada">Entrada</SelectItem>
                         <SelectItem value="saida">Saída</SelectItem>
                         <SelectItem value="servico">Serviço</SelectItem>
+                        <SelectItem value="recibo">Recibo</SelectItem>
                     </SelectContent>
                 </Select>
                  <Popover>
@@ -972,13 +1050,13 @@ export default function FiscalPage() {
                  <div className="flex justify-center items-center py-20">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                  </div>
-            ) : launches.length === 0 ? (
+            ) : launches.length === 0 && recibos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="p-4 bg-muted rounded-full mb-4">
                     <FileStack className="h-10 w-10 text-muted-foreground" />
                   </div>
-                  <h3 className="text-xl font-semibold">Nenhum lançamento fiscal encontrado</h3>
-                  <p className="text-muted-foreground mt-2">Use os botões acima para começar a lançar notas.</p>
+                  <h3 className="text-xl font-semibold">Nenhum lançamento encontrado</h3>
+                  <p className="text-muted-foreground mt-2">Use os botões acima para começar a lançar notas ou recibos.</p>
                 </div>
             ) : (
                 <Table>
@@ -1004,21 +1082,19 @@ export default function FiscalPage() {
                             <TableRow key={item.id} className={cn(isLaunchLocked(item) && 'bg-muted/30 hover:bg-muted/50')}>
                                 <TableCell>{new Intl.DateTimeFormat('pt-BR').format((item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date))}</TableCell>
                                 <TableCell>
-                                    <Badge variant="secondary" className="capitalize">
-                                      {item.type}
-                                    </Badge>
+                                    {getBadgeForLaunchType(item)}
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
                                     {getPartnerName(item)}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={item.chaveNfe || item.numeroNfse}>
-                                    {item.chaveNfe || item.numeroNfse}
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={getLaunchDocRef(item)}>
+                                    {getLaunchDocRef(item)}
                                 </TableCell>
                                 <TableCell>
-                                    {getBadgeForLaunchStatus(item.status)}
+                                    {item.docType === 'launch' ? getBadgeForLaunchStatus(item.status) : <Badge variant="secondary">N/A</Badge>}
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valorLiquido || item.valorTotalNota || 0)}
+                                    {formatCurrency(getLaunchValue(item))}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     {isLaunchLocked(item) ? (
@@ -1032,8 +1108,8 @@ export default function FiscalPage() {
                                             </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleGeneratePdf(item)}><FileText className="mr-2 h-4 w-4" />Visualizar PDF</DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openModal({ launch: item, mode: 'view' })}>
+                                            {item.docType === 'launch' && <DropdownMenuItem onClick={() => handleGeneratePdf(item)}><FileText className="mr-2 h-4 w-4" />Visualizar PDF</DropdownMenuItem>}
+                                            <DropdownMenuItem onClick={() => item.docType === 'launch' ? openLaunchModal({ launch: item, mode: 'view' }) : openReceiptModal({ receipt: item, mode: 'view' })}>
                                                 <Eye className="mr-2 h-4 w-4" />
                                                 Visualizar / Alterar
                                             </DropdownMenuItem>
@@ -1082,11 +1158,11 @@ export default function FiscalPage() {
         )}
       </Card>
       
-       {user && activeCompany && currentModalData &&
+       {user && activeCompany && currentLaunchModalData &&
         <MemoizedLaunchFormModal 
-            isOpen={isModalOpen}
-            onClose={closeModal}
-            initialData={currentModalData}
+            isOpen={isLaunchModalOpen}
+            onClose={closeLaunchModal}
+            initialData={currentLaunchModalData}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
@@ -1095,6 +1171,19 @@ export default function FiscalPage() {
             services={services}
         />
       }
+
+      {user && activeCompany && currentReceiptModalData &&
+        <MemoizedReceiptFormModal 
+            isOpen={isReceiptModalOpen}
+            onClose={closeReceiptModal}
+            initialData={currentReceiptModalData}
+            userId={user.uid}
+            company={activeCompany}
+            partners={partners}
+            employees={employees}
+        />
+      }
+
 
       {user && activeCompany && (
         <FiscalClosingModal
