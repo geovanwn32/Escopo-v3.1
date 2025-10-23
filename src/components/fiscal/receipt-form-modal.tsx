@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -85,7 +86,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
 
   useEffect(() => {
     if (valor) {
-        setValue('importanciaExtenso', numberToWords(valor));
+        setValue('importanciaExtenso', numberToWords(valor as number));
     }
   }, [valor, setValue]);
 
