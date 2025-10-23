@@ -652,6 +652,42 @@ export default function FiscalPage() {
       />
       <h1 className="text-2xl font-bold">Módulo Fiscal</h1>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Ações Fiscais</CardTitle>
+          <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
+          <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><Receipt className="mr-2 h-4 w-4" /> Lançar Recibos</Button>
+          <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
+            <Upload className="mr-2 h-4 w-4" /> Importar XML
+          </Button>
+           <Button asChild className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+             <Link href="/fiscal/inventario">
+                <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
+             </Link>
+          </Button>
+          <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200">
+             <Link href="/fiscal/calculo-inventario">
+                <Calculator className="mr-2 h-4 w-4" /> Calcular Inventário
+             </Link>
+          </Button>
+           <Button asChild className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200">
+             <Link href="/fiscal/orcamento">
+                <FileSignature className="mr-2 h-4 w-4" /> Gerar Orçamento
+             </Link>
+          </Button>
+          <Button asChild className="bg-sky-100 text-sky-800 hover:bg-sky-200">
+             <Link href="/fiscal/apuracao">
+                <Scale className="mr-2 h-4 w-4" /> Apuração de Impostos
+             </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
        <Card>
         <CardHeader>
           <CardTitle>Resumo do Mês</CardTitle>
@@ -711,42 +747,6 @@ export default function FiscalPage() {
             </CardContent>
         </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações Fiscais</CardTitle>
-          <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
-          <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
-          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><Receipt className="mr-2 h-4 w-4" /> Lançar Recibos</Button>
-          <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
-            <Upload className="mr-2 h-4 w-4" /> Importar XML
-          </Button>
-           <Button asChild className="bg-purple-100 text-purple-800 hover:bg-purple-200">
-             <Link href="/fiscal/inventario">
-                <ClipboardList className="mr-2 h-4 w-4" /> Processar Inventário
-             </Link>
-          </Button>
-          <Button asChild className="bg-teal-100 text-teal-800 hover:bg-teal-200">
-             <Link href="/fiscal/calculo-inventario">
-                <Calculator className="mr-2 h-4 w-4" /> Calcular Inventário
-             </Link>
-          </Button>
-           <Button asChild className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200">
-             <Link href="/fiscal/orcamento">
-                <FileSignature className="mr-2 h-4 w-4" /> Gerar Orçamento
-             </Link>
-          </Button>
-          <Button asChild className="bg-sky-100 text-sky-800 hover:bg-sky-200">
-             <Link href="/fiscal/apuracao">
-                <Scale className="mr-2 h-4 w-4" /> Apuração de Impostos
-             </Link>
-          </Button>
-        </CardContent>
-      </Card>
-      
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
