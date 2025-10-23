@@ -173,8 +173,9 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
         
         data.produtos = Array.from(infNFe.querySelectorAll('det')).map(det => {
             const prod = det.querySelector('prod');
-            const icms = det.querySelector('ICMS > *'); // Get the first child of ICMS
-            const ipi = det.querySelector('IPI > IPITrib');
+            const imposto = det.querySelector('imposto');
+            const icms = imposto?.querySelector('ICMS');
+            const ipi = imposto?.querySelector('IPI');
             
             return {
                 codigo: querySelectorText(prod, ['cProd']),
