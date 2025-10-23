@@ -43,6 +43,11 @@ export default function PessoalPageWrapper() {
   const [payrollPeriodFilter, setPayrollPeriodFilter] = useState('');
   const [payrollStatusFilter, setPayrollStatusFilter] = useState('');
 
+  // RCI Filters
+  const [rciNameFilter, setRciNameFilter] = useState('');
+  const [rciPeriodFilter, setRciPeriodFilter] = useState('');
+  const [rciStatusFilter, setRciStatusFilter] = useState('');
+
   // Vacation Filters
   const [vacationNameFilter, setVacationNameFilter] = useState('');
   const [vacationStartDateFilter, setVacationStartDateFilter] = useState<Date | undefined>();
@@ -57,11 +62,6 @@ export default function PessoalPageWrapper() {
   const [terminationNameFilter, setTerminationNameFilter] = useState('');
   const [terminationStartDateFilter, setTerminationStartDateFilter] = useState<Date | undefined>();
   const [terminationEndDateFilter, setTerminationEndDateFilter] = useState<Date | undefined>();
-
-  // RCI Filters
-  const [rciNameFilter, setRciNameFilter] = useState('');
-  const [rciPeriodFilter, setRciPeriodFilter] = useState('');
-  const [rciStatusFilter, setRciStatusFilter] = useState('');
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -111,12 +111,22 @@ export default function PessoalPageWrapper() {
                 getDocs(query(collection(db, `${companyPath}/thirteenths`), orderBy('createdAt', 'desc'))),
                 getDocs(query(collection(db, `${companyPath}/vacations`), orderBy('createdAt', 'desc'))),
             ]);
+            
+            const convertTimestamp = (doc: any) => {
+                const data = doc.data();
+                Object.keys(data).forEach(key => {
+                    if (data[key] instanceof Timestamp) {
+                        data[key] = data[key].toDate();
+                    }
+                });
+                return { id: doc.id, ...data };
+            };
 
-            setPayrolls(payrollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as Payroll)));
-            setRcis(rcisSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: (doc.data().createdAt as Timestamp)?.toDate() } as RCI)));
-            setTerminations(terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp)?.toDate() } as Termination)));
-            setThirteenths(thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)));
-            setVacations(vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp)?.toDate() } as Vacation)));
+            setPayrolls(payrollsSnap.docs.map(doc => convertTimestamp(doc) as Payroll));
+            setRcis(rcisSnap.docs.map(doc => convertTimestamp(doc) as RCI));
+            setTerminations(terminationsSnap.docs.map(doc => convertTimestamp(doc) as Termination));
+            setThirteenths(thirteenthsSnap.docs.map(doc => convertTimestamp(doc) as Thirteenth));
+            setVacations(vacationsSnap.docs.map(doc => convertTimestamp(doc) as Vacation));
             
         } catch (error) {
             console.error("Error fetching pessoal data:", error);
@@ -405,6 +415,116 @@ export default function PessoalPageWrapper() {
         </CardContent>
       </Card>
       
+        <Card>
+            <CardHeader>
+            <CardTitle>Cálculos de Pró-labore (RCI) Salvos</CardTitle>
+            <CardDescription>Visualize e continue os cálculos de pró-labore salvos.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                    <Input placeholder="Filtrar por nome do sócio..." value={rciNameFilter} onChange={(e) => setRciNameFilter(e.target.value)} className="max-w-xs" />
+                    <Input placeholder="Filtrar por período..." value={rciPeriodFilter} onChange={(e) => setRciPeriodFilter(e.target.value)} className="w-full sm:w-[180px]" />
+                    <Select value={rciStatusFilter} onValueChange={setRciStatusFilter}>
+                        <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Status" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="draft">Rascunho</SelectItem>
+                            <SelectItem value="calculated">Calculada</SelectItem>
+                            <SelectItem value="finalized">Finalizada</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button variant="ghost" onClick={() => { setRciNameFilter(''); setRciPeriodFilter(''); setRciStatusFilter(''); }} className="sm:ml-auto">
+                        <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
+                    </Button>
+                </div>
+                {loading ? (
+                <div className="flex justify-center items-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+                ) : rcis.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                    <div className="p-4 bg-muted rounded-full mb-4">
+                        <FileText className="h-10 w-10 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Nenhum RCI salvo</h3>
+                    <p className="text-muted-foreground mt-2">
+                    {activeCompany ? 'Crie um novo RCI para começar.' : 'Selecione uma empresa para visualizar os RCIs salvos.'}
+                    </p>
+                </div>
+                ) : (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Sócio</TableHead>
+                            <TableHead>Período</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Líquido</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredRcis.map((rci) => (
+                        <TableRow key={rci.id}>
+                            <TableCell className="font-medium">{rci.socioName}</TableCell>
+                            <TableCell>{rci.period}</TableCell>
+                            <TableCell>
+                            <Badge 
+                                variant={getStatusVariant(rci.status)} 
+                                className={cn("capitalize", {
+                                    'bg-green-600 hover:bg-green-600/90 text-white': rci.status === 'calculated',
+                                })}
+                            >
+                                {getStatusLabel(rci.status)}
+                            </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rci.totals.liquido)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/pessoal/rci?id=${rci.id}`}>
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Acessar
+                                    </Link>
+                                </DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Excluir
+                                        </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Esta ação não pode ser desfeita. O RCI será permanentemente removido.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleDeleteGeneric('rcis', rci.id!, 'Cálculo de RCI')} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            </TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                )}
+            </CardContent>
+        </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Cálculos de 13º Salário Salvos</CardTitle>
@@ -716,5 +836,3 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
-
-    
