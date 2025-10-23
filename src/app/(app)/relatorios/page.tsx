@@ -25,8 +25,22 @@ export default function RelatoriosPage() {
         { 
             href: "/relatorios/compras",
             title: 'Relatório de Compras',
-            description: 'Visualize todas as notas fiscais de entrada.',
+            description: 'Visualize todas as notas fiscais de entrada e despesas.',
             icon: ShoppingCart,
+            buttonText: 'Gerar Relatório'
+        },
+        {
+            href: "/relatorios/recibos",
+            title: 'Relatório de Recibos',
+            description: 'Exporte uma lista de todos os recibos emitidos.',
+            icon: FileText,
+            buttonText: 'Gerar Relatório'
+        },
+        {
+            href: "/relatorios/comprovantes",
+            title: 'Relatório de Comprovantes',
+            description: 'Exporte uma lista de todos os comprovantes emitidos.',
+            icon: FileText,
             buttonText: 'Gerar Relatório'
         },
         { 
@@ -51,7 +65,7 @@ export default function RelatoriosPage() {
       <h1 className="text-2xl font-bold">Central de Relatórios</h1>
       <Card>
         <CardHeader>
-          <CardTitle>Relatórios Fiscais e Cadastrais</CardTitle>
+          <CardTitle>Relatórios Fiscais, Financeiros e Cadastrais</CardTitle>
           <CardDescription>Selecione uma das opções abaixo para extrair informações importantes do sistema.</CardDescription>
         </CardHeader>
         <CardContent>

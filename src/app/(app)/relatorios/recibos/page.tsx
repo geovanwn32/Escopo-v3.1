@@ -9,7 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
-import { generatePurchasesReportPdf } from "@/services/purchases-report-service";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -17,9 +16,10 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { startOfMonth } from "date-fns";
+import { generateReceiptsReportPdf } from "@/services/receipts-report-service";
 
 
-export default function ComprasReportPage() {
+export default function RecibosReportPage() {
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
         from: startOfMonth(new Date()),
         to: new Date(),
@@ -55,15 +55,15 @@ export default function ComprasReportPage() {
 
         setIsGenerating(true);
         try {
-            const success = await generatePurchasesReportPdf(user.uid, activeCompany, dateRange);
+            const success = await generateReceiptsReportPdf(user.uid, activeCompany, dateRange);
             if (!success) {
                 toast({
-                    title: "Nenhuma compra ou despesa encontrada",
+                    title: "Nenhum recibo encontrado",
                     description: "Não há dados para gerar um relatório no período selecionado.",
                 });
             }
         } catch (error) {
-            console.error("Erro ao gerar relatório de compras:", error);
+            console.error("Erro ao gerar relatório de recibos:", error);
             toast({ variant: 'destructive', title: 'Erro ao gerar relatório', description: (error as Error).message });
         } finally {
             setIsGenerating(false);
@@ -80,13 +80,13 @@ export default function ComprasReportPage() {
                         <span className="sr-only">Voltar</span>
                     </Link>
                 </Button>
-                <h1 className="text-2xl font-bold">Relatório de Compras e Despesas</h1>
+                <h1 className="text-2xl font-bold">Relatório de Recibos</h1>
             </div>
 
             <Card className="max-w-xl mx-auto">
                 <CardHeader>
-                    <CardTitle>Gerar Relatório de Compras</CardTitle>
-                    <CardDescription>Selecione o período para gerar o relatório com todas as notas de entrada e outros lançamentos de despesa.</CardDescription>
+                    <CardTitle>Gerar Relatório de Recibos</CardTitle>
+                    <CardDescription>Selecione o período para gerar o relatório com todos os recibos emitidos.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="grid gap-2">
