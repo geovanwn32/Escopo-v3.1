@@ -65,7 +65,7 @@ const supportAssistantFlow = ai.defineFlow(
         question: input.question,
         // @ts-ignore - Handlebars context is not strongly typed here
         knowledgeBase,
-    });
+    }, {model: 'gemini-pro'});
 
     if (!output) {
       throw new Error("O modelo de IA não conseguiu retornar uma resposta.");
@@ -78,3 +78,4 @@ const supportAssistantFlow = ai.defineFlow(
 export async function askSupportAssistant(input: SupportAssistantInput): Promise<SupportAssistantOutput> {
     return supportAssistantFlow(input);
 }
+
