@@ -68,22 +68,23 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
     // --- FETCH DATA ---
     const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
     
-    let q = query(recibosRef, where('tipo', '==', 'Recibo'));
+    let q = query(recibosRef);
 
     if (dateRange.from) {
-      q = query(q, where('date', '>=', Timestamp.fromDate(dateRange.from)));
+      q = query(q, where('data', '>=', Timestamp.fromDate(dateRange.from)));
     }
     if (dateRange.to) {
       const endDate = new Date(dateRange.to);
       endDate.setHours(23, 59, 59, 999);
-      q = query(q, where('date', '<=', Timestamp.fromDate(endDate)));
+      q = query(q, where('data', '<=', Timestamp.fromDate(endDate)));
     }
 
-    // Add ordering after all where clauses
-    q = query(q, orderBy('date', 'desc'));
+    q = query(q, orderBy('data', 'desc'));
 
     const snapshot = await getDocs(q);
-    const receipts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recibo));
+    const allItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Recibo));
+    const receipts = allItems.filter(item => item.tipo === 'Recibo');
+
 
     if (receipts.length === 0) {
         return false;
