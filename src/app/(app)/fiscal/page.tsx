@@ -161,70 +161,59 @@ export default function FiscalPage() {
     }
   }, [xmlFiles, activeCompany]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(() => {
     if (!user || !activeCompany) {
       setLoadingData(false);
       return;
     }
-    
+
     setLoadingData(true);
-    
+    const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+
     const collectionsToFetch = [
-        { name: 'launches', setter: setLaunches, orderBy: 'date' },
-        { name: 'recibos', setter: setRecibos, orderBy: 'date' },
-        { name: 'orcamentos', setter: setOrcamentos, orderBy: 'createdAt' },
-        { name: 'partners', setter: setPartners, orderBy: 'razaoSocial' },
-        { name: 'produtos', setter: setProducts, orderBy: 'descricao' },
-        { name: 'servicos', setter: setServices, orderBy: 'descricao' },
-        { name: 'employees', setter: setEmployees, orderBy: 'nomeCompleto' },
+      { name: 'launches', setter: setLaunches, orderByField: 'date' },
+      { name: 'recibos', setter: setRecibos, orderByField: 'date' },
+      { name: 'orcamentos', setter: setOrcamentos, orderByField: 'createdAt' },
+      { name: 'partners', setter: setPartners, orderByField: 'razaoSocial' },
+      { name: 'produtos', setter: setProducts, orderByField: 'descricao' },
+      { name: 'servicos', setter: setServices, orderByField: 'descricao' },
+      { name: 'employees', setter: setEmployees, orderByField: 'nomeCompleto' },
     ];
-    
-    const unsubscribes: (() => void)[] = [];
 
-    try {
-        const createListener = (collectionName: string, setData: (data: any[]) => void, orderByField: string) => {
-            const ref = collection(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`);
-            const q = query(ref, orderBy(orderByField, 'desc'));
-            const unsub = onSnapshot(q, (snapshot) => {
-                 const data = snapshot.docs.map(doc => {
-                    const docData = doc.data();
-                    const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
-                    for(const field of dateFields) {
-                        if (docData[field] instanceof Timestamp) {
-                            docData[field] = docData[field].toDate();
-                        }
-                    }
-                    return { id: doc.id, ...docData };
-                });
-                setData(data);
-            }, (error) => {
-                console.error(`Error fetching ${collectionName}: `, error);
-                toast({ variant: "destructive", title: `Erro ao buscar ${collectionName}` });
-            });
-            unsubscribes.push(unsub);
-        };
-        
-        collectionsToFetch.forEach(c => createListener(c.name, c.setter, c.orderBy));
-
-        const closuresRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/fiscalClosures`);
-        const unsubClosures = onSnapshot(closuresRef, (snapshot) => {
-            const periods = snapshot.docs.map(doc => doc.id);
-            setClosedPeriods(periods);
+    const unsubscribes = collectionsToFetch.map(({ name, setter, orderByField }) => {
+      const ref = collection(db, `${companyPath}/${name}`);
+      const q = query(ref, orderBy(orderByField, 'desc'));
+      return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => {
+          const docData = doc.data();
+          const dateFields = ['date', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
+          for (const field of dateFields) {
+            if (docData[field] instanceof Timestamp) {
+              docData[field] = docData[field].toDate();
+            }
+          }
+          return { id: doc.id, ...docData };
         });
-        unsubscribes.push(unsubClosures);
+        setter(data as any);
+      }, (error) => {
+        console.error(`Error fetching ${name}:`, error);
+        toast({ variant: "destructive", title: `Erro ao buscar ${name}` });
+      });
+    });
 
-    } catch (error) {
-         console.error("Error setting up listeners:", error);
-    } finally {
-        setLoadingData(false);
-    }
-    
+    const closuresRef = collection(db, `${companyPath}/fiscalClosures`);
+    const unsubClosures = onSnapshot(closuresRef, (snapshot) => {
+        setClosedPeriods(snapshot.docs.map(doc => doc.id));
+    });
+    unsubscribes.push(unsubClosures);
+
+    setLoadingData(false);
+
     return () => unsubscribes.forEach(unsub => unsub());
-
   }, [user, activeCompany, toast]);
 
   useEffect(() => {
-      fetchData();
+    fetchData();
   }, [fetchData]);
   
   const monthlySummary = useMemo(() => {
@@ -549,7 +538,7 @@ export default function FiscalPage() {
             const itemDate = new Date(item.date as Date);
             itemDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-            endDate.setHours(23,59,59,999);
+endDate.setHours(23,59,59,999);
             dateMatch = itemDate <= endDate;
         }
 
@@ -719,6 +708,7 @@ export default function FiscalPage() {
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
+          <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
@@ -1196,5 +1186,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
