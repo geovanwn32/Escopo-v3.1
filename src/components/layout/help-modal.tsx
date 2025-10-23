@@ -11,15 +11,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User, Ticket } from 'lucide-react';
-import Link from 'next/link';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '../ui/form';
 import type { Company } from '@/types/company';
 import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '../ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Textarea } from '../ui/textarea';
 import { createSupportTicket } from '@/services/ticket-service';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -28,7 +27,7 @@ interface HelpModalProps {
 }
 
 const messageSchema = z.object({
-  question: z.string().min(1, 'Digite sua pergunta.'),
+  question: z.string().min(3, 'Sua pergunta deve ter pelo menos 3 caracteres.'),
 });
 
 const ticketSchema = z.object({
@@ -47,50 +46,36 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
+const SupportChannelCard = ({ icon, title, description, buttonText, onClick }: { icon: React.ReactNode, title: string, description: string, buttonText: string, onClick: () => void }) => (
+    <Card className="flex flex-col">
+        <CardHeader>
+            <div className="flex items-center gap-4">
+                <div className="p-3 bg-muted rounded-full">{icon}</div>
+                <CardTitle className="text-lg">{title}</CardTitle>
+            </div>
+        </CardHeader>
+        <CardContent className="flex-grow">
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </CardContent>
+        <CardFooter>
+            <Button onClick={onClick} className="w-full">{buttonText}</Button>
+        </CardFooter>
+    </Card>
+)
 
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [currentView, setCurrentView] = useState<'main' | 'chat' | 'ticket'>('main');
+
+  // Chat state
   const [loading, setLoading] = useState(false);
-  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      try {
-        const storedHistory = localStorage.getItem('chatHistory');
-        if (storedHistory) {
-          setChatHistory(JSON.parse(storedHistory));
-        }
-      } catch (error) {
-        console.error("Failed to load chat history from localStorage", error);
-        setChatHistory([]);
-      }
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-    } catch (error) {
-      console.error("Failed to save chat history to localStorage", error);
-    }
-    
-    // Auto-scroll to bottom
-    if (scrollAreaRef.current) {
-        setTimeout(() => {
-             if (scrollAreaRef.current) {
-                const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-                if (viewport) {
-                    viewport.scrollTop = viewport.scrollHeight;
-                }
-            }
-        }, 100);
-    }
-
-  }, [chatHistory]);
-
+  // Ticket state
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  
   const chatForm = useForm<z.infer<typeof messageSchema>>({
     resolver: zodResolver(messageSchema),
     defaultValues: { question: '' },
@@ -100,6 +85,23 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     resolver: zodResolver(ticketSchema),
     defaultValues: { problemLocation: '', description: '' },
   });
+  
+  useEffect(() => {
+    // Reset to main view when modal is reopened
+    if (isOpen) {
+        setCurrentView('main');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    // Auto-scroll chat to bottom
+    if (currentView === 'chat' && scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
+        if (viewport) {
+            setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 100);
+        }
+    }
+  }, [chatHistory, currentView]);
 
   const onChatSubmit = async (values: z.infer<typeof messageSchema>) => {
     setLoading(true);
@@ -113,7 +115,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
       setChatHistory(prev => [...prev, assistantMessage]);
     } catch(error) {
        console.error("Error asking assistant:", error);
-       const errorMessage: ChatMessage = { role: 'assistant', content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente.' };
+       const errorMessage: ChatMessage = { role: 'assistant', content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente ou abra um chamado.' };
        setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
@@ -140,6 +142,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             description: 'Nossa equipe de suporte entrará em contato em breve.'
         });
         ticketForm.reset();
+        setCurrentView('main'); // Return to main menu after submission
     } catch(error) {
          console.error("Error creating ticket:", error);
          toast({ variant: 'destructive', title: 'Erro ao Abrir Chamado', description: 'Não foi possível registrar sua solicitação. Tente novamente.'});
@@ -148,98 +151,148 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     }
   };
 
-  const handleClose = () => {
-    onClose();
-    // Don't reset history here, as we want it to persist.
-    // chatForm.reset();
-    // ticketForm.reset();
-  };
+  const renderMainView = () => (
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <LifeBuoy className="h-6 w-6 text-primary" />
+          Central de Ajuda e Suporte
+        </DialogTitle>
+        <DialogDescription>
+          Precisa de ajuda? Escolha uma das opções abaixo para começar.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+        <SupportChannelCard 
+            icon={<Bot className="h-7 w-7 text-primary"/>}
+            title="Assistente Virtual"
+            description="Tire dúvidas rápidas sobre as funcionalidades do sistema com nossa IA."
+            buttonText="Iniciar Chat"
+            onClick={() => setCurrentView('chat')}
+        />
+         <SupportChannelCard 
+            icon={<Ticket className="h-7 w-7 text-primary"/>}
+            title="Abrir Chamado"
+            description="Encontrou um problema ou erro? Abra um chamado detalhado para nossa equipe técnica."
+            buttonText="Criar Chamado"
+            onClick={() => setCurrentView('ticket')}
+        />
+         <SupportChannelCard 
+            icon={<WhatsAppIcon className="h-7 w-7 text-primary"/>}
+            title="WhatsApp"
+            description="Converse diretamente com um de nossos atendentes em tempo real."
+            buttonText="Chamar no WhatsApp"
+            onClick={() => window.open('https://wa.me/556241011972', '_blank')}
+        />
+         <SupportChannelCard 
+            icon={<Mail className="h-7 w-7 text-primary"/>}
+            title="E-mail"
+            description="Prefere nos contatar por e-mail? Envie sua dúvida ou solicitação."
+            buttonText="Enviar E-mail"
+            onClick={() => window.location.href = 'mailto:geovani@domsolucoes.com'}
+        />
+      </div>
+       <DialogFooter className="pt-4">
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
+    </>
+  );
+
+  const renderChatView = () => (
+    <>
+       <DialogHeader>
+          <Button variant="ghost" size="sm" onClick={() => setCurrentView('main')} className="absolute left-4 top-4 text-muted-foreground">
+             &larr; Voltar
+          </Button>
+          <DialogTitle className="text-center flex items-center justify-center gap-2 pt-2">
+            <Bot className="h-6 w-6 text-primary" />
+            Assistente Virtual
+          </DialogTitle>
+          <DialogDescription className="text-center">Faça perguntas sobre como usar o sistema.</DialogDescription>
+      </DialogHeader>
+       <div className="space-y-4 flex flex-col py-4">
+            <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4" ref={scrollAreaRef}>
+                {chatHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                        <p>Faça uma pergunta sobre o sistema.</p>
+                        <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
+                    </div>
+                ) : (
+                    chatHistory.map((msg, index) => (
+                        <div key={index} className={`flex items-start gap-3 my-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                            {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
+                            <div className={`prose prose-sm max-w-[85%] rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                            {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
+                        </div>
+                    ))
+                )}
+                {loading && (
+                    <div className="flex items-start gap-3 my-3">
+                    <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
+                    <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin"/>
+                        <span>Pensando...</span>
+                    </div>
+                    </div>
+                )}
+            </ScrollArea>
+            <Form {...chatForm}>
+                <form onSubmit={chatForm.handleSubmit(onChatSubmit)} className="flex items-start gap-2">
+                        <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} onKeyDown={(e) => {
+                            if(e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                chatForm.handleSubmit(onChatSubmit)();
+                            }
+                        }} /></FormControl><FormMessage /></FormItem> )} />
+                        <Button type="submit" disabled={loading}>
+                            <Send className="h-4 w-4"/>
+                        </Button>
+                </form>
+            </Form>
+        </div>
+    </>
+  );
+
+  const renderTicketView = () => (
+    <>
+       <DialogHeader>
+            <Button variant="ghost" size="sm" onClick={() => setCurrentView('main')} className="absolute left-4 top-4 text-muted-foreground">
+             &larr; Voltar
+            </Button>
+          <DialogTitle className="text-center flex items-center justify-center gap-2 pt-2">
+                <Ticket className="h-6 w-6 text-primary" />
+                Abrir Chamado de Suporte
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            Descreva o problema que você encontrou para nossa equipe analisar.
+          </DialogDescription>
+      </DialogHeader>
+      <div className="py-4">
+        <Form {...ticketForm}>
+            <form onSubmit={ticketForm.handleSubmit(onTicketSubmit)} className="space-y-4">
+                <FormField control={ticketForm.control} name="problemLocation" render={({ field }) => ( <FormItem><FormLabel>Módulo/Tela com Problema</FormLabel><FormControl><Input {...field} placeholder="Ex: Módulo Fiscal > Lançamentos" /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={ticketForm.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Descrição Detalhada do Problema</FormLabel><FormControl><Textarea {...field} placeholder="Descreva o que aconteceu, o que você esperava que acontecesse e quaisquer mensagens de erro que apareceram." rows={5} /></FormControl><FormMessage /></FormItem> )} />
+                <DialogFooter className="pt-4">
+                    <Button type="submit" className="w-full" disabled={isSubmittingTicket}>
+                        {isSubmittingTicket && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Enviar Chamado para Suporte
+                    </Button>
+                </DialogFooter>
+            </form>
+        </Form>
+      </div>
+    </>
+  );
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <LifeBuoy className="h-6 w-6 text-primary" />
-            Central de Ajuda e Suporte
-          </DialogTitle>
-          <DialogDescription>
-            Tire suas dúvidas com nosso assistente de IA ou abra um chamado de suporte para nossa equipe.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Tabs defaultValue="assistant" className="w-full pt-2">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="assistant"><Bot className="mr-2 h-4 w-4"/>Assistente Virtual</TabsTrigger>
-                <TabsTrigger value="ticket"><Ticket className="mr-2 h-4 w-4"/>Abrir Chamado</TabsTrigger>
-            </TabsList>
-            <TabsContent value="assistant" className="mt-4">
-                <div className="space-y-4 flex flex-col">
-                    <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4" ref={scrollAreaRef}>
-                        {chatHistory.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                                <p>Faça uma pergunta sobre o sistema.</p>
-                                <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
-                            </div>
-                        ) : (
-                            chatHistory.map((msg, index) => (
-                                <div key={index} className={`flex items-start gap-3 my-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                                    {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
-                                    <div className={`prose prose-sm max-w-[85%] rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                    </div>
-                                    {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
-                                </div>
-                            ))
-                        )}
-                        {loading && (
-                            <div className="flex items-start gap-3 my-3">
-                            <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
-                            <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin"/>
-                                <span>Pensando...</span>
-                            </div>
-                            </div>
-                        )}
-                    </ScrollArea>
-                    <Form {...chatForm}>
-                        <form onSubmit={chatForm.handleSubmit(onChatSubmit)} className="flex items-start gap-2">
-                                <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} onKeyDown={(e) => {
-                                    if(e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        chatForm.handleSubmit(onChatSubmit)();
-                                    }
-                                }} /></FormControl><FormMessage /></FormItem> )} />
-                                <Button type="submit" disabled={loading} size="icon">
-                                    <Send className="h-4 w-4"/>
-                                </Button>
-                        </form>
-                    </Form>
-                </div>
-            </TabsContent>
-            <TabsContent value="ticket" className="mt-4">
-                <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        Se o assistente não resolveu ou se você encontrou um erro, preencha o formulário abaixo para que nossa equipe possa te ajudar.
-                    </p>
-                    <Form {...ticketForm}>
-                        <form onSubmit={ticketForm.handleSubmit(onTicketSubmit)} className="space-y-4">
-                             <FormField control={ticketForm.control} name="problemLocation" render={({ field }) => ( <FormItem><FormLabel>Módulo/Tela com Problema</FormLabel><FormControl><Input {...field} placeholder="Ex: Módulo Fiscal > Lançamentos" /></FormControl><FormMessage /></FormItem> )} />
-                             <FormField control={ticketForm.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Descrição Detalhada do Problema</FormLabel><FormControl><Textarea {...field} placeholder="Descreva o que aconteceu, o que você esperava que acontecesse e quaisquer mensagens de erro que apareceram." rows={5} /></FormControl><FormMessage /></FormItem> )} />
-                            <Button type="submit" className="w-full" disabled={isSubmittingTicket}>
-                                {isSubmittingTicket && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Enviar Chamado para Suporte
-                            </Button>
-                        </form>
-                    </Form>
-                </div>
-            </TabsContent>
-        </Tabs>
-
-        <DialogFooter className="pt-4">
-          <Button variant="outline" onClick={handleClose}>Fechar</Button>
-        </DialogFooter>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-3xl">
+        {currentView === 'main' && renderMainView()}
+        {currentView === 'chat' && renderChatView()}
+        {currentView === 'ticket' && renderTicketView()}
       </DialogContent>
     </Dialog>
   );
