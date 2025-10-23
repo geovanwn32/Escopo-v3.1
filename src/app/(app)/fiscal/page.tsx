@@ -26,13 +26,12 @@ import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
 import Link from "next/link";
 import type { Orcamento } from '@/types/orcamento';
 import { generateLaunchPdf } from "@/services/launch-report-service";
-import type { Partner } from "@/types/partner";
+import type { Partner } from '@/types/partner';
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import type { Employee } from '@/types/employee';
-import { XmlFile, Launch, Company } from "@/types";
+import { XmlFile, Launch, Company, Recibo, GenericLaunch } from "@/types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
-
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -51,8 +50,6 @@ function replacer(key: string, value: any) {
 // Helper to safely parse with support for File objects
 function reviver(key: string, value: any) {
   if (typeof File !== 'undefined' && value && value._type === 'File') {
-    // We can't recreate the file content, but we can recreate the object structure
-    // This is sufficient for display and state management purposes
     return new File([], value.name, { type: value.type, lastModified: value.lastModified });
   }
   return value;
@@ -67,10 +64,10 @@ const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set
 const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
 const MemoizedReceiptFormModal = React.memo(ReceiptFormModal);
 
-
 export default function FiscalPage() {
   const [xmlFiles, setXmlFiles] = useState<XmlFile[]>([]);
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [closedPeriods, setClosedPeriods] = useState<string[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -167,6 +164,7 @@ export default function FiscalPage() {
     
     const collectionsToFetch = [
         { name: 'launches', setter: setLaunches, orderBy: 'date' },
+        { name: 'recibos', setter: setRecibos, orderBy: 'date' },
         { name: 'orcamentos', setter: setOrcamentos, orderBy: 'createdAt' },
         { name: 'partners', setter: setPartners, orderBy: 'razaoSocial' },
         { name: 'produtos', setter: setProducts, orderBy: 'descricao' },
@@ -462,23 +460,23 @@ export default function FiscalPage() {
      fetchData(); // Refetch data to update the launches list
   }, [user, activeCompany, fetchData]);
 
-  const handleDeleteLaunch = async (launch: Launch) => {
-    if (!user || !activeCompany) return;
+  const handleDeleteLaunch = async (launch: GenericLaunch) => {
+    if (!user || !activeCompany || !launch.id) return;
     try {
-        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, launch.id);
+        const collectionName = launch.docType === 'recibo' ? 'recibos' : 'launches';
+        const launchRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, launch.id);
         await deleteDoc(launchRef);
         
-        const keyToMatch = launch.chaveNfe || `${launch.numeroNfse}-${launch.codigoVerificacaoNfse}-${launch.versaoNfse}`;
-        setXmlFiles(files => 
-            files.map(f => 
-                f.key === keyToMatch ? { ...f, status: 'pending' } : f
-            )
-        );
+        if (launch.docType === 'launch' && launch.chaveNfe) {
+             setXmlFiles(files => 
+                files.map(f => 
+                    f.key === launch.chaveNfe ? { ...f, status: 'pending' } : f
+                )
+            );
+        }
 
-        toast({
-            title: "Lançamento excluído com sucesso!"
-        });
-        fetchData(); // Refetch data
+        toast({ title: "Lançamento excluído com sucesso!" });
+        fetchData();
     } catch (error) {
         console.error("Error deleting launch: ", error);
         toast({
@@ -496,46 +494,71 @@ export default function FiscalPage() {
         description: `O arquivo ${fileName} foi removido da lista.`
     });
   };
+
+  const allItems: GenericLaunch[] = useMemo(() => {
+    const combined = [
+        ...launches.map(l => ({ ...l, docType: 'launch' as const })),
+        ...recibos.map(r => ({ ...r, docType: 'recibo' as const }))
+    ];
+    return combined.sort((a, b) => {
+        const dateA = (a.date as Timestamp)?.toDate ? (a.date as Timestamp).toDate() : new Date(a.date);
+        const dateB = (b.date as Timestamp)?.toDate ? (b.date as Timestamp).toDate() : new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+    });
+}, [launches, recibos]);
+
   
-  const filteredLaunches = useMemo(() => {
-    return launches.filter(launch => {
-        const keyMatch = filterKey ? (launch.chaveNfe?.includes(filterKey) || launch.numeroNfse?.includes(filterKey)) : true;
-        const typeMatch = filterType ? launch.type === filterType : true;
+  const filteredItems = useMemo(() => {
+    return allItems.filter(item => {
+        let keyMatch = true;
+        if(filterKey){
+            if(item.docType === 'launch') {
+                keyMatch = item.chaveNfe?.includes(filterKey) || item.numeroNfse?.includes(filterKey) || false;
+            } else {
+                keyMatch = item.numero?.includes(filterKey) || item.pagadorNome.toLowerCase().includes(filterKey.toLowerCase()) || false;
+            }
+        }
+        
+        const typeMatch = filterType ? (item.docType === 'recibo' ? 'recibo' : item.type) === filterType : true;
         
         let dateMatch = true;
         if (filterStartDate) {
-            const launchDate = new Date(launch.date);
-            launchDate.setHours(0,0,0,0);
+            const itemDate = new Date(item.date as Date);
+            itemDate.setHours(0,0,0,0);
             const startDate = new Date(filterStartDate);
             startDate.setHours(0,0,0,0);
-            dateMatch = launchDate >= startDate;
+            dateMatch = itemDate >= startDate;
         }
         if (filterEndDate && dateMatch) {
-            const launchDate = new Date(launch.date);
-            launchDate.setHours(23,59,59,999);
+            const itemDate = new Date(item.date as Date);
+            itemDate.setHours(23,59,59,999);
             const endDate = new Date(filterEndDate);
-            endDate.setHours(23,59,59,999);
-            dateMatch = launchDate <= endDate;
+endDate.setHours(23,59,59,999);
+            dateMatch = itemDate <= endDate;
         }
 
         return keyMatch && typeMatch && dateMatch;
     });
-  }, [launches, filterKey, filterType, filterStartDate, filterEndDate]);
+  }, [allItems, filterKey, filterType, filterStartDate, filterEndDate]);
 
   useEffect(() => {
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterStartDate, filterEndDate]);
 
-  const getPartnerName = (launch: Launch): string => {
-    switch (launch.type) {
+  const getPartnerName = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') {
+        return item.pagadorNome;
+    }
+    // Logic for Launch
+    switch (item.type) {
       case 'entrada':
-        return launch.emitente?.nome || 'N/A';
+        return item.emitente?.nome || 'N/A';
       case 'saida':
-         if (launch.destinatario?.nome) return launch.destinatario.nome;
-         if (launch.tomador?.nome) return launch.tomador.nome;
+         if (item.destinatario?.nome) return item.destinatario.nome;
+         if (item.tomador?.nome) return item.tomador.nome;
          return 'N/A';
       case 'servico':
-        return launch.tomador?.nome || 'N/A';
+        return item.tomador?.nome || 'N/A';
       default:
         return 'N/A';
     }
@@ -574,8 +597,8 @@ export default function FiscalPage() {
     xmlCurrentPage * xmlItemsPerPage
   );
   
-  const totalLaunchPages = Math.ceil(filteredLaunches.length / launchesItemsPerPage);
-  const paginatedLaunches = filteredLaunches.slice(
+  const totalLaunchPages = Math.ceil(filteredItems.length / launchesItemsPerPage);
+  const paginatedItems = filteredItems.slice(
     (launchesCurrentPage - 1) * launchesItemsPerPage,
     launchesCurrentPage * launchesItemsPerPage
   );
@@ -652,7 +675,7 @@ export default function FiscalPage() {
       />
       <h1 className="text-2xl font-bold">Módulo Fiscal</h1>
 
-      <Card>
+       <Card>
         <CardHeader>
           <CardTitle>Ações Fiscais</CardTitle>
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
@@ -687,6 +710,7 @@ export default function FiscalPage() {
           </Button>
         </CardContent>
       </Card>
+
 
        <Card>
         <CardHeader>
@@ -931,7 +955,7 @@ export default function FiscalPage() {
       <Card>
         <CardHeader>
           <CardTitle>Lançamentos Recentes</CardTitle>
-          <CardDescription>Visualize e filtre os lançamentos fiscais.</CardDescription>
+          <CardDescription>Visualize e filtre os lançamentos fiscais e recibos.</CardDescription>
         </CardHeader>
         <CardContent>
             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
@@ -949,6 +973,7 @@ export default function FiscalPage() {
                         <SelectItem value="entrada">Entrada</SelectItem>
                         <SelectItem value="saida">Saída</SelectItem>
                         <SelectItem value="servico">Serviço</SelectItem>
+                        <SelectItem value="recibo">Recibo</SelectItem>
                     </SelectContent>
                 </Select>
                  <Popover>
@@ -987,7 +1012,7 @@ export default function FiscalPage() {
                  <div className="flex justify-center items-center py-20">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                  </div>
-            ) : launches.length === 0 ? (
+            ) : allItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="p-4 bg-muted rounded-full mb-4">
                     <FileStack className="h-10 w-10 text-muted-foreground" />
@@ -1002,43 +1027,42 @@ export default function FiscalPage() {
                             <TableHead>Data</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Parceiro</TableHead>
-                            <TableHead>Chave/Número</TableHead>
-                            <TableHead>Arquivo XML</TableHead>
+                            <TableHead>Documento/Ref.</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {paginatedLaunches.length === 0 ? (
+                        {paginatedItems.length === 0 ? (
                              <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={7} className="h-24 text-center">
                                     Nenhum resultado encontrado para os filtros aplicados.
                                 </TableCell>
                             </TableRow>
-                        ) : paginatedLaunches.map(launch => (
-                            <TableRow key={launch.id} className={cn(isLaunchLocked(launch) && 'bg-muted/30 hover:bg-muted/50')}>
-                                <TableCell>{new Intl.DateTimeFormat('pt-BR').format((launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date))}</TableCell>
+                        ) : paginatedItems.map(item => (
+                            <TableRow key={item.id} className={cn(item.docType === 'launch' && isLaunchLocked(item as Launch) && 'bg-muted/30 hover:bg-muted/50')}>
+                                <TableCell>{new Intl.DateTimeFormat('pt-BR').format((item.date as any)?.toDate ? (item.date as any).toDate() : new Date(item.date))}</TableCell>
                                 <TableCell>
-                                    <Badge variant="secondary">
-                                      {launch.type.charAt(0).toUpperCase() + launch.type.slice(1)}
+                                    <Badge variant="secondary" className="capitalize">
+                                      {item.docType === 'recibo' ? 'Recibo' : (item as Launch).type}
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
-                                    {getPartnerName(launch)}
+                                    {getPartnerName(item)}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={launch.chaveNfe || launch.numeroNfse}>
-                                    {launch.chaveNfe || launch.numeroNfse}
+                                <TableCell className="font-mono text-xs max-w-[150px] truncate" title={(item as Launch).chaveNfe || (item as Launch).numeroNfse || (item as Recibo).referente}>
+                                    {(item as Launch).chaveNfe || (item as Launch).numeroNfse || (item as Recibo).numero || (item as Recibo).referente}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs max-w-[150px] truncate">{launch.fileName}</TableCell>
                                 <TableCell>
-                                    {getBadgeForLaunchStatus(launch.status)}
+                                    {item.docType === 'launch' && getBadgeForLaunchStatus((item as Launch).status)}
+                                    {item.docType === 'recibo' && <Badge variant="default">Normal</Badge>}
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(launch.valorLiquido || launch.valorTotalNota || 0)}
+                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item as Launch).valorLiquido || (item as Launch).valorTotalNota || (item as Recibo).valor || 0)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    {isLaunchLocked(launch) ? (
+                                    {item.docType === 'launch' && isLaunchLocked(item as Launch) ? (
                                         <Lock className="h-4 w-4 mx-auto text-muted-foreground" title="Este período está fechado"/>
                                     ) : (
                                         <DropdownMenu>
@@ -1049,17 +1073,10 @@ export default function FiscalPage() {
                                             </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleGeneratePdf(launch)}>
-                                                <FileText className="mr-2 h-4 w-4" />
-                                                Visualizar PDF
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openModal({ launch, mode: 'view' })}>
+                                            {item.docType === 'launch' && <DropdownMenuItem onClick={() => handleGeneratePdf(item as Launch)}><FileText className="mr-2 h-4 w-4" />Visualizar PDF</DropdownMenuItem>}
+                                            <DropdownMenuItem onClick={() => item.docType === 'launch' ? openModal({ launch: item as Launch, mode: 'view' }) : openReceiptModal({ receipt: item as Recibo, mode: 'edit'})}>
                                                 <Eye className="mr-2 h-4 w-4" />
-                                                Visualizar Detalhes
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openModal({ launch, mode: 'edit' })}>
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                Alterar
+                                                Visualizar / Alterar
                                             </DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -1072,12 +1089,12 @@ export default function FiscalPage() {
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            Esta ação não pode ser desfeita. O lançamento fiscal será permanentemente removido.
+                                                            Esta ação não pode ser desfeita. O lançamento será permanentemente removido.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction onClick={() => handleDeleteLaunch(launch)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+                                                        <AlertDialogAction onClick={() => handleDeleteLaunch(item)} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                             </AlertDialog>
@@ -1120,7 +1137,7 @@ export default function FiscalPage() {
         />
       }
 
-      {user && activeCompany && (
+      {user && activeCompany && currentReceiptModalData && (
         <MemoizedReceiptFormModal
             isOpen={isReceiptModalOpen}
             onClose={closeReceiptModal}

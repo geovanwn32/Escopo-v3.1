@@ -56,11 +56,11 @@ export interface EfdFile {
 }
 
 export interface Launch {
-    id: string;
-    fileName: string;
+    id?: string;
+    fileName?: string;
     type: 'entrada' | 'saida' | 'servico';
     status: 'Normal' | 'Cancelado' | 'Substituida';
-    date: Date;
+    date: FieldValue | Date;
     chaveNfe?: string | null;
     numeroNfse?: string | null;
     serie?: string | null;
@@ -112,3 +112,6 @@ export interface Launch {
       aliqIpi?: number | null;
     }[];
 }
+
+// Union type for generic launch table
+export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });

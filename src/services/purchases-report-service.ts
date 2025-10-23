@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Company } from '@/types/company';
-import type { Launch } from '@/app/(app)/fiscal/page';
+import type { Launch, Recibo } from '@/types';
 import { format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
@@ -28,13 +28,6 @@ const formatDate = (date: any): string => {
         return '';
     }
 }
-
-const getPartnerName = (launch: Launch): string => {
-    if (launch.type === 'entrada') {
-        return launch.emitente?.nome || 'N/A';
-    }
-    return 'N/A';
-};
 
 function addHeader(doc: jsPDF, company: Company) {
     const pageWidth = doc.internal.pageSize.width;
@@ -73,25 +66,38 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     
     // --- FETCH DATA ---
     const launchesRef = collection(db, `users/${userId}/companies/${company.id}/launches`);
+    const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
     
-    let q = query(launchesRef, where('type', '==', 'entrada'));
+    let launchesQuery = query(launchesRef, where('type', '==', 'entrada'));
+    let recibosQuery = query(recibosRef);
 
     if (dateRange.from) {
-      q = query(q, where('date', '>=', Timestamp.fromDate(dateRange.from)));
+      launchesQuery = query(launchesQuery, where('date', '>=', Timestamp.fromDate(dateRange.from)));
+      recibosQuery = query(recibosQuery, where('date', '>=', Timestamp.fromDate(dateRange.from)));
     }
     if (dateRange.to) {
       const endDate = new Date(dateRange.to);
       endDate.setHours(23, 59, 59, 999);
-      q = query(q, where('date', '<=', Timestamp.fromDate(endDate)));
+      launchesQuery = query(launchesQuery, where('date', '<=', Timestamp.fromDate(endDate)));
+      recibosQuery = query(recibosQuery, where('date', '<=', Timestamp.fromDate(endDate)));
     }
 
-    const snapshot = await getDocs(q);
+    const [launchesSnapshot, recibosSnapshot] = await Promise.all([
+        getDocs(launchesQuery),
+        getDocs(recibosQuery)
+    ]);
     
-    // Sort client-side
-    const purchases = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Launch))
-        .sort((a,b) => ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date)).getTime() - ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date)).getTime());
+    const purchases: (Launch | Recibo)[] = [
+        ...launchesSnapshot.docs.map(doc => ({ ...doc.data() } as Launch)),
+        ...recibosSnapshot.docs.map(doc => ({ ...doc.data() } as Recibo))
+    ];
 
+    // Sort client-side by date
+    purchases.sort((a, b) => {
+        const dateA = (a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date);
+        const dateB = (b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
+    });
 
     if (purchases.length === 0) {
         return false;
@@ -100,7 +106,7 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     // --- PDF GENERATION ---
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Relatório de Compras`, pageWidth / 2, y, { align: 'center' });
+    doc.text(`Relatório de Compras e Despesas`, pageWidth / 2, y, { align: 'center' });
     y += 8;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -114,20 +120,33 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     y += 10;
     
     let totalPurchasesValue = 0;
-    const allTableRows = purchases.map(purchase => {
-        const purchaseValue = purchase.valorTotalNota || 0;
-        totalPurchasesValue += purchaseValue;
+    const allTableRows = purchases.map(item => {
+        let value = 0;
+        let partnerName = 'N/A';
+        let document = 'N/A';
+        
+        if ('type' in item) { // It's a Launch
+            value = item.valorTotalNota || 0;
+            partnerName = item.emitente?.nome || 'N/A';
+            document = `NF-e ${item.chaveNfe || item.numeroNfse}`;
+        } else { // It's a Recibo
+            value = item.valor || 0;
+            partnerName = item.pagadorNome;
+            document = `Recibo ${item.numero}`;
+        }
+
+        totalPurchasesValue += value;
         return [
-            formatDate(purchase.date),
-            getPartnerName(purchase),
-            purchase.chaveNfe || 'N/A',
-            formatCurrency(purchaseValue)
+            formatDate(item.date),
+            partnerName,
+            document,
+            formatCurrency(value)
         ];
     });
 
     autoTable(doc, {
         startY: y,
-        head: [['Data', 'Fornecedor', 'Documento', 'Valor']],
+        head: [['Data', 'Fornecedor/Pagador', 'Documento', 'Valor']],
         body: allTableRows,
         theme: 'grid',
         headStyles: { fillColor: [51, 145, 255], textColor: 255, fontStyle: 'bold' },
@@ -135,7 +154,7 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
         columnStyles: {
             0: { cellWidth: 25, halign: 'center' },
             1: { cellWidth: 'auto' },
-            2: { cellWidth: 50, halign: 'center' },
+            2: { cellWidth: 50 },
             3: { cellWidth: 30, halign: 'right' },
         }
     });
@@ -152,8 +171,8 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 2 },
         body: [
-            [{ content: 'Total de Compras', styles: { fontStyle: 'bold' } }, { content: purchases.length, styles: { halign: 'right' } }],
-            [{ content: 'Valor Total em Compras', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalPurchasesValue), styles: { halign: 'right', fontStyle: 'bold' } }],
+            [{ content: 'Total de Lançamentos', styles: { fontStyle: 'bold' } }, { content: purchases.length, styles: { halign: 'right' } }],
+            [{ content: 'Valor Total em Compras/Despesas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalPurchasesValue), styles: { halign: 'right', fontStyle: 'bold' } }],
         ],
     });
 
