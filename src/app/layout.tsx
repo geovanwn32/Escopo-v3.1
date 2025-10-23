@@ -12,7 +12,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Escopo - Seu sistema contábil',
+  title: 'EscopoV3 - Seu sistema contábil',
   description: 'Sistema contábil completo para gestão de empresas.',
 };
 

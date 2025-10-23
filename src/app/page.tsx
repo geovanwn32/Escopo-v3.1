@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -34,9 +35,9 @@ export default function Home() {
         <nav className="flex items-center justify-between p-6 lg:px-8" aria-label="Global">
           <div className="flex lg:flex-1">
             <Link href="/" className="-m-1.5 p-1.5 flex items-center gap-2">
-              <span className="sr-only">Escopo</span>
+              <span className="sr-only">EscopoV3</span>
                <BookCheck className="h-8 w-8 text-primary" />
-               <span className="font-bold text-xl">Escopo</span>
+               <span className="font-bold text-xl">EscopoV3</span>
             </Link>
           </div>
           <div className="flex lg:flex-1 justify-end">

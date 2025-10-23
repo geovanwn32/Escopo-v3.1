@@ -79,7 +79,7 @@ export function RegisterForm() {
             <div className="text-center">
                 <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl text-primary">
                     <BookCheck className="h-8 w-8" />
-                    <span className="text-white">Escopo</span>
+                    <span className="text-white">EscopoV3</span>
                 </Link>
             </div>
             <Card className="shadow-lg bg-card/80 backdrop-blur-sm">

@@ -158,7 +158,7 @@ const Logo = () => {
         animate={{ opacity: 1 }}
         className="font-bold text-black dark:text-white whitespace-pre text-xl"
       >
-        Escopo
+        EscopoV3
       </motion.span>
     </Link>
   );
