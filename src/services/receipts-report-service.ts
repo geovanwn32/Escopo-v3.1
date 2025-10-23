@@ -65,9 +65,7 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
     const pageWidth = doc.internal.pageSize.width;
     let y = addHeader(doc, company);
     
-    // --- FETCH DATA ---
     const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
-    
     let q = query(recibosRef);
 
     if (dateRange.from) {
@@ -78,7 +76,6 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
       endDate.setHours(23, 59, 59, 999);
       q = query(q, where('data', '<=', Timestamp.fromDate(endDate)));
     }
-
     q = query(q, orderBy('data', 'desc'));
 
     const snapshot = await getDocs(q);
@@ -90,7 +87,6 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
         return false;
     }
 
-    // --- PDF GENERATION ---
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`Relatório de Recibos Emitidos`, pageWidth / 2, y, { align: 'center' });
@@ -113,6 +109,7 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
             item.numero,
             formatDate(item.data),
             item.pagadorNome,
+            item.emitenteNome,
             item.referenteA,
             formatCurrency(item.valor)
         ];
@@ -120,23 +117,23 @@ export async function generateReceiptsReportPdf(userId: string, company: Company
 
     autoTable(doc, {
         startY: y,
-        head: [['Número', 'Data', 'Pagador', 'Referente a', 'Valor']],
+        head: [['Número', 'Data', 'Pagador', 'Emitente', 'Referente a', 'Valor']],
         body: allTableRows,
         theme: 'grid',
         headStyles: { fillColor: [51, 145, 255], textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
             0: { cellWidth: 15, halign: 'center' },
-            1: { cellWidth: 25, halign: 'center' },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 60 },
-            4: { cellWidth: 30, halign: 'right' },
+            1: { cellWidth: 20, halign: 'center' },
+            2: { cellWidth: 40 },
+            3: { cellWidth: 40 },
+            4: { cellWidth: 'auto' },
+            5: { cellWidth: 25, halign: 'right' },
         }
     });
 
     y = (doc as any).lastAutoTable.finalY + 8;
     
-    // --- SUMMARY ---
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('Resumo do Período', 14, y);
