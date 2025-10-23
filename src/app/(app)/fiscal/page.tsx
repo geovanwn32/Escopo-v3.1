@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
-import { LaunchFormModal, type OpenModalOptions } from "@/components/fiscal/launch-form-modal";
+import { LaunchFormModal, OpenModalOptions } from "@/components/fiscal/launch-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -699,6 +699,8 @@ export default function FiscalPage() {
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
+          <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
+          <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
           <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
@@ -1085,11 +1087,11 @@ export default function FiscalPage() {
         )}
       </Card>
       
-       {isModalOpen && user && activeCompany && 
+       {user && activeCompany && currentModalData &&
         <MemoizedLaunchFormModal 
             isOpen={isModalOpen}
             onClose={closeModal}
-            initialData={currentModalData || {}}
+            initialData={currentModalData}
             userId={user.uid}
             company={activeCompany}
             onLaunchSuccess={handleLaunchSuccess}
@@ -1110,3 +1112,5 @@ export default function FiscalPage() {
     </div>
   );
 }
+
+    
