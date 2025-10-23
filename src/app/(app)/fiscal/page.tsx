@@ -6,7 +6,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart, FileMinus } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart, FileMinus, TrendingUp } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, isValid, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, isValid, startOfMonth, endOfMonth, isWithinInterval, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
@@ -29,6 +29,8 @@ import type { Partner } from "@/types/partner";
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import { XmlFile, Launch, Company } from "@/types";
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -57,6 +59,8 @@ function reviver(key: string, value: any) {
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
+
+const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 
 export default function FiscalPage() {
@@ -212,6 +216,39 @@ export default function FiscalPage() {
     const notasEmitidas = currentMonthLaunches.length;
 
     return { faturamento, compras, notasEmitidas };
+  }, [launches]);
+  
+  const monthlyChartData = useMemo(() => {
+    const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
+    const today = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        monthlyTotals[key] = { receitas: 0, despesas: 0 };
+    }
+
+    launches.forEach(l => {
+        const value = l.valorLiquido || l.valorTotalNota || 0;
+        const launchDate = (l.date as any)?.toDate ? (l.date as any).toDate() : new Date(l.date);
+        
+        if (!isValid(launchDate)) return;
+
+        const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
+
+        if (monthlyTotals[key]) {
+            if (l.type === 'saida' || l.type === 'servico') {
+                monthlyTotals[key].receitas += value;
+            } else if (l.type === 'entrada') {
+                monthlyTotals[key].despesas += value;
+            }
+        }
+    });
+    
+    return Object.keys(monthlyTotals).map(key => {
+        const [year, month] = key.split('-').map(Number);
+        return { month: monthNames[month], ...monthlyTotals[key] };
+    });
   }, [launches]);
 
 
@@ -565,7 +602,7 @@ export default function FiscalPage() {
   }
 
   const isLaunchLocked = (launch: Launch): boolean => {
-    const launchPeriod = format(launch.date, 'yyyy-MM');
+    const launchPeriod = format((launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date), 'yyyy-MM');
     return closedPeriods.includes(launchPeriod);
   }
   
@@ -603,9 +640,6 @@ export default function FiscalPage() {
              } else {
                  q = query(launchesRef, where("chaveNfe", "==", xmlFile.key));
              }
-             
-             // This needs to be async, but useCallback is sync.
-             // The check will be performed inside the modal on open.
         }
     }
     setModalOptions(options);
@@ -627,7 +661,7 @@ export default function FiscalPage() {
       />
       <h1 className="text-2xl font-bold">Módulo Fiscal</h1>
 
-      <Card>
+       <Card>
         <CardHeader>
           <CardTitle>Resumo do Mês</CardTitle>
           <CardDescription>Visão geral das atividades fiscais no mês corrente ({format(new Date(), 'MMMM/yyyy', { locale: ptBR })}).</CardDescription>
@@ -665,6 +699,26 @@ export default function FiscalPage() {
             </Card>
         </CardContent>
        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/>Resultado Mensal</CardTitle>
+                <CardDescription>Receitas vs. Despesas nos últimos 6 meses.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <ResponsiveContainer width="100%" height={300}>
+                    <RechartsBarChart data={monthlyChartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
+                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
+                        <Legend />
+                        <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="despesas" fill="#dc2626" name="Despesas" radius={[4, 4, 0, 0]} />
+                    </RechartsBarChart>
+                </ResponsiveContainer>
+            </CardContent>
+        </Card>
 
       <Card>
         <CardHeader>
@@ -972,7 +1026,7 @@ export default function FiscalPage() {
                             </TableRow>
                         ) : paginatedLaunches.map(launch => (
                             <TableRow key={launch.id} className={cn(isLaunchLocked(launch) && 'bg-muted/30 hover:bg-muted/50')}>
-                                <TableCell>{new Intl.DateTimeFormat('pt-BR').format(launch.date)}</TableCell>
+                                <TableCell>{new Intl.DateTimeFormat('pt-BR').format((launch.date as any)?.toDate ? (launch.date as any).toDate() : new Date(launch.date))}</TableCell>
                                 <TableCell>
                                     <Badge variant="secondary">
                                       {launch.type.charAt(0).toUpperCase() + launch.type.slice(1)}
