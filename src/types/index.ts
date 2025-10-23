@@ -111,6 +111,3 @@ export interface Launch {
       aliqIpi?: number | null;
     }[];
 }
-
-
-    

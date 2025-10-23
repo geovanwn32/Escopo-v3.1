@@ -197,17 +197,30 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     // This part is simplified now as we focus on NF-e, but kept for structure
     else if (type === 'servico') {
         data.date = new Date();
-        data.discriminacao = querySelectorText(xmlDoc, ['Discriminacao', 'discriminacao', 'xDescricao', 'xDescServ']);
-        data.valorServicos = getFloat(xmlDoc, ['Valores > ValorServicos', 'ValorServicos']);
-        data.valorLiquido = getFloat(xmlDoc, ['ValoresNfse > ValorLiquidoNfse', 'ValorLiquidoNfse']);
+        data.valorTotalNota = getFloat(xmlDoc, ['ValoresNfse > ValorLiquidoNfse', 'ValorLiquidoNfse']);
     }
     
     return data;
 }
 
 const defaultLaunchValues: Partial<FormData> = {
-    fileName: '', status: 'Normal', date: new Date(),
-    produtos: [], modalidadeFrete: '9', // Default to "Sem Frete"
+    fileName: '',
+    status: 'Normal',
+    date: new Date(),
+    produtos: [],
+    modalidadeFrete: '9', // Default to "Sem Frete"
+    chaveNfe: '',
+    numeroNfse: '',
+    serie: '',
+    observacoes: '',
+    emitente: { nome: '', cnpj: '' },
+    destinatario: { nome: '', cnpj: '' },
+    valorProdutos: 0,
+    valorTotalNota: 0,
+    valorIcms: 0,
+    valorIpi: 0,
+    valorPis: 0,
+    valorCofins: 0,
 };
 
 const getInitialData = (
@@ -219,6 +232,7 @@ const getInitialData = (
         if (xmlFile) {
             const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
             return {
+                ...defaultLaunchValues,
                 ...parsedData,
                 type: xmlFile.type,
                 fileName: xmlFile.file.name,
@@ -227,6 +241,7 @@ const getInitialData = (
         }
         if (manualLaunchType) {
             const manualData: Partial<FormData> = { 
+                ...defaultLaunchValues,
                 type: manualLaunchType, 
                 date: new Date(), 
                 fileName: 'Lançamento Manual', 
@@ -239,9 +254,9 @@ const getInitialData = (
             return manualData;
         }
     } else if ((mode === 'edit' || mode === 'view') && launch) {
-        return { ...launch };
+        return { ...defaultLaunchValues, ...launch };
     }
-    return {};
+    return defaultLaunchValues;
 };
 
 
@@ -262,6 +277,7 @@ export const LaunchFormModal = ({
 
     const form = useForm<FormData>({ 
         resolver: zodResolver(launchSchema),
+        defaultValues: defaultLaunchValues,
     });
     const { control, setValue, reset, getValues } = form;
 
@@ -285,7 +301,7 @@ export const LaunchFormModal = ({
     useEffect(() => {
         if (isOpen && initialData) {
             const data = getInitialData(initialData, company);
-            reset({ ...defaultLaunchValues, ...data });
+            reset(data);
         }
     }, [isOpen, initialData, company, reset]);
   
@@ -458,5 +474,3 @@ export const LaunchFormModal = ({
         </>
     );
 };
-
-    
