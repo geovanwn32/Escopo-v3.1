@@ -16,6 +16,7 @@ export type { Payroll, PayrollEvent, PayrollTotals } from './payroll';
 export type { Pgdas, SimplesAnnexType } from './pgdas';
 export type { PreliminaryAdmission } from './preliminary-admission';
 export type { Produto } from './produto';
+export type { Recibo } from './recibo';
 export type { RCI, RciEvent, RciTotals } from './rci';
 export type { ReinfFile } from './reinf';
 export type { Rubrica } from './rubrica';

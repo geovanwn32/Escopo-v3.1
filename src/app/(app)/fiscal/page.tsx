@@ -6,12 +6,13 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Receipt } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { LaunchFormModal, OpenModalOptions } from "@/components/fiscal/launch-form-modal";
+import { ReceiptFormModal, OpenReceiptModalOptions } from "@/components/fiscal/receipt-form-modal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import { generateLaunchPdf } from "@/services/launch-report-service";
 import type { Partner } from "@/types/partner";
 import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
+import type { Employee } from '@/types/employee';
 import { XmlFile, Launch, Company } from "@/types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 
@@ -63,6 +65,7 @@ const formatCurrency = (value: number) => {
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
+const MemoizedReceiptFormModal = React.memo(ReceiptFormModal);
 
 
 export default function FiscalPage() {
@@ -75,11 +78,15 @@ export default function FiscalPage() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentModalData, setCurrentModalData] = useState<OpenModalOptions | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [currentReceiptModalData, setCurrentReceiptModalData] = useState<OpenReceiptModalOptions | null>(null);
+
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
   
   const [partners, setPartners] = useState<Partner[]>([]);
   const [products, setProducts] = useState<Produto[]>([]);
   const [services, setServices] = useState<Servico[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   
   const [xmlNameFilter, setXmlNameFilter] = useState("");
   const [xmlTypeFilter, setXmlTypeFilter] = useState("");
@@ -106,6 +113,16 @@ export default function FiscalPage() {
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
     setCurrentModalData(null);
+  }, []);
+
+  const openReceiptModal = useCallback((options: OpenReceiptModalOptions) => {
+    setCurrentReceiptModalData(options);
+    setIsReceiptModalOpen(true);
+  }, []);
+
+  const closeReceiptModal = useCallback(() => {
+    setIsReceiptModalOpen(false);
+    setCurrentReceiptModalData(null);
   }, []);
 
   useEffect(() => {
@@ -154,6 +171,7 @@ export default function FiscalPage() {
         { name: 'partners', setter: setPartners, orderBy: 'razaoSocial' },
         { name: 'produtos', setter: setProducts, orderBy: 'descricao' },
         { name: 'servicos', setter: setServices, orderBy: 'descricao' },
+        { name: 'employees', setter: setEmployees, orderBy: 'nomeCompleto' },
     ];
     
     const unsubscribes: (() => void)[] = [];
@@ -702,6 +720,7 @@ export default function FiscalPage() {
           <Button onClick={() => openModal({ manualLaunchType: 'saida', mode: 'create' })} className="bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
           <Button onClick={() => openModal({ manualLaunchType: 'entrada', mode: 'create' })} className="bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
           <Button onClick={() => openModal({ manualLaunchType: 'servico', mode: 'create' })} className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Serviço</Button>
+          <Button onClick={() => openReceiptModal({ mode: 'create' })} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><Receipt className="mr-2 h-4 w-4" /> Lançar Recibos</Button>
           <Button className="bg-orange-100 text-orange-800 hover:bg-orange-200" onClick={handleImportClick}>
             <Upload className="mr-2 h-4 w-4" /> Importar XML
           </Button>
@@ -1102,6 +1121,18 @@ export default function FiscalPage() {
       }
 
       {user && activeCompany && (
+        <MemoizedReceiptFormModal
+            isOpen={isReceiptModalOpen}
+            onClose={closeReceiptModal}
+            initialData={currentReceiptModalData}
+            userId={user.uid}
+            company={activeCompany}
+            partners={partners}
+            employees={employees}
+        />
+      )}
+
+      {user && activeCompany && (
         <FiscalClosingModal
             isOpen={isClosingModalOpen}
             onClose={() => setIsClosingModalOpen(false)}
@@ -1112,5 +1143,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-    
