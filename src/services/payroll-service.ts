@@ -71,7 +71,7 @@ function calculateIRRF(baseIrrf: number, dependents: number, inssDeduction: numb
     
     const totalDependentDeduction = dependents * irrfDependentDeduction;
     const baseAfterDependents = baseAfterInss - totalDependentDeduction;
-    
+
     let irrfValue = 0;
     let rate = 0;
     for (const bracket of irrfBrackets) {
@@ -89,6 +89,14 @@ function calculateIRRF(baseIrrf: number, dependents: number, inssDeduction: numb
 export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boolean }), events: PayrollEvent[]): PayrollCalculationResult {
     const isSocio = 'proLabore' in employee || (employee as any).isSocio;
 
+    const totalProventos = events
+        .filter(e => e.rubrica.tipo === 'provento')
+        .reduce((acc, e) => acc + (e.provento || 0), 0);
+    
+    const initialDescontos = events
+        .filter(e => e.rubrica.tipo === 'desconto')
+        .reduce((acc, e) => acc + (e.desconto || 0), 0);
+
     const baseFGTS = events
         .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
@@ -99,26 +107,16 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
         
     const inss = calculateINSS(baseINSS, isSocio);
 
-    const baseIRRFProventos = events
+    const baseIRRF = events
         .filter(e => e.rubrica.incideIRRF && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + e.provento, 0);
-    const baseIRRF = baseIRRFProventos; // Calculate base before INSS deduction for IRRF
     
     const numDependentesIRRF = !isSocio ? (employee as Employee).dependentes?.filter(d => d.isIRRF).length || 0 : 0;
     const irrf = calculateIRRF(baseIRRF, numDependentesIRRF, inss.valor);
 
     const fgts = { valor: isSocio ? 0 : parseFloat((baseFGTS * 0.08).toFixed(2)) };
 
-    const totalProventos = events
-        .filter(e => e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + e.provento, 0);
-
-    const initialDescontos = events
-        .filter(e => e.rubrica.tipo === 'desconto')
-        .reduce((acc, e) => acc + e.desconto, 0);
-        
     const totalDescontos = initialDescontos + inss.valor + irrf.valor;
-    
     const liquido = totalProventos - totalDescontos;
 
     return {
