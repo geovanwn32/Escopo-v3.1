@@ -64,7 +64,7 @@ const financialAnalystFlow = ai.defineFlow(
         throw new Error("Dados financeiros não foram fornecidos.");
     }
 
-    const {output} = await prompt(input);
+    const {output} = await prompt(input, {model: 'gemini-pro'});
 
     if (!output) {
       throw new Error("O modelo de IA não conseguiu retornar uma análise.");
