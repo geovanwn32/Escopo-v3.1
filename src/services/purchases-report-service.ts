@@ -72,8 +72,9 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     let recibosQuery = query(recibosRef);
 
     if (dateRange.from) {
-      launchesQuery = query(launchesQuery, where('date', '>=', Timestamp.fromDate(dateRange.from)));
-      recibosQuery = query(recibosQuery, where('date', '>=', Timestamp.fromDate(dateRange.from)));
+      const startDate = Timestamp.fromDate(dateRange.from);
+      launchesQuery = query(launchesQuery, where('date', '>=', startDate));
+      recibosQuery = query(recibosQuery, where('date', '>=', startDate));
     }
     if (dateRange.to) {
       const endDate = new Date(dateRange.to);
