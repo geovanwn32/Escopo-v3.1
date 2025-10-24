@@ -52,23 +52,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        const companyId = sessionStorage.getItem('activeCompanyId');
         let isAdmin = false;
-        
         if (user?.email === SUPER_ADMIN_EMAIL) {
             isAdmin = true;
-        }
-
-        if (user && companyId) {
-            const companyDataString = sessionStorage.getItem(`company_${companyId}`);
-            if (companyDataString) {
-                const companyData = JSON.parse(companyDataString) as Company;
-                if (companyData.cnpj.replace(/\D/g, '') === ADMIN_COMPANY_CNPJ) {
-                    isAdmin = true;
+        } else {
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (user && companyId) {
+                const companyDataString = sessionStorage.getItem(`company_${companyId}`);
+                if (companyDataString) {
+                    const companyData = JSON.parse(companyDataString) as Company;
+                    if (companyData.cnpj.replace(/\D/g, '') === ADMIN_COMPANY_CNPJ) {
+                        isAdmin = true;
+                    }
                 }
             }
         }
-
+        
         setHasAdminAccess(isAdmin);
         setLoading(false);
 
@@ -126,11 +125,11 @@ export default function AdminPage() {
         if (error.code === 'functions/unavailable' || error.code === 'permission-denied' || error.code === 'internal') {
             setAdminApiUnavailable(true);
              toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
-            setAllUsers([]);
-            setPendingUsers([]);
         } else {
              toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
         }
+        setAllUsers([]);
+        setPendingUsers([]);
     } finally {
         setLoadingUsers(false);
     }
@@ -194,10 +193,14 @@ export default function AdminPage() {
       return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
   };
 
-  if (loading || !hasAdminAccess) {
+  if (loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
   
+  if (!hasAdminAccess) {
+      return null;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -328,3 +331,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
