@@ -44,30 +44,35 @@ export function RegisterForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Create a user document in Firestore
+      // Create a user document in Firestore with pending approval status
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         createdAt: serverTimestamp(),
-        trialStartedAt: serverTimestamp(),
-        trialEndsAt: addDays(new Date(), 7),
+        licenseType: 'pending_approval',
       });
 
       toast({
         title: 'Conta criada com sucesso!',
-        description: 'Você será redirecionado para o login.',
+        description: 'Sua conta está aguardando liberação por um administrador.',
       });
       router.push('/login');
     } catch (error: any) {
       console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro no registo',
-        description: error.code === 'auth/email-already-in-use' 
-          ? 'Este email já está em uso.' 
-          : 'Ocorreu um erro. Tente novamente.',
-      });
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+            variant: 'destructive',
+            title: 'Erro no registo',
+            description: 'Este email já está em uso.',
+        });
+      } else {
+        toast({
+            variant: 'destructive',
+            title: 'Erro no registo',
+            description: 'Ocorreu um erro. Tente novamente.',
+        });
+      }
     } finally {
       setLoading(false);
     }

@@ -39,8 +39,22 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         // Fetch user data from Firestore
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
+
         if (userSnap.exists()) {
-            setAppUser(userSnap.data() as AppUser);
+            const userData = userSnap.data() as AppUser;
+            setAppUser(userData);
+
+            if (userData.licenseType === 'pending_approval') {
+                router.replace('/pending-approval');
+                return; // Stop further execution
+            }
+
+        } else {
+            // If user doc doesn't exist, something is wrong.
+            // Maybe redirect to login or show an error.
+             toast({ variant: 'destructive', title: "Erro de Usuário", description: "Não foi possível carregar os dados do seu usuário."});
+             router.replace('/login');
+             return;
         }
 
         // Fetch company data from session
@@ -64,7 +78,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     
     loadAppData();
 
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, toast]);
 
   const handleCompanySelect = (company: any) => {
     sessionStorage.setItem('activeCompanyId', company.id);

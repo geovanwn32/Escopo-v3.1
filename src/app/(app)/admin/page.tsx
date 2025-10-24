@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,6 @@ interface AdminUserView {
     creationTime: string;
     lastSignInTime: string;
     licenseType: AppUser['licenseType'];
-    trialEndsAt?: { _seconds: number, _nanoseconds: number } | Date;
 }
 
 export default function AdminPage() {
@@ -108,8 +108,7 @@ export default function AdminPage() {
                     disabled: authUser.disabled,
                     creationTime: authUser.metadata.creationTime,
                     lastSignInTime: authUser.metadata.lastSignInTime,
-                    licenseType: firestoreUser?.licenseType || 'trial',
-                    trialEndsAt: firestoreUser?.trialEndsAt,
+                    licenseType: firestoreUser?.licenseType || 'pending_approval',
                 };
             });
 
@@ -172,7 +171,7 @@ export default function AdminPage() {
         case 'basica': return 'secondary';
         case 'profissional': return 'default';
         case 'premium': return 'success';
-        case 'trial':
+        case 'pending_approval': return 'destructive';
         default: return 'outline';
     }
   }
@@ -182,7 +181,7 @@ export default function AdminPage() {
         case 'basica': return 'Básica';
         case 'profissional': return 'Profissional';
         case 'premium': return 'Premium';
-        case 'trial':
+        case 'pending_approval': return 'Aguardando Liberação';
         default: return 'Avaliação';
     }
   }
@@ -283,8 +282,8 @@ export default function AdminPage() {
                                     <span>Alterar Licença</span>
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent>
-                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'trial')}>
-                                        <XCircle className="mr-2 h-4 w-4 text-muted-foreground" /> Avaliação
+                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'pending_approval')}>
+                                        <ShieldCheck className="mr-2 h-4 w-4 text-amber-500" /> Aguardando Liberação
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}>
                                         <CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica
@@ -317,5 +316,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
