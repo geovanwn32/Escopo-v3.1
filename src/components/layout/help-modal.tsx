@@ -189,7 +189,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             title="E-mail"
             description="Prefere nos contatar por e-mail? Envie sua dúvida ou solicitação."
             buttonText="Enviar E-mail"
-            onClick={() => window.location.href = 'mailto:geovani@domsolucoes.com'}
+            onClick={() => window.location.href = 'mailto:geovaniwn@gmail.com'}
         />
       </div>
        <DialogFooter className="pt-4">
