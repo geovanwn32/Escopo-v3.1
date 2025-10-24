@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, ShieldCheck, FileText, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X, Archive, MoreHorizontal, UserPlus, RefreshCw, AlertCircle, MessageSquare, UserCheck, UserX, CheckCircle, Star, Sparkles } from "lucide-react";
+import { Save, Loader2, Search, FileKey, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X, Archive } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
@@ -25,14 +25,6 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
 import { lookupCnpj } from "@/services/data-lookup-service";
-import type { AppUser } from '@/types/user';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { format } from 'date-fns';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { NotificationFormModal } from '@/components/admin/notification-form-modal';
-import { useRouter } from "next/navigation";
 
 
 const companySchema = z.object({
@@ -94,19 +86,6 @@ const formatBytes = (bytes: number, decimals = 2) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-const ADMIN_COMPANY_CNPJ = '00000000000000';
-const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
-
-interface AdminUserView {
-    uid: string;
-    email?: string;
-    disabled: boolean;
-    creationTime: string;
-    lastSignInTime: string;
-    licenseType: AppUser['licenseType'];
-}
-
-
 export default function MinhaEmpresaPage() {
     const { toast } = useToast();
     const { user } = useAuth();
@@ -124,17 +103,6 @@ export default function MinhaEmpresaPage() {
     const [fileToUpload, setFileToUpload] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [loadingCnpj, setLoadingCnpj] = useState(false);
-
-    // Admin state
-    const [allUsers, setAllUsers] = useState<AdminUserView[]>([]);
-    const [pendingUsers, setPendingUsers] = useState<AdminUserView[]>([]);
-    const [loadingUsers, setLoadingUsers] = useState(true);
-    const [hasAdminAccess, setHasAdminAccess] = useState(false);
-    const [adminApiUnavailable, setAdminApiUnavailable] = useState(false);
-    const [isNotificationModalOpen, setNotificationModalOpen] = useState(false);
-    const [selectedUserForNotif, setSelectedUserForNotif] = useState<AdminUserView | null>(null);
-    const router = useRouter();
-
 
     const form = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
@@ -189,8 +157,7 @@ export default function MinhaEmpresaPage() {
 
                     if (companySnap.exists()) {
                         const data = companySnap.data() as Partial<CompanyFormData> & {cnpj?: string, cpf?: string};
-                        const companyData = { id: companySnap.id, ...data } as Company;
-                        setActiveCompany(companyData);
+                        setActiveCompany({ id: companySnap.id, ...data } as Company);
 
                         const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
                         let formattedInscricao = inscricaoValue || "";
@@ -231,16 +198,6 @@ export default function MinhaEmpresaPage() {
                           incidenciaTributaria: data.incidenciaTributaria ?? '1',
                           apuracaoPisCofins: data.apuracaoPisCofins ?? '1',
                         });
-
-                        // Check for Admin Access
-                        let isAdmin = false;
-                        if (user?.email === SUPER_ADMIN_EMAIL) {
-                            isAdmin = true;
-                        } else if (companyData.cnpj.replace(/\D/g, '') === ADMIN_COMPANY_CNPJ) {
-                            isAdmin = true;
-                        }
-                        setHasAdminAccess(isAdmin);
-
                     }
                     if (establishmentSnap.exists()) {
                         setEstablishmentData(establishmentSnap.data() as EstablishmentData);
@@ -253,122 +210,6 @@ export default function MinhaEmpresaPage() {
             }
         }
     }, [user, form]);
-
-
-    const fetchUsers = async () => {
-        if (!hasAdminAccess) {
-            setLoadingUsers(false);
-            return;
-        }
-        setLoadingUsers(true);
-        setAdminApiUnavailable(false);
-        try {
-            const functions = getFunctions();
-            const listUsersFunction = httpsCallable(functions, 'listUsers');
-            const authResult = await listUsersFunction();
-            const authUsers = authResult.data as { uid: string; email?: string; disabled: boolean; metadata: { creationTime: string; lastSignInTime: string; } }[];
-
-            const usersCollectionRef = collection(db, 'users');
-            const firestoreSnap = await getDocs(usersCollectionRef);
-            const firestoreUsers = new Map<string, AppUser>();
-            firestoreSnap.forEach(doc => {
-                firestoreUsers.set(doc.id, { uid: doc.id, ...doc.data() } as AppUser);
-            });
-            
-            const combinedUsers: AdminUserView[] = authUsers.map(authUser => {
-                const firestoreUser = firestoreUsers.get(authUser.uid);
-                return {
-                    uid: authUser.uid,
-                    email: authUser.email,
-                    disabled: authUser.disabled,
-                    creationTime: authUser.metadata.creationTime,
-                    lastSignInTime: authUser.metadata.lastSignInTime,
-                    licenseType: firestoreUser?.licenseType || 'pending_approval',
-                };
-            });
-            
-            const pending = combinedUsers.filter(u => u.licenseType === 'pending_approval');
-            const others = combinedUsers.filter(u => u.licenseType !== 'pending_approval');
-
-            setPendingUsers(pending);
-            setAllUsers(others);
-
-        } catch (error: any) {
-            console.error("Error fetching users: ", error);
-            if (error.code === 'functions/unavailable' || error.code === 'permission-denied') {
-                setAdminApiUnavailable(true);
-                 toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
-                setAllUsers([]);
-                setPendingUsers([]);
-            } else {
-                 toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
-            }
-        } finally {
-            setLoadingUsers(false);
-        }
-    };
-
-    useEffect(() => {
-        if(hasAdminAccess) {
-            fetchUsers();
-        } else {
-            setLoadingUsers(false);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasAdminAccess]);
-
-    const updateUserLicense = async (userId: string, licenseType: AppUser['licenseType']) => {
-        const userRef = doc(db, 'users', userId);
-        try {
-            await updateDoc(userRef, { licenseType });
-            toast({ title: `Licença do usuário atualizada para ${licenseType}!` });
-            fetchUsers();
-        } catch(error) {
-            toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
-        }
-    }
-    
-    const toggleUserStatus = async (userId: string, isDisabled: boolean) => {
-        try {
-            const functions = getFunctions();
-            const setUserStatusFunction = httpsCallable(functions, 'setUserStatus');
-            await setUserStatusFunction({ uid: userId, disabled: !isDisabled });
-            toast({ title: `Status do usuário atualizado!` });
-            fetchUsers();
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.', description: error.message });
-        }
-    }
-    
-    const handleOpenNotificationModal = (user: AdminUserView) => {
-        setSelectedUserForNotif(user);
-        setNotificationModalOpen(true);
-    };
-
-    const getLicenseVariant = (license?: AppUser['licenseType']): "secondary" | "default" | "success" | "outline" | "destructive" => {
-        switch(license) {
-            case 'basica': return 'secondary';
-            case 'profissional': return 'default';
-            case 'premium': return 'success';
-            case 'pending_approval': return 'destructive';
-            default: return 'outline';
-        }
-    }
-
-    const getLicenseLabel = (license?: AppUser['licenseType']) => {
-        switch(license) {
-            case 'basica': return 'Básica';
-            case 'profissional': return 'Profissional';
-            case 'premium': return 'Premium';
-            case 'pending_approval': return 'Aguardando Liberação';
-            default: return 'Avaliação';
-        }
-    }
-
-    const formatUserDate = (dateString: string) => {
-        if (!dateString) return 'N/A';
-        return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
-    };
 
 
     async function onSubmit(data: CompanyFormData) {
@@ -452,7 +293,7 @@ export default function MinhaEmpresaPage() {
             await uploadBytes(storageRef, fileToUpload);
             const downloadURL = await getDownloadURL(storageRef);
 
-            await updateDoc(companyRef, { logoUrl: downloadURL, logoPath: logoPath });
+            await setDoc(companyRef, { logoUrl: downloadURL, logoPath: logoPath }, { merge: true });
             form.setValue('logoUrl', downloadURL);
             form.setValue('logoPath', logoPath);
 
@@ -478,7 +319,7 @@ export default function MinhaEmpresaPage() {
             await deleteObject(storageRef);
 
             const companyRef = doc(db, `users/${user.uid}/companies`, activeCompany.id);
-            await updateDoc(companyRef, { logoUrl: null, logoPath: null });
+            await setDoc(companyRef, { logoUrl: null, logoPath: null }, { merge: true });
             
             form.setValue('logoUrl', null);
             form.setValue('logoPath', null);
@@ -504,6 +345,14 @@ export default function MinhaEmpresaPage() {
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
     );
+  }
+
+  if (!activeCompany) {
+      return (
+          <div className="flex h-full w-full items-center justify-center">
+              <p>Nenhuma empresa selecionada. Por favor, selecione uma empresa no menu superior.</p>
+          </div>
+      )
   }
 
   return (
@@ -969,116 +818,6 @@ export default function MinhaEmpresaPage() {
                 </div>
             </form>
         </Form>
-
-         {hasAdminAccess && (
-            <div className="space-y-6 mt-6">
-                <Card>
-                    <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <UserPlus className="text-amber-500"/>
-                        Aprovações Pendentes
-                    </CardTitle>
-                    <CardDescription>Usuários aguardando liberação para acessar o sistema.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingUsers ? <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div> : pendingUsers.length === 0 ? (
-                            <div className="py-10 text-center text-sm text-muted-foreground">Nenhum usuário aguardando aprovação.</div>
-                        ) : (
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Data de Criação</TableHead>
-                                    <TableHead className="text-right">Ações</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {pendingUsers.map((appUser) => (
-                                    <TableRow key={appUser.uid}>
-                                        <TableCell className="font-medium">{appUser.email}</TableCell>
-                                        <TableCell>{formatUserDate(appUser.creationTime)}</TableCell>
-                                        <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Menu</span><MoreHorizontal className="h-4 w-4" /></Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuSub>
-                                                    <DropdownMenuSubTrigger><ShieldCheck className="mr-2 h-4 w-4 text-green-500" /><span>Aprovar e Liberar Licença</span></DropdownMenuSubTrigger>
-                                                    <DropdownMenuSubContent>
-                                                        <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}><CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica</DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'profissional')}><Star className="mr-2 h-4 w-4 text-yellow-500" /> Profissional</DropdownMenuItem>
-                                                        <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'premium')}><Sparkles className="mr-2 h-4 w-4 text-blue-500" /> Premium</DropdownMenuItem>
-                                                    </DropdownMenuSubContent>
-                                                </DropdownMenuSub>
-                                                <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)} className="text-destructive"><UserX className="mr-2 h-4 w-4" /><span>Negar e Desativar</span></DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Configurações Avançadas de Administrador</CardTitle>
-                        <CardDescription>Gerencie usuários, períodos fiscais e backups.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col gap-4">
-                        <Button type="button" variant="destructive" onClick={() => setReopenPeriodModalOpen(true)}>
-                            <KeyRound className="mr-2 h-4 w-4" />
-                            Reabrir Período Fiscal Fechado
-                        </Button>
-                         <Button type="button" variant="outline" onClick={() => setBackupModalOpen(true)}>
-                            <Archive className="mr-2 h-4 w-4" />
-                            Backup e Restauração de Dados
-                        </Button>
-                        <Button type="button" onClick={() => setEstablishmentModalOpen(true)}>
-                            <FileKey className="mr-2 h-4 w-4" />
-                            Preencher Ficha do Estabelecimento (S-1005)
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        )}
-
-        {user && activeCompany && (
-            <EstablishmentForm 
-                isOpen={isEstablishmentModalOpen}
-                onClose={() => setEstablishmentModalOpen(false)}
-                userId={user.uid}
-                companyId={activeCompany.id}
-                initialData={establishmentData}
-                onSave={handleSaveEstablishment}
-            />
-        )}
-         {user && activeCompany && (
-            <ReopenPeriodModal
-                isOpen={isReopenPeriodModalOpen}
-                onClose={() => setReopenPeriodModalOpen(false)}
-                userId={user.uid}
-                companyId={activeCompany.id}
-            />
-        )}
-        {user && activeCompany && (
-            <BackupModal
-                isOpen={isBackupModalOpen}
-                onClose={() => setBackupModalOpen(false)}
-                userId={user.uid}
-                companyId={activeCompany.id}
-            />
-        )}
-          {selectedUserForNotif && (
-            <NotificationFormModal 
-            isOpen={isNotificationModalOpen}
-            onClose={() => setNotificationModalOpen(false)}
-            targetUser={selectedUserForNotif}
-            />
-        )}
     </div>
   );
 }
