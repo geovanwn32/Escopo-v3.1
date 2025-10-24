@@ -1,28 +1,22 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+    // Regra para a coleção de tickets de suporte
+    match /tickets/{ticketId} {
+      allow read, write: if request.auth != null; // Permite que qualquer usuário autenticado crie/leia tickets. Ajuste se necessário.
+    }
+
     // Regra para a coleção de usuários
     match /users/{userId} {
-      // Permite que o superadministrador leia qualquer perfil
-      allow get, list: if request.auth.token.email == 'geovaniwn@gmail.com';
-      
-      // Permite que usuários autenticados leiam e escrevam seus próprios dados
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
     }
 
-    // Regra geral para todas as outras coleções dentro de uma empresa
+    // Regra para TODAS as subcoleções de uma empresa específica de um usuário
     match /users/{userId}/companies/{companyId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Regra para a coleção global de tickets de suporte
-    match /tickets/{ticketId} {
-      // Permite que usuários autenticados criem tickets
-      allow create: if request.auth != null;
-      // Permite que apenas o criador do ticket ou o admin leiam ou atualizem
-      allow read, update: if request.auth != null && (request.auth.uid == resource.data.requesterUid || request.auth.token.email == 'geovaniwn@gmail.com');
     }
   }
 }
