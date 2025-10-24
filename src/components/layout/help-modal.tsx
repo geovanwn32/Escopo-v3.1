@@ -182,7 +182,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             title="WhatsApp"
             description="Converse diretamente com um de nossos atendentes em tempo real."
             buttonText="Chamar no WhatsApp"
-            onClick={() => window.open('https://wa.me/556241011972', '_blank')}
+            onClick={() => window.open('https://wa.me/5562998554529', '_blank')}
         />
          <SupportChannelCard 
             icon={<Mail className="h-7 w-7 text-primary"/>}
