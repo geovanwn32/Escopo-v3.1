@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User, Ticket } from 'lucide-react';
+import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User, Ticket, Sparkles, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '../ui/form';
 import type { Company } from '@/types/company';
+import { analyzeFinancials, FinancialAnalystOutput } from '@/ai/flows/financial-analyst-flow';
 import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '../ui/scroll-area';
@@ -26,19 +27,10 @@ interface HelpModalProps {
   activeCompany: Company | null;
 }
 
-const messageSchema = z.object({
-  question: z.string().min(3, 'Sua pergunta deve ter pelo menos 3 caracteres.'),
-});
-
 const ticketSchema = z.object({
   problemLocation: z.string().min(1, 'A localização do problema é obrigatória.'),
   description: z.string().min(10, 'Descreva o problema com pelo menos 10 caracteres.'),
 });
-
-interface ChatMessage {
-    role: 'user' | 'assistant';
-    content: string;
-}
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -46,7 +38,7 @@ const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
-const SupportChannelCard = ({ icon, title, description, buttonText, onClick }: { icon: React.ReactNode, title: string, description: string, buttonText: string, onClick: () => void }) => (
+const SupportChannelCard = ({ icon, title, description, buttonText, onClick, disabled = false }: { icon: React.ReactNode, title: string, description: string, buttonText: string, onClick: () => void, disabled?: boolean }) => (
     <Card className="flex flex-col">
         <CardHeader>
             <div className="flex items-center gap-4">
@@ -58,7 +50,7 @@ const SupportChannelCard = ({ icon, title, description, buttonText, onClick }: {
             <p className="text-sm text-muted-foreground">{description}</p>
         </CardContent>
         <CardFooter>
-            <Button onClick={onClick} className="w-full">{buttonText}</Button>
+            <Button onClick={onClick} className="w-full" disabled={disabled}>{buttonText}</Button>
         </CardFooter>
     </Card>
 )
@@ -66,20 +58,14 @@ const SupportChannelCard = ({ icon, title, description, buttonText, onClick }: {
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentView, setCurrentView] = useState<'main' | 'chat' | 'ticket'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'analyst' | 'ticket'>('main');
 
-  // Chat state
-  const [loading, setLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  // Analyst state
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<FinancialAnalystOutput | null>(null);
 
   // Ticket state
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
-  
-  const chatForm = useForm<z.infer<typeof messageSchema>>({
-    resolver: zodResolver(messageSchema),
-    defaultValues: { question: '' },
-  });
   
   const ticketForm = useForm<z.infer<typeof ticketSchema>>({
     resolver: zodResolver(ticketSchema),
@@ -90,35 +76,38 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     // Reset to main view when modal is reopened
     if (isOpen) {
         setCurrentView('main');
+        setAnalysisResult(null);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    // Auto-scroll chat to bottom
-    if (currentView === 'chat' && scrollAreaRef.current) {
-        const viewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
-        if (viewport) {
-            setTimeout(() => { viewport.scrollTop = viewport.scrollHeight; }, 100);
-        }
+  const handleAnalyzeFinancials = async () => {
+    if (!activeCompany) {
+        toast({ variant: 'destructive', title: 'Nenhuma empresa ativa.'});
+        return;
     }
-  }, [chatHistory, currentView]);
-
-  const onChatSubmit = async (values: z.infer<typeof messageSchema>) => {
-    setLoading(true);
-    const userMessage: ChatMessage = { role: 'user', content: values.question };
-    setChatHistory(prev => [...prev, userMessage]);
-    chatForm.reset();
-    
+    setLoadingAnalysis(true);
+    setCurrentView('analyst');
     try {
-      const result = await askSupportAssistant({ question: values.question });
-      const assistantMessage: ChatMessage = { role: 'assistant', content: result.answer };
-      setChatHistory(prev => [...prev, assistantMessage]);
+      // NOTE: In a real application, you would fetch real data from your database/service.
+      // Here, we're using mock data for demonstration.
+      const mockData = [
+          { month: 'Mai', entradas: 12500, saidas: 8900 },
+          { month: 'Jun', entradas: 14200, saidas: 9500 },
+          { month: 'Jul', entradas: 18500, saidas: 11200 },
+      ];
+      
+      const result = await analyzeFinancials({
+          companyName: activeCompany.nomeFantasia,
+          data: mockData,
+      });
+      setAnalysisResult(result);
+
     } catch(error) {
-       console.error("Error asking assistant:", error);
-       const errorMessage: ChatMessage = { role: 'assistant', content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente ou abra um chamado.' };
-       setChatHistory(prev => [...prev, errorMessage]);
+       console.error("Error analyzing financials:", error);
+       toast({ variant: 'destructive', title: 'Erro na Análise', description: 'Não foi possível gerar a análise financeira.' });
+       setCurrentView('main'); // Go back if it fails
     } finally {
-      setLoading(false);
+      setLoadingAnalysis(false);
     }
   };
 
@@ -164,11 +153,12 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
       </DialogHeader>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
         <SupportChannelCard 
-            icon={<Bot className="h-7 w-7 text-primary"/>}
-            title="Assistente Virtual"
-            description="Tire dúvidas rápidas sobre as funcionalidades do sistema com nossa IA."
-            buttonText="Iniciar Chat"
-            onClick={() => setCurrentView('chat')}
+            icon={<Sparkles className="h-7 w-7 text-primary"/>}
+            title="Analista Financeiro Virtual"
+            description="Receba insights e uma análise rápida da situação financeira da sua empresa."
+            buttonText="Analisar Finanças"
+            onClick={handleAnalyzeFinancials}
+            disabled={!activeCompany}
         />
          <SupportChannelCard 
             icon={<Ticket className="h-7 w-7 text-primary"/>}
@@ -198,60 +188,49 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     </>
   );
 
-  const renderChatView = () => (
-    <>
+  const renderAnalystView = () => (
+     <>
        <DialogHeader>
           <Button variant="ghost" size="sm" onClick={() => setCurrentView('main')} className="absolute left-4 top-4 text-muted-foreground">
              &larr; Voltar
           </Button>
           <DialogTitle className="text-center flex items-center justify-center gap-2 pt-2">
-            <Bot className="h-6 w-6 text-primary" />
-            Assistente Virtual
+            <Sparkles className="h-6 w-6 text-primary" />
+            Análise Financeira
           </DialogTitle>
-          <DialogDescription className="text-center">Faça perguntas sobre como usar o sistema.</DialogDescription>
+          <DialogDescription className="text-center">Insights rápidos sobre os últimos meses.</DialogDescription>
       </DialogHeader>
-       <div className="space-y-4 flex flex-col py-4">
-            <ScrollArea className="h-[400px] w-full rounded-md border p-4 space-y-4" ref={scrollAreaRef}>
-                {chatHistory.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-                        <p>Faça uma pergunta sobre o sistema.</p>
-                        <p className="text-xs">Ex: "Como faço para lançar uma nota fiscal de entrada?"</p>
+      <div className="py-4">
+        {loadingAnalysis ? (
+            <div className="flex flex-col items-center justify-center h-60 text-center text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+                <p>Analisando dados financeiros...</p>
+            </div>
+        ) : analysisResult ? (
+            <div className="space-y-4">
+                <h3 className="text-xl font-bold text-center text-primary">{analysisResult.title}</h3>
+                <p className="text-center text-muted-foreground italic">"{analysisResult.summary}"</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                    <div>
+                        <h4 className="font-semibold flex items-center gap-2 mb-2"><CheckCircle className="h-5 w-5 text-green-500" /> Pontos Positivos</h4>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                            {analysisResult.positivePoints.map((point, i) => <li key={`pos-${i}`}>{point}</li>)}
+                        </ul>
                     </div>
-                ) : (
-                    chatHistory.map((msg, index) => (
-                        <div key={index} className={`flex items-start gap-3 my-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                            {msg.role === 'assistant' && <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>}
-                            <div className={`prose prose-sm max-w-[85%] rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
-                            </div>
-                            {msg.role === 'user' && <div className="p-2 bg-muted rounded-full"><User className="h-5 w-5" /></div>}
-                        </div>
-                    ))
-                )}
-                {loading && (
-                    <div className="flex items-start gap-3 my-3">
-                    <div className="p-2 bg-primary/10 rounded-full"><Bot className="h-5 w-5 text-primary" /></div>
-                    <div className="rounded-lg px-3 py-2 bg-muted flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin"/>
-                        <span>Pensando...</span>
+                    <div>
+                        <h4 className="font-semibold flex items-center gap-2 mb-2"><AlertTriangle className="h-5 w-5 text-amber-500" /> Pontos de Melhoria</h4>
+                         <ul className="list-disc list-inside space-y-1 text-sm">
+                            {analysisResult.improvementPoints.map((point, i) => <li key={`imp-${i}`}>{point}</li>)}
+                        </ul>
                     </div>
-                    </div>
-                )}
-            </ScrollArea>
-            <Form {...chatForm}>
-                <form onSubmit={chatForm.handleSubmit(onChatSubmit)} className="flex items-start gap-2">
-                        <FormField control={chatForm.control} name="question" render={({ field }) => (<FormItem className="flex-1"><FormControl><Textarea {...field} placeholder="Digite sua pergunta aqui..." rows={1} disabled={loading} onKeyDown={(e) => {
-                            if(e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                chatForm.handleSubmit(onChatSubmit)();
-                            }
-                        }} /></FormControl><FormMessage /></FormItem> )} />
-                        <Button type="submit" disabled={loading}>
-                            <Send className="h-4 w-4"/>
-                        </Button>
-                </form>
-            </Form>
-        </div>
+                </div>
+            </div>
+        ) : (
+             <div className="flex flex-col items-center justify-center h-60 text-center text-muted-foreground">
+                <p>Não foi possível gerar a análise.</p>
+            </div>
+        )}
+      </div>
     </>
   );
 
@@ -291,7 +270,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-3xl">
         {currentView === 'main' && renderMainView()}
-        {currentView === 'chat' && renderChatView()}
+        {currentView === 'analyst' && renderAnalystView()}
         {currentView === 'ticket' && renderTicketView()}
       </DialogContent>
     </Dialog>
