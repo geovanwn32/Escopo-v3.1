@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { signOut } from "firebase/auth";
-import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard, Search } from "lucide-react";
+import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard, Search, Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
@@ -21,6 +21,7 @@ import { useSidebar } from "../ui/sidebar";
 import { cn } from "@/lib/utils";
 import { mainNavLinks } from "./sidebar-nav"; // Import main navigation links
 import { CommandMenu } from "./command-menu";
+import { NotificationCenter } from "./notification-center";
 
 export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any; onSwitchCompany: () => void; }) {
   const { user } = useAuth();
@@ -78,6 +79,8 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
           </kbd>
         </Button>
         <CommandMenu open={isCommandMenuOpen} setOpen={setIsCommandMenuOpen} />
+        
+        {user && activeCompany && <NotificationCenter userId={user.uid} companyId={activeCompany.id} />}
 
          <Button variant="outline" size="sm" onClick={onSwitchCompany} className="hidden sm:inline-flex">
             <Repeat className="mr-2 h-4 w-4" />

@@ -6,7 +6,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck, AlertCircle } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck, AlertCircle, MessageSquare } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import type { Company } from '@/types/company';
 import type { AppUser } from '@/types/user';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
 const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
@@ -37,6 +38,8 @@ export default function AdminPage() {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [adminApiUnavailable, setAdminApiUnavailable] = useState(false);
+  const [isNotificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [selectedUserForNotif, setSelectedUserForNotif] = useState<AdminUserView | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -46,7 +49,6 @@ export default function AdminPage() {
         const companyId = sessionStorage.getItem('activeCompanyId');
         let isAdmin = false;
         
-        // Super admin check
         if (user?.email === SUPER_ADMIN_EMAIL) {
             isAdmin = true;
         }
@@ -134,6 +136,11 @@ export default function AdminPage() {
         toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.', description: error.message });
     }
   }
+  
+  const handleOpenNotificationModal = (user: AdminUserView) => {
+    setSelectedUserForNotif(user);
+    setNotificationModalOpen(true);
+  };
 
   const getLicenseVariant = (license?: AppUser['licenseType']): "secondary" | "default" | "success" | "outline" | "destructive" => {
     switch(license) {
@@ -230,6 +237,10 @@ export default function AdminPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleOpenNotificationModal(appUser)}>
+                                <MessageSquare className="mr-2 h-4 w-4 text-sky-500" />
+                                <span>Enviar Notificação</span>
+                            </DropdownMenuItem>
                             {appUser.disabled ? (
                                 <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)}>
                                     <UserCheck className="mr-2 h-4 w-4 text-green-500" />
@@ -271,6 +282,13 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+      {selectedUserForNotif && (
+        <NotificationFormModal 
+          isOpen={isNotificationModalOpen}
+          onClose={() => setNotificationModalOpen(false)}
+          targetUser={selectedUserForNotif}
+        />
+      )}
     </div>
   );
 }
