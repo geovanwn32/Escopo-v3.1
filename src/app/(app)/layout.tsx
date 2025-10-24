@@ -28,7 +28,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading) return; // Aguarda a autenticação do Firebase terminar
 
     if (!user) {
       router.replace('/login');
@@ -36,7 +36,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     const loadAppData = async () => {
-        // Fetch user data from Firestore
+        setLoading(true);
+        // Etapa 1: Buscar dados do usuário no Firestore
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
 
@@ -46,32 +47,30 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
             if (userData.licenseType === 'pending_approval') {
                 router.replace('/pending-approval');
-                return; // Stop further execution
+                return; // Impede a continuação do fluxo
+            }
+
+            // Etapa 2: Carregar dados da empresa
+            const companyId = sessionStorage.getItem('activeCompanyId');
+            if (companyId) {
+              const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
+              const docSnap = await getDoc(companyRef);
+              if (docSnap.exists()) {
+                const companyData = { id: docSnap.id, ...docSnap.data() };
+                setActiveCompany(companyData);
+                sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
+              } else {
+                sessionStorage.removeItem('activeCompanyId');
+                setCompanyModalOpen(true);
+              }
+            } else {
+              setCompanyModalOpen(true);
             }
 
         } else {
-            // If user doc doesn't exist, something is wrong.
-            // Maybe redirect to login or show an error.
              toast({ variant: 'destructive', title: "Erro de Usuário", description: "Não foi possível carregar os dados do seu usuário."});
              router.replace('/login');
              return;
-        }
-
-        // Fetch company data from session
-        const companyId = sessionStorage.getItem('activeCompanyId');
-        if (companyId) {
-          const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
-          const docSnap = await getDoc(companyRef);
-          if (docSnap.exists()) {
-            const companyData = { id: docSnap.id, ...docSnap.data() };
-            setActiveCompany(companyData);
-            sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
-          } else {
-            sessionStorage.removeItem('activeCompanyId');
-            setCompanyModalOpen(true);
-          }
-        } else {
-          setCompanyModalOpen(true);
         }
         setLoading(false);
     }
