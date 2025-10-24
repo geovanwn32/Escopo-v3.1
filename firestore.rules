@@ -2,17 +2,27 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regra principal: permite que usuários acessem apenas seus próprios dados.
-    // Qualquer documento sob /users/{userId} só pode ser lido ou escrito
-    // se o ID do usuário autenticado corresponder ao {userId} no caminho.
-    match /users/{userId}/{document=**} {
+    
+    // Regra para a coleção de usuários
+    match /users/{userId} {
+      // Permite que o superadministrador leia qualquer perfil
+      allow get, list: if request.auth.token.email == 'geovaniwn@gmail.com';
+      
+      // Permite que usuários autenticados leiam e escrevam seus próprios dados
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Regra de fallback: nega acesso a qualquer outro caminho por padrão.
-    // Isso garante que nenhuma coleção fora de /users/{userId} seja acidentalmente exposta.
-    match /{path=**} {
-        allow read, write: if false;
+    // Regra geral para todas as outras coleções dentro de uma empresa
+    match /users/{userId}/companies/{companyId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regra para a coleção global de tickets de suporte
+    match /tickets/{ticketId} {
+      // Permite que usuários autenticados criem tickets
+      allow create: if request.auth != null;
+      // Permite que apenas o criador do ticket ou o admin leiam ou atualizem
+      allow read, update: if request.auth != null && (request.auth.uid == resource.data.requesterUid || request.auth.token.email == 'geovaniwn@gmail.com');
     }
   }
 }
