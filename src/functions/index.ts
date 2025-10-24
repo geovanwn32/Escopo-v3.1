@@ -27,10 +27,10 @@ export const listUsers = functions
     }
     
     // Optional: Check for admin custom claim
-    // const isAdmin = context.auth.token.admin === true;
-    // if (!isAdmin) {
-    //   throw new functions.https.HttpsError('permission-denied', 'Only admins can list users.');
-    // }
+    const isAdmin = context.auth.token.email === 'geovaniwn@gmail.com';
+    if (!isAdmin) {
+      throw new functions.https.HttpsError('permission-denied', 'Only admins can list users.');
+    }
     
     if (!adminApp) {
          throw new functions.https.HttpsError('failed-precondition', 'The Admin SDK is not initialized.');
@@ -71,6 +71,11 @@ export const setUserStatus = functions
         'unauthenticated',
         'The function must be called while authenticated.'
       );
+    }
+
+    const isAdmin = context.auth.token.email === 'geovaniwn@gmail.com';
+    if (!isAdmin) {
+      throw new functions.https.HttpsError('permission-denied', 'Only admins can update user status.');
     }
     
      if (!adminApp) {
@@ -161,3 +166,4 @@ export const backupCompanyData = functions
     });
 
     
+
