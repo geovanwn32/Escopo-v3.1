@@ -122,9 +122,9 @@ export default function AdminPage() {
 
     } catch (error: any) {
         console.error("Error fetching users: ", error);
-        if (error.code === 'functions/unavailable' || error.code === 'permission-denied' || error.code === 'internal') {
+        if (error.code === 'functions/unavailable' || error.code === 'permission-denied' || error.code === 'internal' || error.code === 'failed-precondition') {
             setAdminApiUnavailable(true);
-             toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
+             toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão para listar usuários." });
         } else {
              toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
         }
@@ -331,5 +331,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
