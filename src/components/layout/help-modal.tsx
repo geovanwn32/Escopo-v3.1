@@ -13,7 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { LifeBuoy, Mail, ExternalLink, Send, Loader2, Bot, User, Ticket, Sparkles, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '../ui/form';
 import type { Company } from '@/types/company';
-import { analyzeFinancials, FinancialAnalystOutput } from '@/ai/flows/financial-analyst-flow';
 import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '../ui/scroll-area';
@@ -58,11 +57,7 @@ const SupportChannelCard = ({ icon, title, description, buttonText, onClick, dis
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentView, setCurrentView] = useState<'main' | 'analyst' | 'ticket'>('main');
-
-  // Analyst state
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<FinancialAnalystOutput | null>(null);
+  const [currentView, setCurrentView] = useState<'main' | 'ticket'>('main');
 
   // Ticket state
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
@@ -76,40 +71,8 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     // Reset to main view when modal is reopened
     if (isOpen) {
         setCurrentView('main');
-        setAnalysisResult(null);
     }
   }, [isOpen]);
-
-  const handleAnalyzeFinancials = async () => {
-    if (!activeCompany) {
-        toast({ variant: 'destructive', title: 'Nenhuma empresa ativa.'});
-        return;
-    }
-    setLoadingAnalysis(true);
-    setCurrentView('analyst');
-    try {
-      // NOTE: In a real application, you would fetch real data from your database/service.
-      // Here, we're using mock data for demonstration.
-      const mockData = [
-          { month: 'Mai', entradas: 12500, saidas: 8900 },
-          { month: 'Jun', entradas: 14200, saidas: 9500 },
-          { month: 'Jul', entradas: 18500, saidas: 11200 },
-      ];
-      
-      const result = await analyzeFinancials({
-          companyName: activeCompany.nomeFantasia,
-          data: mockData,
-      });
-      setAnalysisResult(result);
-
-    } catch(error) {
-       console.error("Error analyzing financials:", error);
-       toast({ variant: 'destructive', title: 'Erro na Análise', description: 'Não foi possível gerar a análise financeira.' });
-       setCurrentView('main'); // Go back if it fails
-    } finally {
-      setLoadingAnalysis(false);
-    }
-  };
 
   const onTicketSubmit = async (values: z.infer<typeof ticketSchema>) => {
     if (!user || !activeCompany) {
@@ -152,14 +115,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
         </DialogDescription>
       </DialogHeader>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-        <SupportChannelCard 
-            icon={<Sparkles className="h-7 w-7 text-primary"/>}
-            title="Analista Financeiro Virtual"
-            description="Receba insights e uma análise rápida da situação financeira da sua empresa."
-            buttonText="Analisar Finanças"
-            onClick={handleAnalyzeFinancials}
-            disabled={!activeCompany}
-        />
          <SupportChannelCard 
             icon={<Ticket className="h-7 w-7 text-primary"/>}
             title="Abrir Chamado"
@@ -185,52 +140,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
        <DialogFooter className="pt-4">
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
-    </>
-  );
-
-  const renderAnalystView = () => (
-     <>
-       <DialogHeader>
-          <Button variant="ghost" size="sm" onClick={() => setCurrentView('main')} className="absolute left-4 top-4 text-muted-foreground">
-             &larr; Voltar
-          </Button>
-          <DialogTitle className="text-center flex items-center justify-center gap-2 pt-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            Análise Financeira
-          </DialogTitle>
-          <DialogDescription className="text-center">Insights rápidos sobre os últimos meses.</DialogDescription>
-      </DialogHeader>
-      <div className="py-4">
-        {loadingAnalysis ? (
-            <div className="flex flex-col items-center justify-center h-60 text-center text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                <p>Analisando dados financeiros...</p>
-            </div>
-        ) : analysisResult ? (
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold text-center text-primary">{analysisResult.title}</h3>
-                <p className="text-center text-muted-foreground italic">"{analysisResult.summary}"</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                    <div>
-                        <h4 className="font-semibold flex items-center gap-2 mb-2"><CheckCircle className="h-5 w-5 text-green-500" /> Pontos Positivos</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                            {analysisResult.positivePoints.map((point, i) => <li key={`pos-${i}`}>{point}</li>)}
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold flex items-center gap-2 mb-2"><AlertTriangle className="h-5 w-5 text-amber-500" /> Pontos de Melhoria</h4>
-                         <ul className="list-disc list-inside space-y-1 text-sm">
-                            {analysisResult.improvementPoints.map((point, i) => <li key={`imp-${i}`}>{point}</li>)}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        ) : (
-             <div className="flex flex-col items-center justify-center h-60 text-center text-muted-foreground">
-                <p>Não foi possível gerar a análise.</p>
-            </div>
-        )}
-      </div>
     </>
   );
 
@@ -270,7 +179,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-3xl">
         {currentView === 'main' && renderMainView()}
-        {currentView === 'analyst' && renderAnalystView()}
         {currentView === 'ticket' && renderTicketView()}
       </DialogContent>
     </Dialog>
