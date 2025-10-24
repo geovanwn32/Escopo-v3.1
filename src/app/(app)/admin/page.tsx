@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, D
 import { Badge } from '@/components/ui/badge';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 import { cn } from '@/lib/utils';
+import { functions } from '@/lib/firebase';
 
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
@@ -91,7 +92,6 @@ export default function AdminPage() {
     setLoadingUsers(true);
     setAdminApiUnavailable(false);
     try {
-        const functions = getFunctions();
         const listUsersFunction = httpsCallable(functions, 'listUsers');
         const authResult = await listUsersFunction();
         const authUsers = authResult.data as { uid: string; email?: string; disabled: boolean; metadata: { creationTime: string; lastSignInTime: string; } }[];
@@ -123,7 +123,7 @@ export default function AdminPage() {
 
     } catch (error: any) {
         console.error("Error fetching users: ", error);
-        if (error.code === 'functions/unavailable' || error.code === 'permission-denied') {
+        if (error.code === 'functions/unavailable' || error.code === 'permission-denied' || error.code === 'internal') {
             setAdminApiUnavailable(true);
              toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
             setAllUsers([]);
@@ -155,7 +155,6 @@ export default function AdminPage() {
   
   const toggleUserStatus = async (userId: string, isDisabled: boolean) => {
     try {
-        const functions = getFunctions();
         const setUserStatusFunction = httpsCallable(functions, 'setUserStatus');
         await setUserStatusFunction({ uid: userId, disabled: !isDisabled });
         toast({ title: `Status do usuário atualizado!` });

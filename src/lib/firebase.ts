@@ -19,6 +19,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const functions = getFunctions(app, 'southamerica-east1'); // Use 'us-central1' if that's your region
+const functions = getFunctions(app, 'us-central1'); // Use 'us-central1' if that's your region
 
 export { app, auth, db, storage, functions };

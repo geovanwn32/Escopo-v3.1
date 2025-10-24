@@ -16,7 +16,7 @@ if (!adminApp) {
  * Additional permission checks (e.g., custom claims for admin role) should be added.
  */
 export const listUsers = functions
-  .region('southamerica-east1') // Use a region that supports callable functions
+  .region('us-central1') // Use a region that supports callable functions
   .https.onCall(async (data, context) => {
     // Check if the user is authenticated.
     if (!context.auth) {
@@ -64,7 +64,7 @@ export const listUsers = functions
  * Enables or disables a user account in Firebase Authentication.
  */
 export const setUserStatus = functions
-  .region('southamerica-east1')
+  .region('us-central1')
   .https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -106,7 +106,7 @@ export const setUserStatus = functions
  * A callable function to export a single company's data.
  */
 export const backupCompanyData = functions
-    .region('southamerica-east1')
+    .region('us-central1')
     .https.onCall(async (data, context) => {
         if (!context.auth) {
             throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
@@ -166,4 +166,3 @@ export const backupCompanyData = functions
     });
 
     
-
