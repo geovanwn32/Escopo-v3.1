@@ -164,5 +164,3 @@ export const backupCompanyData = functions
             throw new functions.https.HttpsError('internal', 'Falha ao criar backup.', error.message);
         }
     });
-
-    
