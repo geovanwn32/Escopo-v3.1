@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { HelpModal } from '@/components/layout/help-modal';
 import type { AppUser } from '@/types/user';
 
+const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -53,10 +54,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             title: "Corrigindo perfil...",
             description: "Seu perfil de usuário não foi encontrado, criando um novo registro."
           });
+          
+          const isAdmin = user.email === SUPER_ADMIN_EMAIL;
+          const licenseType = isAdmin ? 'premium' : 'pending_approval';
+
           const newUserDoc: Omit<AppUser, 'uid'> = {
             email: user.email,
             createdAt: serverTimestamp(),
-            licenseType: 'pending_approval',
+            licenseType: licenseType,
           };
           await setDoc(userRef, newUserDoc);
           userSnap = await getDoc(userRef); // Re-fetch the document
@@ -68,8 +73,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         userData = userSnap.data() as AppUser;
         setAppUser(userData);
 
-        // 4. Check license and redirect if pending
-        if (userData.licenseType === 'pending_approval') {
+        // 4. Check license and redirect if pending (unless it's the super admin)
+        if (userData.licenseType === 'pending_approval' && user.email !== SUPER_ADMIN_EMAIL) {
           router.replace('/pending-approval');
           return;
         }
@@ -128,7 +133,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   // This check prevents flashing the main layout for users who will be redirected.
-  if (!appUser || appUser.licenseType === 'pending_approval') {
+  if (!appUser || (appUser.licenseType === 'pending_approval' && user?.email !== SUPER_ADMIN_EMAIL)) {
     return (
         <div className="flex h-screen w-full items-center justify-center bg-background">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />

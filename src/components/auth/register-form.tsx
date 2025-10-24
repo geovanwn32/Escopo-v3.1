@@ -24,6 +24,8 @@ const formSchema = z.object({
   password: z.string().min(6, { message: 'A senha deve ter pelo menos 6 caracteres.' }),
 });
 
+const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
+
 export function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
@@ -44,20 +46,32 @@ export function RegisterForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Create a user document in Firestore with pending approval status
+      const isAdmin = values.email === SUPER_ADMIN_EMAIL;
+      const licenseType = isAdmin ? 'premium' : 'pending_approval';
+      const toastMessage = isAdmin 
+        ? 'Conta de administrador criada com sucesso!'
+        : 'Sua conta está aguardando liberação por um administrador.';
+
+      // Create a user document in Firestore
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
         createdAt: serverTimestamp(),
-        licenseType: 'pending_approval',
+        licenseType: licenseType,
       });
 
       toast({
         title: 'Conta criada com sucesso!',
-        description: 'Sua conta está aguardando liberação por um administrador.',
+        description: toastMessage,
       });
-      router.push('/login');
+
+      if (isAdmin) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+      
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
