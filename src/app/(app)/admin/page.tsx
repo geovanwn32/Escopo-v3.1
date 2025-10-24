@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertCircle, UserPlus, ShieldCheck, UserCheck, UserX, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Loader2, AlertCircle, UserPlus, ShieldCheck, UserCheck, UserX, MessageSquare, MoreHorizontal, RefreshCw, CheckCircle, Sparkles, Star } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -17,8 +17,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Sparkles, Star } from 'lucide-react';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
+import { cn } from '@/lib/utils';
 
 
 const ADMIN_COMPANY_CNPJ = '00000000000000';
@@ -329,5 +329,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
