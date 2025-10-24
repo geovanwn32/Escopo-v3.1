@@ -56,9 +56,9 @@ export default function AdminPage() {
         if (user && companyId) {
             const companyDataString = sessionStorage.getItem(`company_${companyId}`);
             if (companyDataString) {
-                const companyData = JSON.parse(companyDataString);
+                const companyData = JSON.parse(companyDataString) as Company;
                 setActiveCompany(companyData);
-                if (companyData.cnpj === ADMIN_COMPANY_CNPJ) {
+                if (companyData.cnpj.replace(/\D/g, '') === ADMIN_COMPANY_CNPJ) {
                     isAdmin = true;
                 }
             }
