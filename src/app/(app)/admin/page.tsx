@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,14 +86,40 @@ export default function AdminPage() {
         setAdminApiUnavailable(false);
         try {
             const functions = getFunctions();
+            // First, get auth users from the callable function
             const listUsersFunction = httpsCallable(functions, 'listUsers');
-            const result = await listUsersFunction();
-            const data = result.data as AdminUserView[];
-            setUsersList(data);
+            const authResult = await listUsersFunction();
+            const authUsers = authResult.data as { uid: string; email?: string; disabled: boolean; metadata: { creationTime: string; lastSignInTime: string; } }[];
+
+            // Then, get user data from Firestore
+            const usersCollectionRef = collection(db, 'users');
+            const firestoreSnap = await getDocs(usersCollectionRef);
+            const firestoreUsers = new Map<string, AppUser>();
+            firestoreSnap.forEach(doc => {
+                firestoreUsers.set(doc.id, { uid: doc.id, ...doc.data() } as AppUser);
+            });
+            
+            // Combine the data
+            const combinedUsers: AdminUserView[] = authUsers.map(authUser => {
+                const firestoreUser = firestoreUsers.get(authUser.uid);
+                return {
+                    uid: authUser.uid,
+                    email: authUser.email,
+                    disabled: authUser.disabled,
+                    creationTime: authUser.metadata.creationTime,
+                    lastSignInTime: authUser.metadata.lastSignInTime,
+                    licenseType: firestoreUser?.licenseType || 'trial',
+                    trialEndsAt: firestoreUser?.trialEndsAt,
+                };
+            });
+
+            setUsersList(combinedUsers);
+
         } catch (error: any) {
-            console.error("Error fetching users via callable function: ", error);
+            console.error("Error fetching users: ", error);
             if (error.code === 'functions/unavailable' || error.code === 'permission-denied') {
                 setAdminApiUnavailable(true);
+                 toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
                 setUsersList([]);
             } else {
                  toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
@@ -292,3 +317,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
