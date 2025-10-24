@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Header } from '@/components/layout/header';
@@ -28,52 +28,81 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (authLoading) return; // Aguarda a autenticação do Firebase terminar
+    // 1. Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
 
+    // 2. If no user, redirect to login
     if (!user) {
       router.replace('/login');
       return;
     }
 
+    // 3. If user exists, load their app data
     const loadAppData = async () => {
-        setLoading(true);
-        // Etapa 1: Buscar dados do usuário no Firestore
+      try {
         const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
+        let userSnap = await getDoc(userRef);
+        let userData: AppUser;
 
-        if (userSnap.exists()) {
-            const userData = userSnap.data() as AppUser;
-            setAppUser(userData);
-
-            if (userData.licenseType === 'pending_approval') {
-                router.replace('/pending-approval');
-                return; // Impede a continuação do fluxo
-            }
-
-            // Etapa 2: Carregar dados da empresa
-            const companyId = sessionStorage.getItem('activeCompanyId');
-            if (companyId) {
-              const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
-              const docSnap = await getDoc(companyRef);
-              if (docSnap.exists()) {
-                const companyData = { id: docSnap.id, ...docSnap.data() };
-                setActiveCompany(companyData);
-                sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
-              } else {
-                sessionStorage.removeItem('activeCompanyId');
-                setCompanyModalOpen(true);
-              }
-            } else {
-              setCompanyModalOpen(true);
-            }
-
-        } else {
-             toast({ variant: 'destructive', title: "Erro de Usuário", description: "Não foi possível carregar os dados do seu usuário."});
-             router.replace('/login');
-             return;
+        // 3a. If user document doesn't exist, create it as a fallback.
+        if (!userSnap.exists()) {
+          toast({
+            variant: "destructive",
+            title: "Corrigindo perfil...",
+            description: "Seu perfil de usuário não foi encontrado, criando um novo registro."
+          });
+          const newUserDoc: Omit<AppUser, 'uid'> = {
+            email: user.email,
+            createdAt: serverTimestamp(),
+            licenseType: 'pending_approval',
+          };
+          await setDoc(userRef, newUserDoc);
+          userSnap = await getDoc(userRef); // Re-fetch the document
+          if (!userSnap.exists()) {
+            throw new Error("Falha ao criar e buscar o documento do usuário.");
+          }
         }
+        
+        userData = userSnap.data() as AppUser;
+        setAppUser(userData);
+
+        // 4. Check license and redirect if pending
+        if (userData.licenseType === 'pending_approval') {
+          router.replace('/pending-approval');
+          return;
+        }
+
+        // 5. Load company data
+        const companyId = sessionStorage.getItem('activeCompanyId');
+        if (companyId) {
+          const companyRef = doc(db, `users/${user.uid}/companies`, companyId);
+          const docSnap = await getDoc(companyRef);
+          if (docSnap.exists()) {
+            const companyData = { id: docSnap.id, ...docSnap.data() };
+            setActiveCompany(companyData);
+            sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
+          } else {
+            sessionStorage.removeItem('activeCompanyId');
+            setCompanyModalOpen(true);
+          }
+        } else {
+          setCompanyModalOpen(true);
+        }
+
+      } catch (err) {
+        console.error("Error loading user/company data:", err);
+        toast({
+          variant: "destructive",
+          title: "Erro Crítico de Usuário",
+          description: "Não foi possível carregar ou criar seus dados. Redirecionando para o login.",
+        });
+        router.replace('/login');
+      } finally {
         setLoading(false);
-    }
+      }
+    };
     
     loadAppData();
 
@@ -95,6 +124,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // This check prevents flashing the main layout for users who will be redirected.
+  if (!appUser || appUser.licenseType === 'pending_approval') {
+    return (
+        <div className="flex h-screen w-full items-center justify-center bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
     );
   }
 
