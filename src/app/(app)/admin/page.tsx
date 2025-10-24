@@ -6,7 +6,7 @@ import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck, AlertCircle, MessageSquare } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, RefreshCw, XCircle, ShieldCheck, Star, Sparkles, UserX, UserCheck, AlertCircle, MessageSquare, UserPlus } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -32,7 +32,8 @@ interface AdminUserView {
 }
 
 export default function AdminPage() {
-  const [usersList, setUsersList] = useState<AdminUserView[]>([]);
+  const [allUsers, setAllUsers] = useState<AdminUserView[]>([]);
+  const [pendingUsers, setPendingUsers] = useState<AdminUserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
@@ -111,15 +112,20 @@ export default function AdminPage() {
                     licenseType: firestoreUser?.licenseType || 'pending_approval',
                 };
             });
+            
+            const pending = combinedUsers.filter(u => u.licenseType === 'pending_approval');
+            const others = combinedUsers.filter(u => u.licenseType !== 'pending_approval');
 
-            setUsersList(combinedUsers);
+            setPendingUsers(pending);
+            setAllUsers(others);
 
         } catch (error: any) {
             console.error("Error fetching users: ", error);
             if (error.code === 'functions/unavailable' || error.code === 'permission-denied') {
                 setAdminApiUnavailable(true);
                  toast({ variant: "destructive", title: "Erro de Permissão", description: "O serviço de administração não está disponível ou você não tem permissão." });
-                setUsersList([]);
+                setAllUsers([]);
+                setPendingUsers([]);
             } else {
                  toast({ variant: "destructive", title: "Erro ao buscar usuários", description: error.message || 'Ocorreu um erro desconhecido.' });
             }
@@ -142,7 +148,8 @@ export default function AdminPage() {
     try {
         await updateDoc(userRef, { licenseType });
         toast({ title: `Licença do usuário atualizada para ${licenseType}!` });
-        setUsersList(prev => prev.map(u => u.uid === userId ? { ...u, licenseType } : u));
+        // Refetch to update both lists
+        fetchUsers();
     } catch(error) {
         toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
     }
@@ -155,7 +162,8 @@ export default function AdminPage() {
         await setUserStatusFunction({ uid: userId, disabled: !isDisabled });
         
         toast({ title: `Status do usuário atualizado!` });
-        setUsersList(prev => prev.map(u => u.uid === userId ? { ...u, disabled: !isDisabled } : u));
+        // Refetch to update list
+        fetchUsers();
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Erro ao atualizar status do usuário.', description: error.message });
     }
@@ -202,110 +210,154 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Painel de Administração - Usuários</h1>
+        <h1 className="text-2xl font-bold">Painel de Administração</h1>
         <Button onClick={fetchUsers} variant="outline" size="sm" disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Atualizar Lista
         </Button>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Gerenciamento de Usuários e Licenças</CardTitle>
-          <CardDescription>Visualize e gerencie os usuários cadastrados no sistema.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : adminApiUnavailable ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mb-4 text-amber-500" />
-                <h3 className="text-xl font-semibold text-foreground">Serviço de Admin Indisponível</h3>
-                <p className="mt-2 max-w-md">O serviço de administração pode estar indisponível neste ambiente (ex: desenvolvimento local) ou você não tem permissão para acessá-lo.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Data de Criação</TableHead>
-                  <TableHead>Último Login</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tipo de Licença</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {usersList.map((appUser) => (
-                  <TableRow key={appUser.uid}>
-                    <TableCell className="font-medium">{appUser.email}</TableCell>
-                    <TableCell>{formatUserDate(appUser.creationTime)}</TableCell>
-                    <TableCell>{formatUserDate(appUser.lastSignInTime)}</TableCell>
-                    <TableCell>
-                        <Badge variant={appUser.disabled ? 'destructive' : 'success'}>
-                            {appUser.disabled ? 'Desativado' : 'Ativo'}
-                        </Badge>
-                    </TableCell>
-                    <TableCell>
-                        <Badge variant={getLicenseVariant(appUser.licenseType)}>
-                            {getLicenseLabel(appUser.licenseType)}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                       <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0" disabled={appUser.email === SUPER_ADMIN_EMAIL}>
-                                <span className="sr-only">Menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenNotificationModal(appUser)}>
-                                <MessageSquare className="mr-2 h-4 w-4 text-sky-500" />
-                                <span>Enviar Notificação</span>
-                            </DropdownMenuItem>
-                            {appUser.disabled ? (
-                                <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)}>
-                                    <UserCheck className="mr-2 h-4 w-4 text-green-500" />
-                                    <span>Reativar Usuário</span>
-                                </DropdownMenuItem>
-                            ) : (
-                                 <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)} className="text-destructive">
-                                    <UserX className="mr-2 h-4 w-4" />
-                                    <span>Desativar Usuário</span>
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSub>
-                                <DropdownMenuSubTrigger>
-                                    <ShieldCheck className="mr-2 h-4 w-4" />
-                                    <span>Alterar Licença</span>
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'pending_approval')}>
-                                        <ShieldCheck className="mr-2 h-4 w-4 text-amber-500" /> Aguardando Liberação
+
+       {adminApiUnavailable ? (
+            <Card>
+                 <CardContent>
+                    <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+                        <AlertCircle className="h-12 w-12 mb-4 text-amber-500" />
+                        <h3 className="text-xl font-semibold text-foreground">Serviço de Admin Indisponível</h3>
+                        <p className="mt-2 max-w-md">O serviço de administração pode estar indisponível neste ambiente (ex: desenvolvimento local) ou você não tem permissão para acessá-lo.</p>
+                    </div>
+                </CardContent>
+            </Card>
+      ) : (
+        <>
+            <Card>
+                <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="text-amber-500"/>
+                    Aprovações Pendentes
+                </CardTitle>
+                <CardDescription>Usuários aguardando liberação para acessar o sistema.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {pendingUsers.length === 0 ? (
+                        <div className="py-10 text-center text-sm text-muted-foreground">Nenhum usuário aguardando aprovação.</div>
+                    ) : (
+                         <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Data de Criação</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {pendingUsers.map((appUser) => (
+                                <TableRow key={appUser.uid}>
+                                    <TableCell className="font-medium">{appUser.email}</TableCell>
+                                    <TableCell>{formatUserDate(appUser.creationTime)}</TableCell>
+                                    <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" className="h-8 w-8 p-0"><span className="sr-only">Menu</span><MoreHorizontal className="h-4 w-4" /></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuSub>
+                                                <DropdownMenuSubTrigger><ShieldCheck className="mr-2 h-4 w-4 text-green-500" /><span>Aprovar e Liberar Licença</span></DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent>
+                                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}><CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'profissional')}><Star className="mr-2 h-4 w-4 text-yellow-500" /> Profissional</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'premium')}><Sparkles className="mr-2 h-4 w-4 text-blue-500" /> Premium</DropdownMenuItem>
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
+                                            <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)} className="text-destructive"><UserX className="mr-2 h-4 w-4" /><span>Negar e Desativar</span></DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                <CardTitle>Todos os Usuários</CardTitle>
+                <CardDescription>Visualize e gerencie todos os usuários cadastrados no sistema.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Último Login</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Tipo de Licença</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {allUsers.map((appUser) => (
+                        <TableRow key={appUser.uid}>
+                            <TableCell className="font-medium">{appUser.email}</TableCell>
+                            <TableCell>{formatUserDate(appUser.lastSignInTime)}</TableCell>
+                            <TableCell>
+                                <Badge variant={appUser.disabled ? 'destructive' : 'success'}>
+                                    {appUser.disabled ? 'Desativado' : 'Ativo'}
+                                </Badge>
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant={getLicenseVariant(appUser.licenseType)}>
+                                    {getLicenseLabel(appUser.licenseType)}
+                                </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={appUser.email === SUPER_ADMIN_EMAIL}>
+                                        <span className="sr-only">Menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleOpenNotificationModal(appUser)}>
+                                        <MessageSquare className="mr-2 h-4 w-4 text-sky-500" />
+                                        <span>Enviar Notificação</span>
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}>
-                                        <CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'profissional')}>
-                                        <Star className="mr-2 h-4 w-4 text-yellow-500" /> Profissional
-                                    </DropdownMenuItem>
-                                     <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'premium')}>
-                                        <Sparkles className="mr-2 h-4 w-4 text-blue-500" /> Premium
-                                    </DropdownMenuItem>
-                                </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                          </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                                    {appUser.disabled ? (
+                                        <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)}>
+                                            <UserCheck className="mr-2 h-4 w-4 text-green-500" />
+                                            <span>Reativar Usuário</span>
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        <DropdownMenuItem onClick={() => toggleUserStatus(appUser.uid, appUser.disabled)} className="text-destructive">
+                                            <UserX className="mr-2 h-4 w-4" />
+                                            <span>Desativar Usuário</span>
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <ShieldCheck className="mr-2 h-4 w-4" />
+                                            <span>Alterar Licença</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuSubContent>
+                                            <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'basica')}><CheckCircle className="mr-2 h-4 w-4 text-gray-500" /> Básica</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'profissional')}><Star className="mr-2 h-4 w-4 text-yellow-500" /> Profissional</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => updateUserLicense(appUser.uid, 'premium')}><Sparkles className="mr-2 h-4 w-4 text-blue-500" /> Premium</DropdownMenuItem>
+                                        </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            </TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </>
+      )}
+
       {selectedUserForNotif && (
         <NotificationFormModal 
           isOpen={isNotificationModalOpen}
