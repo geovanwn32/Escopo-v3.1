@@ -116,7 +116,6 @@ export const utilitariosLinks = [
 export const sistemaLinks = [
     { href: "/minha-empresa", icon: <Building2 />, label: "Minha Empresa" },
     { href: "/configuracoes", icon: <Settings />, label: "Configurações" },
-    { href: "/admin", icon: <Shield />, label: "Admin", adminOnly: true },
 ];
 
 export const mainNavLinks = [
