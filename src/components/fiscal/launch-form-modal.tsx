@@ -375,7 +375,7 @@ export const LaunchFormModal = ({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="max-w-6xl h-[90%] flex flex-col">
+                <DialogContent>
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
                     <DialogHeader>

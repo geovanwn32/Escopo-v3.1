@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X, CornerRightDown } from "lucide-react"
+import { X } from "lucide-react"
 import { motion, PanInfo } from "framer-motion"
 
 import { cn } from "@/lib/utils"
@@ -31,45 +31,44 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-const ResizablePanel = ({
-  children,
-  className,
-}: {
-  children: React.ReactNode
-  className?: string
-}) => {
-  return (
-    <div className={cn("w-full h-full min-w-full min-h-full overflow-hidden resize-both relative", className)}>
-        <div className="absolute inset-0 flex flex-col">
-            {children}
-        </div>
-        <div className="absolute bottom-1 right-1 cursor-se-resize text-muted-foreground/50">
-            <CornerRightDown className="h-3 w-3" />
-        </div>
-    </div>
-  );
-};
-
-
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
+  const [size, setSize] = React.useState({ width: 896, height: "90%" }); // Corresponds to max-w-5xl
+
+  const handleDrag = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    setSize(prev => ({
+        width: Math.max(500, prev.width + info.delta.x),
+        height: typeof prev.height === 'string' ? `calc(${prev.height} + ${info.delta.y}px)` : Math.max(400, (prev.height as number) + info.delta.y),
+    }));
+  };
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+          "fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
           "flex flex-col",
           className
         )}
+        style={{ width: size.width, height: size.height }}
         {...props}
       >
-        <ResizablePanel>
+        <div className="relative flex flex-col h-full">
             {children}
-        </ResizablePanel>
+        </div>
+        <motion.div
+          drag="x, y"
+          onDrag={handleDrag}
+          dragMomentum={false}
+          className="absolute bottom-2 right-2 cursor-se-resize text-muted-foreground hover:text-primary transition-colors"
+        >
+          <svg width="20" height="20" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10.5 4.5L14.5 4.5L14.5 0.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"></path><path d="M14.5 4.5L0.5 14.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"></path></svg>
+        </motion.div>
+
         <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
@@ -100,7 +99,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-auto flex-shrink-0",
+      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-auto flex-shrink-0 pt-4 border-t",
       className
     )}
     {...props}
