@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,7 @@ export function EventFormModal({ isOpen, onClose, userId, companyId, event, sele
   const onSubmit = async (values: z.infer<typeof eventSchema>) => {
     setLoading(true);
     try {
-      const dataToSave = { ...values };
+      const dataToSave = { ...values, createdAt: serverTimestamp() };
       
       if (mode === 'create') {
         const eventsRef = collection(db, `users/${userId}/companies/${companyId}/events`);
@@ -76,7 +76,7 @@ export function EventFormModal({ isOpen, onClose, userId, companyId, event, sele
         });
       } else if (event?.id) {
         const eventRef = doc(db, `users/${userId}/companies/${companyId}/events`, event.id);
-        await setDoc(eventRef, dataToSave);
+        await setDoc(eventRef, dataToSave, { merge: true });
         toast({
           title: "Evento Atualizado!",
           description: `Os dados do evento foram atualizados.`,

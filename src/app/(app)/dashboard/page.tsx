@@ -10,20 +10,20 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  ArrowDownLeftSquare,
-  ArrowUpRightSquare,
-  BarChart2,
-  BookOpen,
-  CalendarCheck,
-  DollarSign,
-  FileStack,
-  Loader2,
-  Package,
-  PieChart,
-  Users,
-  Plane,
+    ArrowDownLeft,
+    ArrowUpRight,
+    BarChart2,
+    CalendarCheck,
+    FileText,
+    Loader2,
+    Package,
+    PieChart,
+    Users,
+    Plane,
+    TrendingUp,
+    ShoppingCart,
 } from "lucide-react"
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell, LabelList } from "recharts"
+import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, getDocs } from "firebase/firestore"
@@ -37,8 +37,7 @@ import { startOfDay, format, parse, isValid } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "@/components/utilitarios/event-form-modal"
 import { Button } from "@/components/ui/button"
-import type { Launch, Vacation, Payroll, RCI, Termination, Thirteenth, Company } from "@/types"
-import { CalendarCard } from "@/components/dashboard/calendar-card"
+import type { Launch, Vacation, Payroll, RCI, Termination, Thirteenth, Company, Recibo } from "@/types"
 
 
 const formatCurrency = (value: number) => {
@@ -56,13 +55,15 @@ export default function DashboardPage() {
   
   // Data States
   const [launches, setLaunches] = useState<Launch[]>([]);
+  const [recibos, setRecibos] = useState<Recibo[]>([]);
   const [personnelCosts, setPersonnelCosts] = useState<(Payroll | RCI | Vacation | Termination | Thirteenth)[]>([]);
   const [employeesCount, setEmployeesCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   
   // UI States
-  const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -77,7 +78,7 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     if (!user || !activeCompany?.id) {
       setLoadingData(false);
-      setLaunches([]); setPersonnelCosts([]); setEmployeesCount(0); setProductsCount(0); setEvents([]);
+      setLaunches([]); setRecibos([]); setPersonnelCosts([]); setEmployeesCount(0); setProductsCount(0); setEvents([]);
       return;
     }
 
@@ -87,6 +88,7 @@ export default function DashboardPage() {
         
         const [
             launchesSnap,
+            recibosSnap,
             employeesSnap,
             productsSnap,
             eventsSnap,
@@ -97,6 +99,7 @@ export default function DashboardPage() {
             thirteenthsSnap
         ] = await Promise.all([
             getDocs(query(collection(db, `${companyPath}/launches`), orderBy('date', 'desc'))),
+            getDocs(query(collection(db, `${companyPath}/recibos`), orderBy('data', 'desc'))),
             getDocs(query(collection(db, `${companyPath}/employees`), where('ativo', '==', true))),
             getDocs(collection(db, `${companyPath}/produtos`)),
             getDocs(query(collection(db, `${companyPath}/events`), orderBy('date', 'asc'))),
@@ -108,6 +111,7 @@ export default function DashboardPage() {
         ]);
 
         setLaunches(launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch)));
+        setRecibos(recibosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), data: (doc.data().data as Timestamp).toDate() } as Recibo)));
         setEmployeesCount(employeesSnap.size);
         setProductsCount(productsSnap.size);
         setEvents(eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent)));
@@ -135,62 +139,70 @@ export default function DashboardPage() {
   }, [fetchData]);
 
 
-  const { totalEntradas, totalSaidas, chartData } = useMemo(() => {
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    const monthlyTotals: { [key: string]: { entradas: number, saidas: number } } = {};
+  const { totalReceitas, totalDespesas, totalNotas, chartData } = useMemo(() => {
+    const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
     const today = new Date();
     
     for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
-        monthlyTotals[key] = { entradas: 0, saidas: 0 };
+        monthlyTotals[key] = { receitas: 0, despesas: 0 };
     }
+
+    let totalReceitas = 0;
+    let totalDespesas = 0;
 
     launches.forEach(l => {
         const value = l.valorLiquido || l.valorTotalNota || 0;
-        const launchDate = l.date;
+        const launchDate = l.date as Date;
+        if (!isValid(launchDate)) return;
+
         const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
 
         if (l.type === 'saida' || l.type === 'servico') {
-            totalEntradas += value;
-            if (monthlyTotals[key]) monthlyTotals[key].entradas += value;
+            totalReceitas += value;
+            if (monthlyTotals[key]) monthlyTotals[key].receitas += value;
         } else if (l.type === 'entrada') {
-            totalSaidas += value;
-            if (monthlyTotals[key]) monthlyTotals[key].saidas += value;
+            totalDespesas += value;
+            if (monthlyTotals[key]) monthlyTotals[key].despesas += value;
         }
     });
 
+    recibos.forEach(r => {
+        const value = r.valor || 0;
+        const receiptDate = r.data as Date;
+        if (!isValid(receiptDate)) return;
+        const key = `${receiptDate.getFullYear()}-${receiptDate.getMonth()}`;
+        totalDespesas += value;
+        if (monthlyTotals[key]) monthlyTotals[key].despesas += value;
+    });
+
     personnelCosts.forEach(item => {
-        // Unify date extraction
         let itemDate;
         if ('period' in item && typeof item.period === 'string') {
             itemDate = parse(`01/${item.period}`, 'dd/MM/yyyy', new Date());
         } else if ('startDate' in item && (item as any).startDate) {
-            itemDate = (item as any).startDate instanceof Timestamp ? (item as any).startDate.toDate() : new Date((item as any).startDate);
+            itemDate = new Date((item as any).startDate);
         } else if ('terminationDate' in item && (item as any).terminationDate) {
-             itemDate = (item as any).terminationDate instanceof Timestamp ? (item as any).terminationDate.toDate() : new Date((item as any).terminationDate);
+             itemDate = new Date((item as any).terminationDate);
         } else if ('createdAt' in item && (item as any).createdAt) {
-             itemDate = (item as any).createdAt instanceof Timestamp ? (item as any).createdAt.toDate() : new Date((item as any).createdAt);
+             itemDate = new Date((item as any).createdAt);
         }
 
         if (!itemDate || !isValid(itemDate)) return;
 
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
         
-        // Unify value extraction
         let value = 0;
-        if ('totals' in item && item.totals) { // Payroll and RCI
+        if ('totals' in item && item.totals) {
             value = (item as any).totals?.totalProventos ?? 0;
-        } else if ('result' in item && item.result) { // Vacation, Termination, Thirteenth
+        } else if ('result' in item && item.result) {
             value = (item as any).result?.totalProventos ?? 0;
         }
         
-        if(value > 0) {
-            totalSaidas += value;
-            if (monthlyTotals[key]) {
-                monthlyTotals[key].saidas += value;
-            }
+        if(value > 0 && monthlyTotals[key]) {
+            totalDespesas += value;
+            monthlyTotals[key].despesas += value;
         }
       });
     
@@ -199,14 +211,14 @@ export default function DashboardPage() {
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
 
-    return { totalEntradas, totalSaidas, chartData: newChartData };
-  }, [launches, personnelCosts]);
+    return { totalReceitas, totalDespesas, totalNotas: launches.length + recibos.length, chartData: newChartData };
+  }, [launches, recibos, personnelCosts]);
   
   const stats = [
-    { title: "Total de Entradas (Receitas)", amount: formatCurrency(totalEntradas), icon: ArrowUpRightSquare, color: "text-green-600", bgColor: "bg-green-100" },
-    { title: "Total de Saídas (Despesas)", amount: formatCurrency(totalSaidas), icon: ArrowDownLeftSquare, color: "text-red-600", bgColor: "bg-red-100" },
-    { title: "Funcionários Ativos", amount: employeesCount.toString(), icon: Users, color: "text-yellow-600", bgColor: "bg-yellow-100" },
-    { title: "Produtos Cadastrados", amount: productsCount.toString(), icon: Package, color: "text-blue-600", bgColor: "bg-blue-100" },
+    { title: "Faturamento no Mês", amount: formatCurrency(totalReceitas), icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Compras e Despesas", amount: formatCurrency(totalDespesas), icon: ShoppingCart, color: "text-red-600", bgColor: "bg-red-100" },
+    { title: "Notas e Recibos Emitidos", amount: totalNotas.toString(), icon: FileText, color: "text-blue-600", bgColor: "bg-blue-100" },
+    { title: "Resultado", amount: formatCurrency(totalReceitas - totalDespesas), icon: BarChart2, color: "text-indigo-600", bgColor: "bg-indigo-100" },
   ];
 
   const upcomingEvents = useMemo(() => {
@@ -239,15 +251,11 @@ export default function DashboardPage() {
 
   }, [events, personnelCosts]);
 
-
-   const pieChartData = useMemo(() => {
-    return [
-      { name: 'Receitas', value: totalEntradas },
-      { name: 'Despesas', value: totalSaidas },
-    ];
-  }, [totalEntradas, totalSaidas]);
-
-
+  const handleDayClick = (day: Date) => {
+    setSelectedDate(day);
+    setIsEventModalOpen(true);
+  };
+  
   return (
     <>
     <div className="flex flex-col gap-6">
@@ -268,61 +276,57 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="col-span-4 flex flex-col gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Resultado Mensal</CardTitle>
-                <CardDescription>Entradas vs. Saídas nos últimos 6 meses.</CardDescription>
-                 <CardAction>
-                    <Button variant="outline" size="icon" onClick={() => setChartType(prev => prev === 'bar' ? 'pie' : 'bar')}>
-                        {chartType === 'bar' ? <PieChart className="h-4 w-4" /> : <BarChart2 className="h-4 w-4" />}
-                    </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="pl-2">
-                {loadingData ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
-                (chartType === 'bar' ? (
-                    <ResponsiveContainer width="100%" height={350}>
-                        <BarChart data={chartData}>
-                            <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
-                            <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
-                            <Legend />
-                            <Bar dataKey="entradas" fill="#16a34a" radius={[4, 4, 0, 0]} name="Receitas">
-                               <LabelList dataKey="entradas" position="insideTop" className="fill-black" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
-                            </Bar>
-                            <Bar dataKey="saidas" fill="#dc2626" radius={[4, 4, 0, 0]} name="Despesas" >
-                                <LabelList dataKey="saidas" position="insideTop" className="fill-black" fontSize={10} formatter={(value: number) => value > 0 ? formatCurrency(value) : ''} />
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <ResponsiveContainer width="100%" height={350}>
-                        <PieChart>
-                            <Pie
-                                data={pieChartData}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                outerRadius={120}
-                                fill="#8884d8"
-                                dataKey="value"
-                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            >
-                                {pieChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                ))}
-              </CardContent>
-            </Card>
-        </div>
+        <Card className="col-span-4">
+            <CardHeader>
+            <CardTitle>Resultado dos últimos 6 meses.</CardTitle>
+            <CardDescription>Receitas vs. Despesas</CardDescription>
+            </CardHeader>
+            <CardContent>
+             {loadingData ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
+                <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={chartData}>
+                         <defs>
+                            <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#16a34a" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#16a34a" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#dc2626" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#dc2626" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${formatCurrency(value/1000)}k`} />
+                        <Tooltip cursor={{fill: 'hsl(var(--muted))'}} contentStyle={{backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))'}} formatter={(value: number) => formatCurrency(value)} />
+                        <Legend />
+                        <Area type="monotone" dataKey="receitas" name="Receitas" stroke="#16a34a" fillOpacity={1} fill="url(#colorReceitas)" />
+                        <Area type="monotone" dataKey="despesas" name="Despesas" stroke="#dc2626" fillOpacity={1} fill="url(#colorDespesas)" />
+                    </AreaChart>
+                </ResponsiveContainer>
+            }
+            </CardContent>
+        </Card>
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-6">
-             <CalendarCard />
+            <Card>
+                <CardHeader>
+                    <CardTitle>Calendário</CardTitle>
+                    <CardDescription>Clique em um dia para adicionar um novo evento.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <Calendar
+                        mode="single"
+                        onDayClick={handleDayClick}
+                        className="p-0 [&_td]:w-full"
+                        locale={ptBR}
+                        modifiers={{
+                            events: events.map(e => e.date as Date)
+                        }}
+                        modifiersClassNames={{
+                            events: "relative before:content-[''] before:absolute before:bottom-1 before:left-1/2 before:-translate-x-1/2 before:w-1 before:h-1 before:rounded-full before:bg-primary"
+                        }}
+                    />
+                </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Próximos Eventos</CardTitle>
@@ -358,10 +362,17 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+
+    {user && activeCompany && (
+        <EventFormModal
+            isOpen={isEventModalOpen}
+            onClose={() => setIsEventModalOpen(false)}
+            userId={user.uid}
+            companyId={activeCompany.id}
+            event={null} // For now, only creating new events from dashboard
+            selectedDate={selectedDate}
+        />
+    )}
     </>
   )
 }
-
-    
-
-    
