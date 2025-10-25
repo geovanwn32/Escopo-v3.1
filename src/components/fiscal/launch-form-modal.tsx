@@ -375,9 +375,9 @@ export const LaunchFormModal = ({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="max-w-6xl">
+                <DialogContent className="max-w-6xl h-[90%] flex flex-col">
                     <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
                     <DialogHeader>
                     <DialogTitle>{getTitle()}</DialogTitle>
                     <DialogDescription asChild>
@@ -387,14 +387,14 @@ export const LaunchFormModal = ({
                         </div>
                     </DialogDescription>
                     </DialogHeader>
-                     <Tabs defaultValue="geral" className="w-full pt-4">
+                     <Tabs defaultValue="geral" className="w-full pt-4 flex-grow flex flex-col">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
                             <TabsTrigger value="parties">Emitente/Destinatário</TabsTrigger>
                             <TabsTrigger value="produtos">Produtos</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
-                        <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
+                        <div className="py-4 flex-grow overflow-y-auto pr-4 mt-2">
                              <TabsContent value="geral" className="space-y-4">
                                 <FormField control={control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                 <div className="grid grid-cols-3 gap-4">
