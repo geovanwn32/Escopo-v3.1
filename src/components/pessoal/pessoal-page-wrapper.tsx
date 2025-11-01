@@ -104,12 +104,12 @@ export default function PessoalPageWrapper() {
         { name: 'thirteenths', setter: setThirteenths },
         { name: 'vacations', setter: setVacations },
     ];
-    
+
     const unsubscribes = collectionsToListen.map(({ name, setter }) => {
         const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => {
-                 const docData = doc.data();
+                const docData = doc.data();
                 Object.keys(docData).forEach(key => {
                     if (docData[key] instanceof Timestamp) {
                         docData[key] = docData[key].toDate();
@@ -123,9 +123,14 @@ export default function PessoalPageWrapper() {
             toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
         });
     });
+    
+    // Simulate loading for a bit to ensure data is fetched on first load
+    const timer = setTimeout(() => setLoading(false), 500);
 
-    setLoading(false);
-    return () => unsubscribes.forEach(unsub => unsub());
+    return () => {
+        unsubscribes.forEach(unsub => unsub());
+        clearTimeout(timer);
+    }
 
   }, [user, activeCompany, toast]);
 
@@ -820,3 +825,5 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
+
+    
