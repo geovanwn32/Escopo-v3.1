@@ -108,7 +108,10 @@ export default function RciPage() {
           isSocio: true,
         }
 
-        const result = calculatePayroll(mockSocioAsEmployee, currentEvents);
+        // Filter out automatically calculated events before recalculating
+        const userEvents = currentEvents.filter(e => e.rubrica.id !== 'inss' && e.rubrica.id !== 'irrf');
+
+        const result = calculatePayroll(mockSocioAsEmployee, userEvents);
         setCalculationResult(result);
         setEvents(result.events as RciEvent[]);
     }, []);
@@ -546,8 +549,8 @@ export default function RciPage() {
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : events.map((event) => (
-                                    <TableRow key={event.id}>
+                                ) : events.map((event, index) => (
+                                    <TableRow key={`${event.id}-${index}`}>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Checkbox />
