@@ -64,12 +64,23 @@ export function LoginForm() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-      console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Erro no login',
-        description: 'Credenciais inválidas. Por favor, tente novamente.',
-      });
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+            loginForm.setError('email', {
+                type: 'manual',
+                message: 'E-mail ou senha inválidos.'
+            });
+            loginForm.setError('password', {
+                type: 'manual',
+                message: 'E-mail ou senha inválidos.'
+            });
+        } else {
+            console.error(error);
+            toast({
+                variant: 'destructive',
+                title: 'Erro no login',
+                description: 'Ocorreu um erro inesperado. Por favor, tente novamente.',
+            });
+        }
     } finally {
       setLoading(false);
     }
