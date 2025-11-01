@@ -91,52 +91,42 @@ export default function PessoalPageWrapper() {
         setThirteenths([]);
         setVacations([]);
         return;
-    };
+    }
 
     setLoading(true);
+
+    const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
     
-    const fetchAllData = async () => {
-        try {
-            const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
-            const [
-                payrollsSnap,
-                rcisSnap,
-                terminationsSnap,
-                thirteenthsSnap,
-                vacationsSnap,
-            ] = await Promise.all([
-                getDocs(query(collection(db, `${companyPath}/payrolls`), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, `${companyPath}/rcis`), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, `${companyPath}/terminations`), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, `${companyPath}/thirteenths`), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, `${companyPath}/vacations`), orderBy('createdAt', 'desc'))),
-            ]);
-            
-            const convertTimestamp = (doc: any) => {
-                const data = doc.data();
-                Object.keys(data).forEach(key => {
-                    if (data[key] instanceof Timestamp) {
-                        data[key] = data[key].toDate();
+    const collectionsToListen = [
+        { name: 'payrolls', setter: setPayrolls },
+        { name: 'rcis', setter: setRcis },
+        { name: 'terminations', setter: setTerminations },
+        { name: 'thirteenths', setter: setThirteenths },
+        { name: 'vacations', setter: setVacations },
+    ];
+    
+    const unsubscribes = collectionsToListen.map(({ name, setter }) => {
+        const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
+        return onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => {
+                 const docData = doc.data();
+                Object.keys(docData).forEach(key => {
+                    if (docData[key] instanceof Timestamp) {
+                        docData[key] = docData[key].toDate();
                     }
                 });
-                return { id: doc.id, ...data };
-            };
+                return { id: doc.id, ...docData };
+            });
+            setter(data as any);
+        }, (error) => {
+            console.error(`Error fetching ${name}:`, error);
+            toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+        });
+    });
 
-            setPayrolls(payrollsSnap.docs.map(doc => convertTimestamp(doc) as Payroll));
-            setRcis(rcisSnap.docs.map(doc => convertTimestamp(doc) as RCI));
-            setTerminations(terminationsSnap.docs.map(doc => convertTimestamp(doc) as Termination));
-            setThirteenths(thirteenthsSnap.docs.map(doc => convertTimestamp(doc) as Thirteenth));
-            setVacations(vacationsSnap.docs.map(doc => convertTimestamp(doc) as Vacation));
-            
-        } catch (error) {
-            console.error("Error fetching pessoal data:", error);
-            toast({ variant: "destructive", title: "Erro ao carregar dados do módulo pessoal." });
-        } finally {
-            setLoading(false);
-        }
-    };
+    setLoading(false);
+    return () => unsubscribes.forEach(unsub => unsub());
 
-    fetchAllData();
   }, [user, activeCompany, toast]);
 
     const filteredPayrolls = useMemo(() => {
@@ -212,13 +202,7 @@ export default function PessoalPageWrapper() {
       try {
         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, docId));
         toast({ title: `${docName} excluído(a) com sucesso!` });
-        // Refetch data after deletion
-        if (collectionName === 'payrolls') setPayrolls(prev => prev.filter(p => p.id !== docId));
-        if (collectionName === 'rcis') setRcis(prev => prev.filter(p => p.id !== docId));
-        if (collectionName === 'terminations') setTerminations(prev => prev.filter(p => p.id !== docId));
-        if (collectionName === 'thirteenths') setThirteenths(prev => prev.filter(p => p.id !== docId));
-        if (collectionName === 'vacations') setVacations(prev => prev.filter(p => p.id !== docId));
-
+        // The onSnapshot will handle the state update automatically
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }
