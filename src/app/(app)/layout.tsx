@@ -14,6 +14,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { HelpModal } from '@/components/layout/help-modal';
 import type { AppUser } from '@/types/user';
+import { checkDeadlines } from '@/services/deadline-check-service';
 
 const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
 
@@ -59,7 +60,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           const licenseType = isAdmin ? 'premium' : 'pending_approval';
 
           const newUserDoc: Omit<AppUser, 'uid'> = {
-            email: user.email,
+            email: user.email!,
             createdAt: serverTimestamp(),
             licenseType: licenseType,
           };
@@ -70,7 +71,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           }
         }
         
-        userData = userSnap.data() as AppUser;
+        userData = { uid: user.uid, ...userSnap.data() } as AppUser;
         setAppUser(userData);
 
         // 4. Check license and redirect if pending (unless it's the super admin)
@@ -88,6 +89,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             const companyData = { id: docSnap.id, ...docSnap.data() };
             setActiveCompany(companyData);
             sessionStorage.setItem(`company_${companyData.id}`, JSON.stringify(companyData));
+
+            // 6. Check for deadlines once company is loaded
+            checkDeadlines(user.uid, companyId);
           } else {
             sessionStorage.removeItem('activeCompanyId');
             setCompanyModalOpen(true);
