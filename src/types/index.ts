@@ -27,7 +27,7 @@ export type { Thirteenth } from './thirteenth';
 export type { Ticket, TicketStatus } from './ticket';
 export type { AppUser } from './user';
 export type { Vacation } from './vacation';
-import type { FieldValue } from 'firebase/firestore';
+import type { FieldValue, Timestamp } from 'firebase/firestore';
 
 
 export interface XmlFile {
@@ -70,7 +70,7 @@ export interface Launch {
     fileName?: string;
     type: 'entrada' | 'saida' | 'servico';
     status: 'Normal' | 'Cancelado' | 'Substituida';
-    date: FieldValue | Date;
+    date: FieldValue | Date | Timestamp;
     chaveNfe?: string | null;
     numeroNfse?: string | null;
     serie?: string | null;

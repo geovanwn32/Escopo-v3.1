@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -33,32 +32,15 @@ import { PayrollEventBadge } from '@/components/pessoal/payroll-event-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
-import type { Company } from '@/types/company';
-import type { Rubrica } from '@/types/rubrica';
+import type { Company, Rubrica, RCI, RciEvent, RciTotals, Socio } from '@/types';
 import { RubricaSelectionModal } from '@/components/pessoal/rubrica-selection-modal';
-import type { Socio } from '@/types/socio';
 import { SocioSelectionModal } from '@/components/socios/socio-selection-modal';
 import { calculatePayroll, PayrollCalculationResult } from '@/services/payroll-service';
 import { collection, addDoc, doc, setDoc, getDoc, serverTimestamp, Timestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { RCI } from '@/types/rci';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { generateProLaboreReceiptPdf } from '@/services/pro-labore-receipt-service';
-
-export interface RciEvent {
-    id: string; 
-    rubrica: Rubrica;
-    referencia: number;
-    provento: number;
-    desconto: number;
-}
-
-export interface RciTotals {
-    totalProventos: number;
-    totalDescontos: number;
-    liquido: number;
-}
 
 export default function RciPage() {
     const searchParams = useSearchParams();
@@ -94,11 +76,11 @@ export default function RciPage() {
         }
     }, [user]);
 
-    const recalculateAndSetState = useCallback((currentEvents: RciEvent[], socio: Socio | null) => {
+    const recalculateAndSetState = useCallback((currentEvents: RciEvent[], socio: Socio | null): PayrollCalculationResult | null => {
         if (!socio) {
             setCalculationResult(null);
             setEvents([]);
-            return;
+            return null;
         }
         
         const mockSocioAsEmployee: any = {
@@ -114,6 +96,7 @@ export default function RciPage() {
         const result = calculatePayroll(mockSocioAsEmployee, userEvents);
         setCalculationResult(result);
         setEvents(result.events as RciEvent[]);
+        return result;
     }, []);
 
     useEffect(() => {

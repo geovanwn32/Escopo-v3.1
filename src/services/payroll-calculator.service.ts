@@ -1,7 +1,7 @@
 
 import type { Employee } from "@/types/employee";
 import type { Rubrica } from "@/types/rubrica";
-import type { PayrollEvent } from "@/app/(app)/pessoal/folha-de-pagamento/page";
+import type { PayrollEvent } from "@/types";
 
 const familyAllowanceBracket = {
     limit: 1819.26,
@@ -26,8 +26,9 @@ export function calculateAutomaticEvent(
     const baseSalary = employee.salarioBase;
 
     // Correctly determine the calculation base by looking for the base salary event or using the employee's base salary directly.
-    const baseSalaryEvent = allEvents.find(e => e.rubrica.id === 'salario_base');
-    const inssCalculationBase = baseSalaryEvent ? baseSalaryEvent.provento : baseSalary;
+    const inssCalculationBase = allEvents
+        .filter(e => e.rubrica.incideINSS)
+        .reduce((sum, e) => sum + e.provento, 0);
 
     const numDependentesSalarioFamilia = employee.dependentes?.filter(d => d.isSalarioFamilia).length || 0;
 
