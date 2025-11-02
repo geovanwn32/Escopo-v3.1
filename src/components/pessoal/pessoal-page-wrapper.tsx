@@ -13,7 +13,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText, Printer } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { ptBR } from "date-fns/locale";
 import { format, isValid } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { generateProLaboreReceiptPdf } from "@/services/pro-labore-receipt-service";
+import type { Socio } from "@/types/socio";
 
 
 export default function PessoalPageWrapper() {
@@ -93,11 +95,8 @@ export default function PessoalPageWrapper() {
         return;
     }
 
-    setLoading(true);
     let isMounted = true;
-
     const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
-    
     const collectionsToListen = [
         { name: 'payrolls', setter: setPayrolls },
         { name: 'rcis', setter: setRcis },
@@ -107,6 +106,8 @@ export default function PessoalPageWrapper() {
     ];
 
     const fetchInitialData = async () => {
+        if (!isMounted) return;
+        setLoading(true);
         try {
             await Promise.all(collectionsToListen.map(async ({ name, setter }) => {
                 const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
@@ -126,13 +127,9 @@ export default function PessoalPageWrapper() {
             }));
         } catch (error) {
             console.error("Error fetching initial data:", error);
-            if (isMounted) {
-                toast({ variant: "destructive", title: "Erro ao carregar dados." });
-            }
+            if (isMounted) toast({ variant: "destructive", title: "Erro ao carregar dados." });
         } finally {
-            if (isMounted) {
-                setLoading(false);
-            }
+            if (isMounted) setLoading(false);
         }
     };
     
@@ -141,23 +138,21 @@ export default function PessoalPageWrapper() {
     const unsubscribes = collectionsToListen.map(({ name, setter }) => {
         const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => {
-                const docData = doc.data();
-                Object.keys(docData).forEach(key => {
-                    if (docData[key] instanceof Timestamp) {
-                        docData[key] = docData[key].toDate();
-                    }
-                });
-                return { id: doc.id, ...docData };
-            });
             if (isMounted) {
+                 const data = snapshot.docs.map(doc => {
+                    const docData = doc.data();
+                    Object.keys(docData).forEach(key => {
+                        if (docData[key] instanceof Timestamp) {
+                            docData[key] = docData[key].toDate();
+                        }
+                    });
+                    return { id: doc.id, ...docData };
+                });
                 setter(data as any);
             }
         }, (error) => {
             console.error(`Error fetching ${name}:`, error);
-            if (isMounted) {
-                toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
-            }
+            if (isMounted) toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
         });
     });
     
@@ -245,6 +240,22 @@ export default function PessoalPageWrapper() {
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }
+  };
+
+  const handleGenerateRciPdf = async (rci: RCI) => {
+    if (!user || !activeCompany) return;
+    try {
+      const socioRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId);
+      const socioSnap = await getDoc(socioRef);
+      if (socioSnap.exists()) {
+        const socioData = { id: socioSnap.id, ...socioSnap.data() } as Socio;
+        generateProLaboreReceiptPdf(activeCompany, socioData, rci);
+      } else {
+        toast({ variant: "destructive", title: "Sócio não encontrado" });
+      }
+    } catch(e) {
+      toast({ variant: "destructive", title: "Erro ao gerar PDF" });
+    }
   };
 
 
@@ -516,6 +527,10 @@ export default function PessoalPageWrapper() {
                                         <Eye className="mr-2 h-4 w-4" />
                                         Acessar
                                     </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleGenerateRciPdf(rci)}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Gerar Recibo
                                 </DropdownMenuItem>
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
