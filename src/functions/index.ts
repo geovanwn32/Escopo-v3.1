@@ -35,28 +35,30 @@ export const backupCompanyData = functions
         
         try {
             const collectionsToBackup = [
-                'aliquotas', 'companies', 'employees', 'esocialEvents', 'events', 
+                'aliquotas', 'employees', 'esocialEvents', 'events', 
                 'files', 'fiscalClosures', 'launches', 'orcamentos', 'partners',
                 'payrolls', 'produtos', 'rcis', 'recibos', 'rubricas', 
                 'servicos', 'socios', 'terminations', 'thirteenths', 'vacations',
-                'lancamentosContabeis', 'contasContabeis',
+                'lancamentosContabeis', 'contasContabeis', 'esocial', // Adicionando a subcoleção esocial
             ];
 
             const backupData: { [key: string]: any[] } = {};
 
-            for (const collectionName of collectionsToBackup) {
-                const collectionRef = firestore.collection(`users/${userId}/companies/${companyId}/${collectionName}`);
-                const snapshot = await collectionRef.get();
-                backupData[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            }
-            
-            // Special case: company document itself
+            // Backup company document itself
             const companyDocRef = firestore.doc(`users/${userId}/companies/${companyId}`);
             const companySnap = await companyDocRef.get();
             if (companySnap.exists()) {
-                 backupData['companies'] = [{ id: companySnap.id, ...companySnap.data() }];
+                 backupData['company'] = [{ id: companySnap.id, ...companySnap.data() }];
             }
 
+            for (const collectionName of collectionsToBackup) {
+                const collectionRef = firestore.collection(`users/${userId}/companies/${companyId}/${collectionName}`);
+                const snapshot = await collectionRef.get();
+                if (!snapshot.empty) {
+                    backupData[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                }
+            }
+            
             const timestamp = new Date().toISOString().replace(/:/g, '-');
             const fileName = `backup_${companyId}_${timestamp}.json`;
             const filePath = `backups/${userId}/${companyId}/${fileName}`;

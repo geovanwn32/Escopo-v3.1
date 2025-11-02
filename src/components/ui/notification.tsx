@@ -3,13 +3,13 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Bell, CheckCircle, XCircle } from "lucide-react";
+import { Bell, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 
 export interface NotificationCardProps {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "success" | "warning";
   onOpenChange: (open: boolean) => void;
 }
 
@@ -17,10 +17,11 @@ const ICONS = {
     default: <Bell className="h-6 w-6 text-primary" />,
     success: <CheckCircle className="h-6 w-6 text-green-500" />,
     destructive: <XCircle className="h-6 w-6 text-destructive" />,
+    warning: <AlertTriangle className="h-6 w-6 text-yellow-500" />,
 }
 
 export function Notification({ title, description, variant = 'default' }: NotificationCardProps) {
-    const icon = variant === 'destructive' ? ICONS.destructive : ICONS.success;
+    const icon = ICONS[variant] || ICONS.default;
 
   return (
     <motion.div
