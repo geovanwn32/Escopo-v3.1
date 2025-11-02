@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -42,6 +41,7 @@ import { db } from '@/lib/firebase';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { generateProLaboreReceiptPdf } from '@/services/pro-labore-receipt-service';
+import { useForm } from 'react-hook-form';
 
 export default function RciPage() {
     const searchParams = useSearchParams();
@@ -54,14 +54,14 @@ export default function RciPage() {
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [selectedSocio, setSelectedSocio] = useState<Socio | null>(null);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(!!rciId);
     const [isSaving, setIsSaving] = useState(false);
     const [currentRciId, setCurrentRciId] = useState<string | null>(rciId);
     const [period, setPeriod] = useState<string>('');
     const [status, setStatus] = useState<RCI['status']>('draft');
     const [calculationResult, setCalculationResult] = useState<PayrollCalculationResult | null>(null);
 
-
+    const form = useForm(); // Form is now defined here
     const { user } = useAuth();
     const { toast } = useToast();
 
@@ -158,7 +158,7 @@ export default function RciPage() {
         } else {
             setIsLoading(false);
         }
-    }, [rciId, user, activeCompany, toast, router, recalculateAndSetState]);
+    }, [rciId, user, activeCompany, toast, router, recalculateAndSetState, form]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const sanitizedValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
@@ -480,6 +480,7 @@ export default function RciPage() {
                            <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" disabled><ChevronsLeft className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronLeft className="h-4 w-4"/></Button>
+                                <span className="p-2">1 / 1</span>
                                 <Button variant="ghost" size="icon" disabled><ChevronRight className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronsRight className="h-4 w-4"/></Button>
                            </div>
