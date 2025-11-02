@@ -93,35 +93,13 @@ export default function FolhaDePagamentoPage() {
     const recalculateAndSetState = useCallback((currentEvents: PayrollEvent[], employee: Employee | null): PayrollCalculationResult | null => {
         if (!employee) return null;
         
-        const result = calculatePayroll(employee, currentEvents);
+        // Filter out old calculated events before passing to the main calculator
+        const userAndAutomaticEvents = currentEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
+        const result = calculatePayroll(employee, userAndAutomaticEvents);
+        
         setCalculationResult(result);
-            
-        let updatedEvents = [...currentEvents];
-
-        // Remove old calculated events before adding new ones
-        updatedEvents = updatedEvents.filter(e => !['inss', 'irrf'].includes(e.rubrica.id!));
-
-        if (result.inss.valor > 0) {
-             updatedEvents.push({
-                id: 'inss',
-                rubrica: { id: 'inss', codigo: '901', descricao: 'INSS SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9201' },
-                referencia: result.inss.aliquota,
-                provento: 0,
-                desconto: result.inss.valor,
-            });
-        }
+        setEvents(result.events);
         
-        if (result.irrf.valor > 0) {
-             updatedEvents.push({
-                id: 'irrf',
-                rubrica: { id: 'irrf', codigo: '902', descricao: 'IRRF SOBRE SALÁRIO', tipo: 'desconto', incideINSS: false, incideFGTS: false, incideIRRF: false, naturezaESocial: '9202' },
-                referencia: result.irrf.aliquota,
-                provento: 0,
-                desconto: result.irrf.valor,
-            });
-        }
-        
-        setEvents(updatedEvents);
         return result;
     }, []);
 
@@ -187,6 +165,15 @@ export default function FolhaDePagamentoPage() {
                     toast({ variant: 'destructive', title: 'Folha de pagamento não encontrada.' });
                     router.push('/pessoal/folha-de-pagamento');
                 }
+            } else {
+                 // Reset state if no payroll ID is provided
+                setSelectedEmployee(null);
+                setEvents([]);
+                setCalculationResult(null);
+                setCurrentPayrollId(null);
+                const now = new Date();
+                const currentPeriod = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+                setPeriod(currentPeriod);
             }
              setIsLoading(false);
         };

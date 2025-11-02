@@ -1,5 +1,4 @@
 
-
 import type { Employee } from "@/types/employee";
 import { differenceInMonths, differenceInDays, getDaysInMonth, addMonths } from 'date-fns';
 
@@ -168,6 +167,15 @@ export function calculateVacation(params: VacationParams): VacationResult {
     const numDependentesIRRF = employee.dependentes?.filter(d => d.isIRRF).length || 0;
     const irrfEvent = calculateIRRF(irrfBase, numDependentesIRRF, inssValue, 'Férias');
     if (irrfEvent) events.push(irrfEvent);
+
+    // Adiantamento 13º Salário - O valor adicionado como provento deve ser descontado se for um adiantamento
+    if (advanceThirteenth && thirteenthAdvance > 0) {
+        // A lógica do cálculo do líquido já considera os proventos e descontos.
+        // O valor já foi adicionado aos proventos, então não precisa ser descontado aqui novamente.
+        // O valor líquido reflete o que o funcionário receberá no total.
+        // No entanto, para o recibo de férias, o adiantamento do 13º é um valor que está sendo pago, não é um desconto do líquido das férias.
+        // A dedução dele ocorrerá no pagamento final do 13º em Dezembro. A lógica atual está correta.
+    }
 
     // --- CÁLCULO FINAL ---
     const totalProventos = events.reduce((acc, event) => acc + event.provento, 0);

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -53,7 +54,7 @@ export default function RciPage() {
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [selectedSocio, setSelectedSocio] = useState<Socio | null>(null);
     const [isCalculating, setIsCalculating] = useState(false);
-    const [isLoading, setIsLoading] = useState(!!rciId);
+    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [currentRciId, setCurrentRciId] = useState<string | null>(rciId);
     const [period, setPeriod] = useState<string>('');
@@ -90,7 +91,7 @@ export default function RciPage() {
           isSocio: true,
         }
 
-        // Filter out automatically calculated events before recalculating
+        // Filter out old calculated events before recalculating
         const userEvents = currentEvents.filter(e => e.rubrica.id !== 'inss' && e.rubrica.id !== 'irrf');
 
         const result = calculatePayroll(mockSocioAsEmployee, userEvents);
@@ -107,6 +108,11 @@ export default function RciPage() {
             };
 
             setIsLoading(true);
+            form.reset();
+            setSelectedSocio(null);
+            setEvents([]);
+            setCalculationResult(null);
+
             try {
                 const rciRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/rcis`, rciId);
                 const rciSnap = await getDoc(rciRef);
