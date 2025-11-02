@@ -94,6 +94,7 @@ export default function PessoalPageWrapper() {
     }
 
     setLoading(true);
+    let isMounted = true;
 
     const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
     
@@ -104,6 +105,38 @@ export default function PessoalPageWrapper() {
         { name: 'thirteenths', setter: setThirteenths },
         { name: 'vacations', setter: setVacations },
     ];
+
+    const fetchInitialData = async () => {
+        try {
+            await Promise.all(collectionsToListen.map(async ({ name, setter }) => {
+                const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
+                const snapshot = await getDocs(q);
+                if (isMounted) {
+                    const data = snapshot.docs.map(doc => {
+                        const docData = doc.data();
+                        Object.keys(docData).forEach(key => {
+                            if (docData[key] instanceof Timestamp) {
+                                docData[key] = docData[key].toDate();
+                            }
+                        });
+                        return { id: doc.id, ...docData };
+                    });
+                    setter(data as any);
+                }
+            }));
+        } catch (error) {
+            console.error("Error fetching initial data:", error);
+            if (isMounted) {
+                toast({ variant: "destructive", title: "Erro ao carregar dados." });
+            }
+        } finally {
+            if (isMounted) {
+                setLoading(false);
+            }
+        }
+    };
+    
+    fetchInitialData();
 
     const unsubscribes = collectionsToListen.map(({ name, setter }) => {
         const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
@@ -117,19 +150,20 @@ export default function PessoalPageWrapper() {
                 });
                 return { id: doc.id, ...docData };
             });
-            setter(data as any);
+            if (isMounted) {
+                setter(data as any);
+            }
         }, (error) => {
             console.error(`Error fetching ${name}:`, error);
-            toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            if (isMounted) {
+                toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            }
         });
     });
     
-    // Simulate loading for a bit to ensure data is fetched on first load
-    const timer = setTimeout(() => setLoading(false), 500);
-
     return () => {
+        isMounted = false;
         unsubscribes.forEach(unsub => unsub());
-        clearTimeout(timer);
     }
 
   }, [user, activeCompany, toast]);
@@ -825,5 +859,7 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
+
+    
 
     
