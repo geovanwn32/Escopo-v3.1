@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -29,7 +28,14 @@ export function NotificationCenter({ userId, companyId }: NotificationCenterProp
         const q = query(notificationsRef, orderBy('createdAt', 'desc'), limit(10));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+            const notifs = snapshot.docs.map(doc => {
+                const data = doc.data();
+                // Safely convert timestamp to Date
+                const createdAt = data.createdAt && typeof data.createdAt.toDate === 'function' 
+                    ? data.createdAt.toDate() 
+                    : null;
+                return { id: doc.id, ...data, createdAt } as Notification;
+            });
             setNotifications(notifs);
             const unread = notifs.filter(n => !n.isRead).length;
             setUnreadCount(unread);
@@ -84,7 +90,9 @@ export function NotificationCenter({ userId, companyId }: NotificationCenterProp
                                     <p className="text-xs text-muted-foreground">{notif.message}</p>
                                     <div className="flex justify-between items-center mt-2">
                                         <p className="text-xs text-muted-foreground/80">
-                                            {formatDistanceToNow(notif.createdAt as Date, { addSuffix: true, locale: ptBR })}
+                                            {notif.createdAt instanceof Date
+                                                ? formatDistanceToNow(notif.createdAt, { addSuffix: true, locale: ptBR })
+                                                : 'agora mesmo'}
                                         </p>
                                         {!notif.isRead && (
                                             <Button variant="ghost" size="sm" className="h-auto p-1 text-xs" onClick={() => handleMarkAsRead(notif.id!)}>
