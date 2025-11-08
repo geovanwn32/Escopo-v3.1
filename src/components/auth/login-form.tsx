@@ -61,14 +61,11 @@ export function LoginForm() {
       toast({
         title: 'Login bem-sucedido!',
         description: 'Redirecionando para o dashboard...',
+        variant: 'success',
       });
       router.push('/dashboard');
     } catch (error: any) {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-            loginForm.setError('email', {
-                type: 'manual',
-                message: 'E-mail ou senha inválidos.'
-            });
             loginForm.setError('password', {
                 type: 'manual',
                 message: 'E-mail ou senha inválidos.'
@@ -93,6 +90,7 @@ export function LoginForm() {
         toast({
             title: "Email de redefinição enviado!",
             description: "Verifique sua caixa de entrada (e spam) para redefinir sua senha.",
+            variant: "success",
         });
         setIsResetModalOpen(false);
     } catch(error) {
