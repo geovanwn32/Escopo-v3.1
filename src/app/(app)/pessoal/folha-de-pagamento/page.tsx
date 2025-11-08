@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -184,7 +183,7 @@ export default function FolhaDePagamentoPage() {
             isMounted = false;
             unsubscribes.forEach(unsub => unsub());
         };
-    }, [user, activeCompany, payrollId, toast, router, recalculateAndSetState]);
+    }, [user, activeCompany, payrollId, router, toast, recalculateAndSetState]);
     
     const handleEventChange = (eventId: string, field: 'referencia' | 'provento' | 'desconto', value: string) => {
         const sanitizedValue = parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
@@ -538,6 +537,7 @@ export default function FolhaDePagamentoPage() {
                            <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" disabled><ChevronsLeft className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronLeft className="h-4 w-4"/></Button>
+                                <span className="p-2">1 / 1</span>
                                 <Button variant="ghost" size="icon" disabled><ChevronRight className="h-4 w-4"/></Button>
                                 <Button variant="ghost" size="icon" disabled><ChevronsRight className="h-4 w-4"/></Button>
                            </div>
