@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { upsertProductsFromLaunch } from '@/services/product-service';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { PartnerSelectionModal } from '../parceiros/partner-form-modal';
+import { PartnerSelectionModal } from '../parceiros/partner-selection-modal';
 import type { Partner } from '@/types/partner';
 import { upsertPartnerFromLaunch } from '@/services/partner-service';
 import type { Orcamento } from '@/types/orcamento';
@@ -548,3 +548,6 @@ export const LaunchFormModal = ({
     
 
 
+
+
+    
