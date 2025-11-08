@@ -22,9 +22,11 @@ import {
     Plane,
     TrendingUp,
     ShoppingCart,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react"
 import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, Cell } from "recharts"
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -64,7 +66,9 @@ export default function DashboardPage() {
   // UI States
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  
+  const [eventsCurrentPage, setEventsCurrentPage] = useState(1);
+  const eventsItemsPerPage = 5;
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const companyId = sessionStorage.getItem('activeCompanyId');
@@ -247,9 +251,14 @@ export default function DashboardPage() {
 
     return [...manualEvents, ...vacationEvents]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .slice(0, 5);
 
   }, [events, personnelCosts]);
+  
+  const totalEventPages = Math.ceil(upcomingEvents.length / eventsItemsPerPage);
+  const paginatedEvents = upcomingEvents.slice(
+    (eventsCurrentPage - 1) * eventsItemsPerPage,
+    eventsCurrentPage * eventsItemsPerPage
+  );
 
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
@@ -282,7 +291,7 @@ export default function DashboardPage() {
             <CardDescription>Receitas vs. Despesas</CardDescription>
             </CardHeader>
             <CardContent>
-             {loadingData ? <div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : 
+              <Suspense fallback={<div className="flex justify-center items-center h-[350px]"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                 <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={chartData}>
                          <defs>
@@ -303,7 +312,7 @@ export default function DashboardPage() {
                         <Area type="monotone" dataKey="despesas" name="Despesas" stroke="#dc2626" fillOpacity={1} fill="url(#colorDespesas)" />
                     </AreaChart>
                 </ResponsiveContainer>
-            }
+             </Suspense>
             </CardContent>
         </Card>
         <div className="col-span-4 lg:col-span-3 flex flex-col gap-6">
@@ -330,11 +339,11 @@ export default function DashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Próximos Eventos</CardTitle>
-                <CardDescription>Seus 5 próximos compromissos.</CardDescription>
+                <CardDescription>Seus próximos compromissos.</CardDescription>
               </CardHeader>
               <CardContent>
                 {loadingData ? <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> :
-                upcomingEvents.length === 0 ? (
+                paginatedEvents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                         <div className="p-4 bg-muted rounded-full mb-4">
                             <CalendarCheck className="h-8 w-8 text-muted-foreground" />
@@ -344,7 +353,7 @@ export default function DashboardPage() {
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {upcomingEvents.map(event => (
+                        {paginatedEvents.map(event => (
                             <div key={event.id} className="flex items-start gap-3 p-2 border-l-4 border-primary bg-primary/5 rounded">
                                  <div className="p-2 bg-primary/10 rounded-full">
                                     <event.icon className="h-5 w-5 text-primary" />
@@ -358,6 +367,17 @@ export default function DashboardPage() {
                     </div>
                 )}
               </CardContent>
+               {totalEventPages > 1 && (
+                <CardFooter className="flex justify-end items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEventsCurrentPage(p => p - 1)} disabled={eventsCurrentPage === 1}>
+                        <ChevronLeft className="h-4 w-4" /> Anterior
+                    </Button>
+                    <span className="text-sm text-muted-foreground">Página {eventsCurrentPage} de {totalEventPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setEventsCurrentPage(p => p + 1)} disabled={eventsCurrentPage === totalEventPages}>
+                        Próximo <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </CardFooter>
+            )}
             </Card>
         </div>
       </div>
@@ -376,5 +396,3 @@ export default function DashboardPage() {
     </>
   )
 }
-
-    
