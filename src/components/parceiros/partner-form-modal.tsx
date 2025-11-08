@@ -271,5 +271,3 @@ export function PartnerFormModal({ isOpen, onClose, userId, companyId, partner, 
     </Dialog>
   );
 }
-
-      

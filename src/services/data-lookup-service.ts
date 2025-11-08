@@ -1,5 +1,4 @@
 
-
 // Inspired by: https://github.com/the-via/receitaws-react/blob/master/src/useReceitaWS.js
 
 function fetchJsonp(url: string, options?: any) {
