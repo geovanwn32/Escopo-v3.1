@@ -32,6 +32,7 @@ import type { Employee } from '@/types/employee';
 import { XmlFile, Launch, Company, Recibo } from "@/types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import { ReceiptFormModal, ReceiptModalOptions } from "@/components/fiscal/receipt-form-modal";
+import { useRouter } from 'next/navigation';
 
 
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
@@ -107,6 +108,7 @@ export default function FiscalPage() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const router = useRouter();
   
   const openLaunchModal = useCallback((options: OpenModalOptions) => {
     setCurrentLaunchModalData(options);
@@ -675,7 +677,7 @@ export default function FiscalPage() {
   const handleDeleteOrcamento = async (id: string) => {
      if (!user || !activeCompany) return;
      try {
-         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
+         await deleteDoc(doc(db, `users/${userId}/companies/${activeCompany.id}/orcamentos`, id));
          toast({ title: "Orçamento excluído com sucesso." });
          fetchData();
      } catch (error) {
@@ -694,6 +696,11 @@ export default function FiscalPage() {
        toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
     }
   }
+
+  const handleCreateLaunchFromBudget = (orcamentoId: string) => {
+    router.push(`/fiscal?orcamentoId=${orcamentoId}`);
+    openLaunchModal({ orcamentoId, mode: 'create' });
+  };
 
   return (
     <div className="space-y-6">
@@ -841,7 +848,7 @@ export default function FiscalPage() {
                                         <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem asChild><Link href={`/fiscal/orcamento?id=${orc.id}`}><Eye className="mr-2 h-4 w-4" /> Visualizar / Editar</Link></DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openLaunchModal({ orcamento: orc, mode: 'create' })}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleCreateLaunchFromBudget(orc.id!)}><Send className="mr-2 h-4 w-4 text-green-600"/> Gerar Lançamento Fiscal</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> Excluir</DropdownMenuItem></AlertDialogTrigger>
                                                 <AlertDialogContent>

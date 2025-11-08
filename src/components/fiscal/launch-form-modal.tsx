@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { upsertProductsFromLaunch } from '@/services/product-service';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { PartnerSelectionModal } from '../parceiros/partner-selection-modal';
+import { PartnerSelectionModal } from '../parceiros/partner-form-modal';
 import type { Partner } from '@/types/partner';
 import { upsertPartnerFromLaunch } from '@/services/partner-service';
 import type { Orcamento } from '@/types/orcamento';
@@ -43,6 +43,7 @@ export interface OpenModalOptions {
   xmlFile?: XmlFile | null;
   launch?: Launch | null;
   orcamento?: Orcamento | null;
+  orcamentoId?: string | null;
   manualLaunchType?: 'entrada' | 'saida' | 'servico' | null;
   mode?: 'create' | 'edit' | 'view';
 }
@@ -226,7 +227,7 @@ const getInitialData = (
     options: OpenModalOptions,
     company: Company,
 ): Partial<FormData> => {
-    const { mode = 'create', xmlFile, launch, manualLaunchType } = options;
+    const { mode = 'create', xmlFile, launch, manualLaunchType, orcamento } = options;
     if (mode === 'create') {
         if (xmlFile) {
             const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
@@ -236,6 +237,23 @@ const getInitialData = (
                 type: xmlFile.type,
                 fileName: xmlFile.file.name,
                 status: xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal',
+            };
+        }
+        if (orcamento) {
+            return {
+                ...defaultLaunchValues,
+                type: orcamento.items.some(i => i.type === 'servico') ? 'servico' : 'saida',
+                date: new Date(),
+                fileName: `Orçamento Nº ${orcamento.quoteNumber}`,
+                destinatario: { nome: orcamento.partnerName, cnpj: '' }, // CNPJ would need to be fetched or be part of orcamento
+                produtos: orcamento.items.map(item => ({
+                    descricao: item.description,
+                    quantidade: item.quantity,
+                    valorUnitario: item.unitPrice,
+                    valorTotal: item.total,
+                })),
+                valorTotalNota: orcamento.total,
+                valorProdutos: orcamento.total,
             };
         }
         if (manualLaunchType) {
@@ -271,6 +289,7 @@ export const LaunchFormModal = ({
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
     const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | null>(null);
     const [loading, setLoading] = useState(false);
+    const [isFetchingOrcamento, setIsFetchingOrcamento] = useState(false);
 
     const { toast } = useToast();
 
@@ -298,11 +317,50 @@ export const LaunchFormModal = ({
 
 
     useEffect(() => {
-        if (isOpen && initialData) {
-            const data = getInitialData(initialData, company);
-            reset(data);
+        const loadOrcamento = async (orcamentoId: string) => {
+            setIsFetchingOrcamento(true);
+            try {
+                const orcamentoRef = doc(db, `users/${userId}/companies/${company.id}/orcamentos`, orcamentoId);
+                const orcamentoSnap = await getDoc(orcamentoRef);
+                if (orcamentoSnap.exists()) {
+                    const orcamentoData = { id: orcamentoSnap.id, ...orcamentoSnap.data() } as Orcamento;
+                    const partnerSnap = await getDoc(doc(db, `users/${userId}/companies/${company.id}/partners`, orcamentoData.partnerId));
+                    const partnerData = partnerSnap.data();
+
+                    reset({
+                        ...defaultLaunchValues,
+                        type: orcamentoData.items.some(i => i.type === 'servico') ? 'servico' : 'saida',
+                        date: new Date(),
+                        fileName: `Baseado no Orçamento Nº ${orcamentoData.quoteNumber}`,
+                        destinatario: { nome: orcamentoData.partnerName, cnpj: partnerData?.cpfCnpj || '' },
+                        emitente: { nome: company.razaoSocial, cnpj: company.cnpj },
+                        produtos: orcamentoData.items.map(item => ({
+                            descricao: item.description,
+                            quantidade: item.quantity,
+                            valorUnitario: item.unitPrice,
+                            valorTotal: item.total,
+                            codigo: item.id.startsWith('manual_') ? '' : item.id,
+                        })),
+                        valorTotalNota: orcamentoData.total,
+                        valorProdutos: orcamentoData.total,
+                    });
+                }
+            } catch (error) {
+                toast({ variant: 'destructive', title: "Erro ao Carregar Orçamento" });
+            } finally {
+                setIsFetchingOrcamento(false);
+            }
+        };
+
+        if (isOpen) {
+            if (initialData.orcamentoId) {
+                loadOrcamento(initialData.orcamentoId);
+            } else {
+                const data = getInitialData(initialData, company);
+                reset(data);
+            }
         }
-    }, [isOpen, initialData, company, reset]);
+    }, [isOpen, initialData, company, reset, userId, toast]);
   
     const { mode = 'create' } = initialData;
     const isReadOnly = mode === 'view';
@@ -371,6 +429,19 @@ export const LaunchFormModal = ({
             <FormField control={control} name={`${partyName}.cnpj`} render={({ field }) => ( <FormItem><FormLabel>CNPJ / CPF</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
         </div>
     );
+
+    if (isFetchingOrcamento) {
+        return (
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent>
+                    <div className="flex flex-col items-center justify-center p-8">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                        <p className="text-muted-foreground">Carregando dados do orçamento...</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        )
+    }
 
     return (
         <>
@@ -475,4 +546,5 @@ export const LaunchFormModal = ({
 };
 
     
+
 
