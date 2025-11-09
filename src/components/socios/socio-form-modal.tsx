@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateInput } from '@/components/ui/date-input';
 import { Switch } from '../ui/switch';
 import type { Socio } from '@/types/socio';
+import { Timestamp } from 'firebase/firestore';
 
 interface SocioFormModalProps {
   isOpen: boolean;
@@ -107,6 +108,8 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
                 cep: formatCep(socio?.cep || ''),
                 participacao: String(socio?.participacao || ''),
                 proLabore: String(socio?.proLabore || ''),
+                dataNascimento: socio.dataNascimento instanceof Timestamp ? socio.dataNascimento.toDate() : socio.dataNascimento,
+                dataEntrada: socio.dataEntrada instanceof Timestamp ? socio.dataEntrada.toDate() : socio.dataEntrada,
                 isAdministrador: socio?.isAdministrador ?? false,
             });
         } else {
@@ -142,9 +145,25 @@ function SocioForm({ userId, companyId, socio, onClose }: Omit<SocioFormModalPro
 
     const onSubmit = async (values: FormData) => {
         setLoading(true);
+        const cleanedCpf = values.cpf.replace(/\D/g, '');
         try {
+        if (mode === 'create') {
+            const sociosRef = collection(db, `users/${userId}/companies/${companyId}/socios`);
+            const q = query(sociosRef, where("cpf", "==", cleanedCpf));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                toast({
+                    variant: "destructive",
+                    title: "CPF Duplicado",
+                    description: `Já existe um sócio cadastrado com este CPF.`,
+                });
+                return;
+            }
+        }
+            
         const dataToSave = { 
             ...values,
+            cpf: cleanedCpf,
             participacao: parseFloat(values.participacao),
             proLabore: parseFloat(values.proLabore) 
         };

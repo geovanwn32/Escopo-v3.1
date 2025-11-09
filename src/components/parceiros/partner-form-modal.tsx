@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -158,8 +158,24 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
 
   const onSubmit = async (values: FormData) => {
     setIsSubmitting(true);
+    const cleanedCpfCnpj = values.cpfCnpj.replace(/\D/g, '');
+
     try {
-      const dataToSave = { ...values, type: partnerType, cpfCnpj: values.cpfCnpj.replace(/\D/g, '') };
+        if (mode === 'create') {
+            const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
+            const q = query(partnersRef, where("cpfCnpj", "==", cleanedCpfCnpj));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                toast({
+                    variant: "destructive",
+                    title: "CPF/CNPJ Duplicado",
+                    description: `Já existe um parceiro cadastrado com este CPF/CNPJ.`,
+                });
+                return;
+            }
+        }
+
+      const dataToSave = { ...values, type: partnerType, cpfCnpj: cleanedCpfCnpj };
       if (mode === 'create') {
         const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
         await addDoc(partnersRef, dataToSave);

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, addDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -139,8 +139,24 @@ function EmployeeForm({ userId, companyId, employee, onClose }: Omit<EmployeeFor
 
     const onSubmit = async (values: FormData) => {
         setLoading(true);
+        const cleanedCpf = values.cpf.replace(/\D/g, '');
         try {
-        const dataToSave = { ...values, salarioBase: parseFloat(values.salarioBase) };
+
+            if (mode === 'create') {
+                const employeesRef = collection(db, `users/${userId}/companies/${companyId}/employees`);
+                const q = query(employeesRef, where("cpf", "==", cleanedCpf));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    toast({
+                        variant: "destructive",
+                        title: "CPF Duplicado",
+                        description: `Já existe um funcionário cadastrado com este CPF.`,
+                    });
+                    return;
+                }
+            }
+
+        const dataToSave = { ...values, salarioBase: parseFloat(values.salarioBase), cpf: cleanedCpf };
         
         if (mode === 'create') {
             const employeesRef = collection(db, `users/${userId}/companies/${companyId}/employees`);
@@ -199,7 +215,7 @@ function EmployeeForm({ userId, companyId, employee, onClose }: Omit<EmployeeFor
                         <FormField control={form.control} name="dataNascimento" render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><FormControl><DateInput {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input {...field} onChange={(e) => {
                         const { value } = e.target;
-                        e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                        e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3}s)(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
                         field.onChange(e);
                         }} maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
                     </div>
