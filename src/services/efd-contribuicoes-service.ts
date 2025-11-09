@@ -69,43 +69,36 @@ export async function generateEfdContribuicoesTxt(
 
     // --- Bloco 0 ---
     const bloco0Lines = [];
-    // Adicionado IND_NAT_PJ e campo vazio para SUFRAMA
-    bloco0Lines.push(`|0000|008|${tipoEscrituracao}|0|${company.regimeTributario === 'mei' ? '99' : '00'}|${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0|`);
+    // REG|COD_VER|TIPO_ESCRIT|IND_SIT_ESP|NUM_REC_ANTERIOR|DT_INI|DT_FIN|NOME_EMPRESARIAL|CNPJ|UF|COD_MUN|IM|SUFRAMA|IND_NAT_PJ|DT_SIT_ESP|
+    bloco0Lines.push(`|0000|006|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0||`);
     bloco0Lines.push('|0001|' + (semMovimento ? '1' : '0') + '|'); 
     
-    // -- Registro 0100 - Contabilista
-    bloco0Lines.push(`|0100|CONTADOR EXEMPLO|00000000000|00000000|contador@example.com|62999999999|5201405|RUA TESTE|123|CENTRO|`);
+    // REG|NOME|CPF|CRC|CNPJ|CEP|END|NUM|COMPL|BAIRRO|FONE|FAX|EMAIL|COD_MUN|
+    bloco0Lines.push(`|0100|CONTADOR EXEMPLO|00000000000|1SP000000O0||74000000|RUA TESTE|123||CENTRO|62999999999||contador@example.com|5201405|`);
     
-    // --- Registro 0110 - Regimes
-    bloco0Lines.push(`|0110|${company.metodoApropriacaoCredito || '1'}|${company.tipoContribuicao || '1'}|${company.incidenciaTributaria || '1'}|`);
+    // REG|IND_APROP_CRED|COD_TIPO_CONT|IND_REG_CUM|
+    bloco0Lines.push(`|0110|${company.metodoApropriacaoCredito || '1'}|${company.tipoContribuicao || '1'}|${company.incidenciaTributaria === '2' ? '1' : '2'}|`);
     
-    // --- Registro 0140 - Cadastro de Participantes ---
-    const partners = new Map<string, { nome: string; uf: string; ie: string; codMun: string }>();
+    const partners = new Map<string, { nome: string; codMun: string; }>();
     launches.forEach(launch => {
         const partnerInfo = launch.type === 'entrada' ? launch.emitente : (launch.destinatario || launch.tomador);
         const cnpj = partnerInfo?.cnpj?.replace(/\D/g, '');
         if (cnpj && !partners.has(cnpj)) {
             partners.set(cnpj, {
                 nome: sanitizeString(partnerInfo.nome),
-                uf: '',
-                ie: '',
-                codMun: ''
+                codMun: '' // Placeholder for partner's city code
             });
         }
     });
     
+    // |REG|COD_PART|NOME|COD_PAIS|CNPJ|CPF|IE|COD_MUN|SUFRAMA|END|NUM|COMPL|BAIRRO|
     if (partners.size > 0) {
-        bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.inscricaoEstadual || ''}|5201405|${company.inscricaoMunicipal || ''}|`);
+        bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|105|${company.cnpj?.replace(/\D/g, '')}||${company.inscricaoEstadual || ''}|5201405||${company.logradouro}|${company.numero}|${company.complemento}|${company.bairro}|`);
         partners.forEach((partner, cnpj) => {
-             // Removido o campo IE duplicado e garantido o codMun
-            bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|${cnpj}|${partner.ie || ''}|${partner.codMun || ''}|${''}|`);
+             const isCpf = cnpj.length === 11;
+             bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|105|${isCpf ? '' : cnpj}|${isCpf ? cnpj : ''}||${partner.codMun || ''}|||||`);
         });
     }
-
-    // -- Registro 0500 - Plano de Contas
-    // Placeholder - would need to fetch chart of accounts
-    // bloco0Lines.push('|0500|...|');
-    
 
     bloco0Lines.push('|0990|' + (bloco0Lines.length + 1) + '|');
     allLines.push(...bloco0Lines);
@@ -181,18 +174,19 @@ export async function generateEfdContribuicoesTxt(
         bloco9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
+    // Add counts for block 9 itself
     bloco9Lines.push(`|9900|9001|1|`);
-    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`);
+    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`); // +4 for 9001, 9900, 9990, 9999
     bloco9Lines.push(`|9900|9990|1|`);
     bloco9Lines.push(`|9900|9999|1|`);
     
     bloco9Lines.sort((a, b) => a.localeCompare(b)); 
 
-    const totalLinesInBlock9 = bloco9Lines.length + 1;
-    bloco9Lines.push(`|9990|${allLines.length + 1}|`); // Corrected reference
+    const totalLinesInFileBefore9 = allLines.length;
+    const totalLinesInBlock9 = bloco9Lines.length + 2; // +2 for 9990 and 9999
     
-    const totalLinesInFile = allLines.length + totalLinesInBlock9 + 1;
-    bloco9Lines.push(`|9999|${totalLinesInFile}|`);
+    bloco9Lines.push(`|9990|${totalLinesInFileBefore9 + totalLinesInBlock9}|`);
+    bloco9Lines.push(`|9999|${totalLinesInFileBefore9 + totalLinesInBlock9 + 1}|`);
 
     const finalFileContent = [...allLines, ...bloco9Lines].join('\r\n') + '\r\n';
     
