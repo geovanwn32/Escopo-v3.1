@@ -243,9 +243,9 @@ export default function ReinfPage() {
 
              <Alert variant="default" className="border-amber-500/50 text-amber-700 [&>svg]:text-amber-600">
                 <Beaker className="h-4 w-4" />
-                <AlertTitle>Funcionalidade Parcial</AlertTitle>
+                <AlertTitle>Funcionalidade Parcial em Modo de Simulação</AlertTitle>
                 <AlertDescription>
-                   Este módulo atualmente gera os eventos R-1000, R-2010, R-2020, R-4010, R-4020 e R-2099. O suporte aos demais eventos será adicionado em breve.
+                   Este módulo atualmente gera os eventos R-1000, R-2010, R-2020, R-4010, R-4020 e R-2099. Os eventos não são transmitidos para o governo.
                 </AlertDescription>
             </Alert>
             

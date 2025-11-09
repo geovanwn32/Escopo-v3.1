@@ -271,7 +271,7 @@ export async function generateReinfEvents(
     if (servicesTaken.length > 0) {
         const { eventId, payload } = generateR2010Xml(companyCnpj, servicesTaken[0], apiPeriod); // Simplified: one event per type for now
         const r2010Ref = doc(reinfFilesRef);
-        saveBatch.set(r2010Ref, { eventId, period: periodStr, type: 'R-2010', status: 'pending', relatedLaunchIds: servicesTaken.map(s => s.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        saveBatch.set(r2010Ref, { eventId, period: periodStr, type: 'R-2010', status: 'pending', relatedLaunchIds: servicesTaken.map(s => s.id!), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
         eventsGeneratedCount++;
     }
 
@@ -279,7 +279,7 @@ export async function generateReinfEvents(
     if (servicesProvided.length > 0) {
         const { eventId, payload } = generateR2020Xml(companyCnpj, servicesProvided[0], apiPeriod); // Simplified: one event per type
         const r2020Ref = doc(reinfFilesRef);
-        saveBatch.set(r2020Ref, { eventId, period: periodStr, type: 'R-2020', status: 'pending', relatedLaunchIds: servicesProvided.map(s => s.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        saveBatch.set(r2020Ref, { eventId, period: periodStr, type: 'R-2020', status: 'pending', relatedLaunchIds: servicesProvided.map(s => s.id!), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
         eventsGeneratedCount++;
     }
 
@@ -287,7 +287,7 @@ export async function generateReinfEvents(
     if (paymentsPF.length > 0) {
         const { eventId, payload } = generateR4010Xml(companyCnpj, paymentsPF[0], apiPeriod);
         const r4010Ref = doc(reinfFilesRef);
-        saveBatch.set(r4010Ref, { eventId, period: periodStr, type: 'R-4010', status: 'pending', relatedLaunchIds: paymentsPF.map(p => p.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        saveBatch.set(r4010Ref, { eventId, period: periodStr, type: 'R-4010', status: 'pending', relatedLaunchIds: paymentsPF.map(p => p.id!), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
         eventsGeneratedCount++;
     }
 
@@ -295,12 +295,13 @@ export async function generateReinfEvents(
     if (paymentsPJ.length > 0) {
         const { eventId, payload } = generateR4020Xml(companyCnpj, paymentsPJ[0], apiPeriod);
         const r4020Ref = doc(reinfFilesRef);
-        saveBatch.set(r4020Ref, { eventId, period: periodStr, type: 'R-4020', status: 'pending', relatedLaunchIds: paymentsPJ.map(p => p.id), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
+        saveBatch.set(r4020Ref, { eventId, period: periodStr, type: 'R-4020', status: 'pending', relatedLaunchIds: paymentsPJ.map(p => p.id!), createdAt: serverTimestamp(), userId, companyId: company.id, payload });
         eventsGeneratedCount++;
     }
     
-    // R-2099
-    if (eventsGeneratedCount > 0 || (servicesTaken.length === 0 && servicesProvided.length === 0)) { // Generate closure if other events were made or if no movement
+    // R-2099 - Closing Event
+    // Generate only if there were other events in the period.
+    if (eventsGeneratedCount > 0) {
         const { eventId, payload } = generateR2099Xml(companyCnpj, apiPeriod);
         const r2099Ref = doc(reinfFilesRef);
         saveBatch.set(r2099Ref, { eventId, period: periodStr, type: 'R-2099', status: 'pending', relatedLaunchIds: [], createdAt: serverTimestamp(), userId, companyId: company.id, payload });
