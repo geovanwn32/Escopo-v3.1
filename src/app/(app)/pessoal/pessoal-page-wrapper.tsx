@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -266,8 +266,7 @@ export default function PessoalPageWrapper() {
   const handleGenerateRciPdf = async (rci: RCI) => {
     if (!user || !activeCompany) return;
     try {
-      const socioRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId);
-      const socioSnap = await getDoc(socioRef);
+      const socioSnap = await getDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId));
       if (socioSnap.exists()) {
         const socioData = { id: socioSnap.id, ...socioSnap.data() } as Socio;
         generateProLaboreReceiptPdf(activeCompany, socioData, rci);
