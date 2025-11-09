@@ -16,6 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '@/components/ui/badge';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 import Link from 'next/link';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const licenseMap: Record<AppUser['licenseType'], string> = {
     pending_approval: 'Aprovação Pendente',
@@ -52,8 +54,13 @@ export default function AdminPage() {
                 const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as AppUser));
                 setUsers(usersData);
             } catch (error) {
-                console.error("Error fetching users:", error);
-                toast({ variant: 'destructive', title: 'Erro ao buscar usuários.' });
+                console.error("Original error fetching users:", error);
+                 const permissionError = new FirestorePermissionError({
+                    path: `users (collectionGroup)`,
+                    operation: 'list',
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                toast({ variant: 'destructive', title: 'Erro de Permissão', description: 'Você não tem permissão para visualizar todos os usuários.' });
             } finally {
                 setLoading(false);
             }
@@ -64,19 +71,22 @@ export default function AdminPage() {
 
     const handleChangeLicense = async (targetUserId: string, newLicense: AppUser['licenseType']) => {
         setIsSubmitting(targetUserId);
-        try {
-            const userRef = doc(db, 'users', targetUserId);
-            await updateDoc(userRef, { licenseType: newLicense });
-            
-            // Update local state
+        const userRef = doc(db, 'users', targetUserId);
+        
+        updateDoc(userRef, { licenseType: newLicense }).then(() => {
             setUsers(prev => prev.map(u => u.uid === targetUserId ? { ...u, licenseType: newLicense } : u));
             toast({ title: 'Licença atualizada!', description: 'A licença do usuário foi alterada com sucesso.' });
-        } catch (error) {
-            console.error("Error updating license:", error);
-            toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
-        } finally {
             setIsSubmitting(null);
-        }
+        }).catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { licenseType: newLicense },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
+            setIsSubmitting(null);
+        });
     };
 
     if (loading) {

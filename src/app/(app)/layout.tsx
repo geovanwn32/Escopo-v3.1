@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Header } from '@/components/layout/header';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
+import { db, FirebaseProvider } from '@/lib/firebase';
 import { CompanySelectionModal } from '@/components/company-selection-modal';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -146,43 +147,45 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-      <div className="flex min-h-screen w-full">
-        <SidebarNav onHelpClick={() => setIsHelpModalOpen(true)} />
-        <div className="flex flex-1 flex-col">
-          <Header
+      <FirebaseProvider>
+        <div className="flex min-h-screen w-full">
+          <SidebarNav onHelpClick={() => setIsHelpModalOpen(true)} />
+          <div className="flex flex-1 flex-col">
+            <Header
+              activeCompany={activeCompany}
+              onSwitchCompany={() => setCompanyModalOpen(true)}
+            />
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+              <div className="mx-auto w-full max-w-none">
+                {children}
+              </div>
+            </main>
+          </div>
+          {user && (
+            <CompanySelectionModal
+              isOpen={isCompanyModalOpen}
+              onClose={() => {
+                if (activeCompany) {
+                  setCompanyModalOpen(false);
+                } else {
+                  toast({
+                    variant: "destructive",
+                    title: "Seleção de empresa necessária",
+                    description: "Você precisa selecionar uma empresa para continuar.",
+                  })
+                }
+              }}
+              onCompanySelect={handleCompanySelect}
+              userId={user.uid}
+            />
+          )}
+          <HelpModal 
+            isOpen={isHelpModalOpen} 
+            onClose={() => setIsHelpModalOpen(false)}
             activeCompany={activeCompany}
-            onSwitchCompany={() => setCompanyModalOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <div className="mx-auto w-full max-w-none">
-              {children}
-            </div>
-          </main>
         </div>
-        {user && (
-          <CompanySelectionModal
-            isOpen={isCompanyModalOpen}
-            onClose={() => {
-              if (activeCompany) {
-                setCompanyModalOpen(false);
-              } else {
-                toast({
-                  variant: "destructive",
-                  title: "Seleção de empresa necessária",
-                  description: "Você precisa selecionar uma empresa para continuar.",
-                })
-              }
-            }}
-            onCompanySelect={handleCompanySelect}
-            userId={user.uid}
-          />
-        )}
-        <HelpModal 
-          isOpen={isHelpModalOpen} 
-          onClose={() => setIsHelpModalOpen(false)}
-          activeCompany={activeCompany}
-        />
-      </div>
+      </FirebaseProvider>
   );
 }
 

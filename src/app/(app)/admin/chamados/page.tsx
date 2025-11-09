@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collectionGroup, getDocs, doc, updateDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collectionGroup, getDocs, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Ticket } from '@/types/ticket';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, ArrowLeft, MoreHorizontal } from "lucide-react";
+import { Loader2, ArrowLeft, MoreHorizontal, DropdownMenuLabel } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,8 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TicketStatus } from '@/types';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 const statusMap: Record<TicketStatus, string> = {
     open: 'Aberto',
@@ -58,8 +60,13 @@ export default function AllTicketsPage() {
             });
             setTickets(ticketsData);
             setLoading(false);
-        }, (error) => {
+        }, async (error) => {
             console.error("Error fetching tickets:", error);
+            const permissionError = new FirestorePermissionError({
+                path: `tickets (collectionGroup)`,
+                operation: 'list',
+            });
+            errorEmitter.emit('permission-error', permissionError);
             toast({ variant: 'destructive', title: 'Erro ao buscar chamados.' });
             setLoading(false);
         });
@@ -69,16 +76,21 @@ export default function AllTicketsPage() {
 
     const handleUpdateStatus = async (ticket: Ticket & { _path: string }, newStatus: TicketStatus) => {
         setIsUpdating(ticket.id!);
-        try {
-            const ticketRef = doc(db, ticket._path);
-            await updateDoc(ticketRef, { status: newStatus, updatedAt: serverTimestamp() });
+        const ticketRef = doc(db, ticket._path);
+        
+        updateDoc(ticketRef, { status: newStatus, updatedAt: serverTimestamp() }).then(() => {
             toast({ title: 'Status do chamado atualizado!' });
-        } catch (error) {
-            console.error("Error updating ticket status:", error);
-            toast({ variant: 'destructive', title: 'Erro ao atualizar status.' });
-        } finally {
             setIsUpdating(null);
-        }
+        }).catch(async (serverError) => {
+             const permissionError = new FirestorePermissionError({
+                path: ticketRef.path,
+                operation: 'update',
+                requestResourceData: { status: newStatus, updatedAt: 'SERVER_TIMESTAMP' },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+            toast({ variant: 'destructive', title: 'Erro ao atualizar status.' });
+            setIsUpdating(null);
+        });
     };
 
     if (loading) {
