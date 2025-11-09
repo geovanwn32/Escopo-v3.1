@@ -35,11 +35,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { ptBR } from "date-fns/locale"
-import { startOfDay, format, parse, isValid, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfDay, format, parse, isValid, isWithinInterval, startOfMonth, endOfMonth, subDays, startOfYear, endOfYear } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "@/components/utilitarios/event-form-modal"
 import { Button } from "@/components/ui/button"
 import type { Launch, Vacation, Payroll, RCI, Termination, Thirteenth, Company, Recibo } from "@/types"
+import { cn } from "@/lib/utils"
 
 
 const formatCurrency = (value: number) => {
@@ -48,6 +49,7 @@ const formatCurrency = (value: number) => {
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const PIE_CHART_COLORS = ['#16a34a', '#dc2626']; // green-600, red-600
+type DateRangeFilter = 'thisMonth' | 'last30Days' | 'thisYear';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -68,6 +70,7 @@ export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [eventsCurrentPage, setEventsCurrentPage] = useState(1);
   const eventsItemsPerPage = 5;
+  const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>('thisMonth');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -115,7 +118,15 @@ export default function DashboardPage() {
             if (dateValue instanceof Timestamp) {
                 return dateValue.toDate();
             }
-            return new Date(dateValue); // Fallback for serialized dates
+            // Fallback for serialized dates (if any) or already-Date objects
+            if (dateValue && typeof dateValue.toDate === 'function') {
+                return dateValue.toDate();
+            }
+            if (dateValue instanceof Date) {
+                return dateValue;
+            }
+            // Attempt to parse string dates, but this is less reliable
+            return new Date(dateValue);
         };
 
         setLaunches(launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: parseTimestamp(doc.data(), 'date') } as Launch)));
@@ -151,41 +162,50 @@ export default function DashboardPage() {
 
   const { totalReceitas, totalDespesas, totalNotas, chartData } = useMemo(() => {
     const today = new Date();
-    const currentMonthStart = startOfMonth(today);
-    const currentMonthEnd = endOfMonth(today);
+    let filterStartDate, filterEndDate;
+    
+    switch (dateRangeFilter) {
+      case 'last30Days':
+        filterStartDate = subDays(today, 30);
+        filterEndDate = today;
+        break;
+      case 'thisYear':
+        filterStartDate = startOfYear(today);
+        filterEndDate = endOfYear(today);
+        break;
+      case 'thisMonth':
+      default:
+        filterStartDate = startOfMonth(today);
+        filterEndDate = endOfMonth(today);
+        break;
+    }
 
     let monthRevenue = 0;
     let monthExpenses = 0;
     let monthDocs = 0;
     
-    // Monthly totals for cards
-    launches.forEach(l => {
-        const value = l.valorLiquido || l.valorTotalNota || 0;
-        const launchDate = l.date as Date;
-        if (!isValid(launchDate)) return;
-
-        if (isWithinInterval(launchDate, { start: currentMonthStart, end: currentMonthEnd })) {
-            monthDocs++;
-            if (l.type === 'saida' || l.type === 'servico') {
-                monthRevenue += value;
-            } else if (l.type === 'entrada') {
-                monthExpenses += value;
-            }
-        }
+    // Monthly totals for cards, based on the selected filter
+    const itemsInDateRange = [...launches, ...recibos].filter(item => {
+        const itemDate = 'date' in item ? item.date : item.data;
+        if (!isValid(itemDate)) return false;
+        return isWithinInterval(itemDate, { start: filterStartDate, end: filterEndDate });
     });
 
-    recibos.forEach(r => {
-        const value = r.valor || 0;
-        const receiptDate = r.data as Date;
-        if (!isValid(receiptDate)) return;
-
-        if (isWithinInterval(receiptDate, { start: currentMonthStart, end: currentMonthEnd })) {
-            monthDocs++;
-            monthExpenses += value;
+    itemsInDateRange.forEach(item => {
+        monthDocs++;
+        if ('type' in item) { // It's a Launch
+            const value = item.valorLiquido || item.valorTotalNota || 0;
+            if (item.type === 'saida' || item.type === 'servico') {
+                monthRevenue += value;
+            } else if (item.type === 'entrada') {
+                monthExpenses += value;
+            }
+        } else { // It's a Recibo
+            monthExpenses += item.valor || 0;
         }
     });
     
-    // Chart data for last 6 months
+    // Chart data for last 6 months (this remains constant regardless of filter for now)
     const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
     for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
@@ -193,41 +213,36 @@ export default function DashboardPage() {
         monthlyTotals[key] = { receitas: 0, despesas: 0 };
     }
 
-    launches.forEach(l => {
-        const value = l.valorLiquido || l.valorTotalNota || 0;
-        const launchDate = l.date as Date;
-        if (!isValid(launchDate)) return;
-        const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
+    [...launches, ...recibos].forEach(item => {
+        const itemDate = 'date' in item ? item.date : item.data;
+        if (!isValid(itemDate)) return;
+        const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
 
         if (monthlyTotals[key]) {
-            if (l.type === 'saida' || l.type === 'servico') {
-                monthlyTotals[key].receitas += value;
-            } else if (l.type === 'entrada') {
-                monthlyTotals[key].despesas += value;
-            }
-        }
-    });
-
-    recibos.forEach(r => {
-        const value = r.valor || 0;
-        const receiptDate = r.data as Date;
-        if (!isValid(receiptDate)) return;
-        const key = `${receiptDate.getFullYear()}-${receiptDate.getMonth()}`;
-        if(monthlyTotals[key]) {
-           monthlyTotals[key].despesas += value;
+             if ('type' in item) { // Launch
+                 const value = item.valorLiquido || item.valorTotalNota || 0;
+                 if (item.type === 'saida' || item.type === 'servico') {
+                     monthlyTotals[key].receitas += value;
+                 } else if (item.type === 'entrada') {
+                     monthlyTotals[key].despesas += value;
+                 }
+             } else { // Recibo
+                 monthlyTotals[key].despesas += item.valor || 0;
+             }
         }
     });
 
     personnelCosts.forEach(item => {
         let itemDate;
+        // Determine the relevant date for the personnel cost item
         if ('period' in item && typeof item.period === 'string') {
             const [month, year] = item.period.split('/');
-            itemDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        } else if ('startDate' in item && (item as any).startDate) {
+            itemDate = new Date(parseInt(year), parseInt(month) - 1, 15); // Use mid-month to be safe
+        } else if ('startDate' in item && (item as any).startDate) { // Vacation
             itemDate = new Date((item as any).startDate);
-        } else if ('terminationDate' in item && (item as any).terminationDate) {
+        } else if ('terminationDate' in item && (item as any).terminationDate) { // Termination
              itemDate = new Date((item as any).terminationDate);
-        } else if ('createdAt' in item && (item as any).createdAt) {
+        } else if ('createdAt' in item && (item as any).createdAt) { // Thirteenth
              const ts = (item as any).createdAt;
              itemDate = ts.toDate ? ts.toDate() : new Date(ts);
         }
@@ -237,9 +252,9 @@ export default function DashboardPage() {
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
         
         let value = 0;
-        if ('totals' in item && item.totals) {
+        if ('totals' in item && item.totals) { // Payroll, RCI
             value = (item as any).totals?.totalProventos ?? 0;
-        } else if ('result' in item && item.result) {
+        } else if ('result' in item && item.result) { // Vacation, Termination, Thirteenth
             value = (item as any).result?.totalProventos ?? 0;
         }
         
@@ -254,12 +269,12 @@ export default function DashboardPage() {
     });
 
     return { totalReceitas: monthRevenue, totalDespesas: monthExpenses, totalNotas: monthDocs, chartData: newChartData };
-  }, [launches, recibos, personnelCosts]);
+  }, [launches, recibos, personnelCosts, dateRangeFilter]);
   
   const stats = [
-    { title: "Faturamento no Mês", amount: formatCurrency(totalReceitas), icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-100" },
+    { title: "Faturamento no Período", amount: formatCurrency(totalReceitas), icon: TrendingUp, color: "text-green-600", bgColor: "bg-green-100" },
     { title: "Compras e Despesas", amount: formatCurrency(totalDespesas), icon: ShoppingCart, color: "text-red-600", bgColor: "bg-red-100" },
-    { title: "Notas e Recibos Emitidos", amount: totalNotas.toString(), icon: FileText, color: "text-blue-600", bgColor: "bg-blue-100" },
+    { title: "Notas e Recibos", amount: totalNotas.toString(), icon: FileText, color: "text-blue-600", bgColor: "bg-blue-100" },
     { title: "Resultado", amount: formatCurrency(totalReceitas - totalDespesas), icon: BarChart2, color: "text-indigo-600", bgColor: "bg-indigo-100" },
   ];
 
@@ -306,6 +321,14 @@ export default function DashboardPage() {
   return (
     <>
     <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <div className="flex items-center gap-2 rounded-lg bg-muted p-1">
+                <Button variant={dateRangeFilter === 'thisMonth' ? 'default' : 'ghost'} size="sm" onClick={() => setDateRangeFilter('thisMonth')}>Este Mês</Button>
+                <Button variant={dateRangeFilter === 'last30Days' ? 'default' : 'ghost'} size="sm" onClick={() => setDateRangeFilter('last30Days')}>Últimos 30 dias</Button>
+                <Button variant={dateRangeFilter === 'thisYear' ? 'default' : 'ghost'} size="sm" onClick={() => setDateRangeFilter('thisYear')}>Este Ano</Button>
+            </div>
+        </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
           <Card key={index}>
