@@ -28,6 +28,7 @@ import type { Servico } from '@/types/servico';
 import { Separator } from '../ui/separator';
 import { DateInput } from '../ui/date-input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { Label } from '../ui/label';
 
 
 interface XmlFile {
@@ -550,7 +551,7 @@ export const LaunchFormModal = ({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="sm:max-w-4xl w-full">
+                <DialogContent className="max-w-4xl w-full">
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
                     <DialogHeader>
@@ -565,9 +566,8 @@ export const LaunchFormModal = ({
                      <Tabs defaultValue="geral" className="w-full pt-4">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
-                            <TabsTrigger value="parties">Partes</TabsTrigger>
-                            {launchType !== 'servico' && <TabsTrigger value="details">Produtos</TabsTrigger>}
-                            {launchType === 'servico' && <TabsTrigger value="details">Detalhes</TabsTrigger>}
+                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Prestador/Tomador' : 'Emitente/Destinatário'}</TabsTrigger>
+                            <TabsTrigger value="details">{launchType === 'servico' ? 'Detalhes do Serviço' : 'Produtos'}</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
                         <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
@@ -591,20 +591,22 @@ export const LaunchFormModal = ({
                                      <FormField control={control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
                                 </div>
                                 <Separator className="my-4"/>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {launchType === 'servico' ? (
-                                        <>
-                                            <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                            <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                        </>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                     {launchType === 'servico' ? (
+                                        <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                     ) : (
-                                        <>
-                                            <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly /></FormControl></FormItem> )} />
-                                            <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                            <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                        </>
+                                        <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly /></FormControl></FormItem> )} />
                                     )}
-                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                    {launchType !== 'servico' && (
+                                         <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    )}
+                                     {launchType !== 'servico' && (
+                                        <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                     )}
+                                     {launchType === 'servico' && (
+                                        <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                     )}
+                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={launchType !== 'servico' || isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
