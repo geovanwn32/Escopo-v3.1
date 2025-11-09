@@ -509,6 +509,43 @@ export default function FiscalPage() {
     });
   };
 
+  const getPartnerName = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return item.pagadorNome;
+    switch (item.type) {
+      case 'entrada':
+        return item.emitente?.nome || 'N/A';
+      case 'saida':
+         if (item.destinatario?.nome) return item.destinatario.nome;
+         if (item.tomador?.nome) return item.tomador.nome;
+         return 'N/A';
+      case 'servico':
+        return item.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+  };
+
+  const getLaunchValue = (item: GenericLaunch): number => {
+    if (item.docType === 'recibo') return item.valor;
+    return item.valorLiquido || item.valorTotalNota || 0;
+  }
+  
+  const getLaunchDocRef = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return String(item.numero);
+    return item.numeroNfse || item.chaveNfe || 'N/A';
+  }
+  
+  const getBadgeForLaunchType = (item: GenericLaunch) => {
+    if (item.docType === 'recibo') {
+        return <Badge className="capitalize bg-indigo-100 text-indigo-800">{item.tipo}</Badge>
+    }
+    switch (item.type) {
+        case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
+        case 'saida': return <Badge className="capitalize bg-blue-100 text-blue-800">{item.type}</Badge>;
+        case 'servico': return <Badge className="capitalize bg-yellow-100 text-yellow-800">{item.type}</Badge>;
+        default: return <Badge variant="secondary" className="capitalize">{item.type}</Badge>;
+    }
+  }
   
   const filteredItems = useMemo(() => {
     const genericLaunches: GenericLaunch[] = [
@@ -562,44 +599,6 @@ export default function FiscalPage() {
   useEffect(() => {
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterDate]);
-
-  const getPartnerName = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return item.pagadorNome;
-    switch (item.type) {
-      case 'entrada':
-        return item.emitente?.nome || 'N/A';
-      case 'saida':
-         if (item.destinatario?.nome) return item.destinatario.nome;
-         if (item.tomador?.nome) return item.tomador.nome;
-         return 'N/A';
-      case 'servico':
-        return item.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
-    }
-  };
-
-  const getLaunchValue = (item: GenericLaunch): number => {
-    if (item.docType === 'recibo') return item.valor;
-    return item.valorLiquido || item.valorTotalNota || 0;
-  }
-  
-  const getLaunchDocRef = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return String(item.numero);
-    return item.numeroNfse || item.chaveNfe || 'N/A';
-  }
-  
-  const getBadgeForLaunchType = (item: GenericLaunch) => {
-    if (item.docType === 'recibo') {
-        return <Badge className="capitalize bg-indigo-100 text-indigo-800">{item.tipo}</Badge>
-    }
-    switch (item.type) {
-        case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
-        case 'saida': return <Badge className="capitalize bg-blue-100 text-blue-800">{item.type}</Badge>;
-        case 'servico': return <Badge className="capitalize bg-yellow-100 text-yellow-800">{item.type}</Badge>;
-        default: return <Badge variant="secondary" className="capitalize">{item.type}</Badge>;
-    }
-  }
 
 
   const clearLaunchesFilters = () => {
@@ -1194,3 +1193,4 @@ export default function FiscalPage() {
     </div>
   );
 }
+
