@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
 import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
-import { useFirebase } from "@/lib/firebase";
+import { db } from '@/lib/firebase';
 import type { Launch } from '@/app/(app)/fiscal/page';
 import type { Payroll } from '@/types/payroll';
 import type { RCI } from '@/types/rci';
@@ -41,7 +41,6 @@ export default function ApuracaoPage() {
     const [isReopenModalOpen, setReopenModalOpen] = useState(false);
 
     const { user } = useAuth();
-    const { db } = useFirebase();
     const { toast } = useToast();
     
     useEffect(() => {
@@ -72,7 +71,7 @@ export default function ApuracaoPage() {
     };
 
     const handleCalculate = async () => {
-        if (!user || !activeCompany || !db) {
+        if (!user || !activeCompany) {
             toast({ variant: 'destructive', title: 'Usuário, empresa ou conexão com banco de dados não identificados.' });
             return;
         }
@@ -274,3 +273,5 @@ function StatCard({ title, value }: { title: string, value: string }) {
         </Card>
     )
 }
+
+    
