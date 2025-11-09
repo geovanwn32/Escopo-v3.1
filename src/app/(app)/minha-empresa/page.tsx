@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase.tsx";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { BackupModal } from "@/components/empresa/backup-modal";
 import { lookupCnpj } from "@/services/data-lookup-service";
+import { v4 as uuidv4 } from 'uuid';
 
 
 const companySchema = z.object({
@@ -180,7 +181,20 @@ export default function MinhaEmpresaPage() {
                     const [companySnap, establishmentSnap] = await Promise.all([getDoc(companyRef), getDoc(establishmentRef)]);
 
                     if (companySnap.exists()) {
-                        const data = companySnap.data() as Partial<CompanyFormData> & {cnpj?: string, cpf?: string};
+                        let data = companySnap.data() as Partial<CompanyFormData> & {cnpj?: string, cpf?: string, pseudoIp?: string};
+
+                        // Check and generate pseudoIp if it doesn't exist
+                        if (!data.pseudoIp) {
+                            const newPseudoIp = uuidv4();
+                            try {
+                                await updateDoc(companyRef, { pseudoIp: newPseudoIp });
+                                data.pseudoIp = newPseudoIp; // Update local data object
+                                toast({ title: "Identificador Único Gerado", description: "Um identificador único foi atribuído a esta empresa." });
+                            } catch (e) {
+                                console.error("Failed to update company with pseudoIp:", e);
+                            }
+                        }
+
                         setActiveCompany({ id: companySnap.id, ...data } as Company);
 
                         const inscricaoValue = data.cnpj || data.cpf || data.inscricao;
@@ -234,7 +248,7 @@ export default function MinhaEmpresaPage() {
                 setLoadingPage(false);
             }
         }
-    }, [user, form]);
+    }, [user, form, toast]);
 
 
     async function onSubmit(data: CompanyFormData) {
@@ -901,5 +915,7 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
+
+    
 
     
