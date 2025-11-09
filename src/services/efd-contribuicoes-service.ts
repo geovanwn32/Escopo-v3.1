@@ -1,4 +1,5 @@
 
+
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
 import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -68,7 +69,8 @@ export async function generateEfdContribuicoesTxt(
 
     // --- Bloco 0 ---
     const bloco0Lines = [];
-    bloco0Lines.push(`|0000|008|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0|`);
+    // Adicionado IND_NAT_PJ e campo vazio para SUFRAMA
+    bloco0Lines.push(`|0000|008|${tipoEscrituracao}|0|${company.regimeTributario === 'mei' ? '99' : '00'}|${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0|`);
     bloco0Lines.push('|0001|' + (semMovimento ? '1' : '0') + '|'); 
     
     // -- Registro 0100 - Contabilista
@@ -93,9 +95,10 @@ export async function generateEfdContribuicoesTxt(
     });
     
     if (partners.size > 0) {
-        bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}||${company.uf}||${company.inscricaoMunicipal || ''}|`);
+        bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.inscricaoEstadual || ''}|5201405|${company.inscricaoMunicipal || ''}|`);
         partners.forEach((partner, cnpj) => {
-            bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|${cnpj}||${partner.uf}||${partner.ie || ''}|`);
+             // Removido o campo IE duplicado e garantido o codMun
+            bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|${cnpj}|${partner.ie || ''}|${partner.codMun || ''}|${''}|`);
         });
     }
 
@@ -112,9 +115,9 @@ export async function generateEfdContribuicoesTxt(
     const blocoALines = [];
     blocoALines.push('|A001|' + (servicos.length > 0 ? '0' : '1') + '|');
     if (servicos.length > 0) {
+        blocoALines.push(`|A010|${company.cnpj?.replace(/\D/g, '')}|`); // Empresa é o prestador
         servicos.forEach(s => {
             const tomadorCnpj = s.tomador?.cnpj?.replace(/\D/g, '') || '';
-            blocoALines.push(`|A010|${company.cnpj?.replace(/\D/g, '')}|`); // Empresa é o prestador
             blocoALines.push(
                 `|A100|2|01|${s.serie || ''}|${s.numeroNfse || ''}|${s.chaveNfe || ''}|${formatDate(s.date as Date)}|${formatDate(s.date as Date)}|${formatValue(s.valorServicos)}|${formatValue(s.valorPis)}|${formatValue(s.valorCofins)}|0|0|`
             );
@@ -173,24 +176,22 @@ export async function generateEfdContribuicoesTxt(
     const bloco9Lines = [];
     bloco9Lines.push('|9001|0|');
     
-    // Adiciona os registros 9900 ao Bloco 9
     const sortedRecordTypes = Object.keys(recordCounts).sort();
     sortedRecordTypes.forEach(record => {
         bloco9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
-    // Adiciona a contagem dos próprios registros do Bloco 9
     bloco9Lines.push(`|9900|9001|1|`);
-    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`); // +4 for 9001, 9900, 9990, 9999
+    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`);
     bloco9Lines.push(`|9900|9990|1|`);
     bloco9Lines.push(`|9900|9999|1|`);
     
-    bloco9Lines.sort(); // Re-sort to maintain correct order
+    bloco9Lines.sort((a, b) => a.localeCompare(b)); 
 
-    const totalLinesInBlock9 = bloco9Lines.length + 1; // Count 9990 itself
-    bloco9Lines.push(`|9990|${totalLinesInBlockOk + 1}|`);
+    const totalLinesInBlock9 = bloco9Lines.length + 1;
+    bloco9Lines.push(`|9990|${allLines.length + 1}|`); // Corrected reference
     
-    const totalLinesInFile = allLines.length + totalLinesInBlock9 + 1; // Count 9999 itself
+    const totalLinesInFile = allLines.length + totalLinesInBlock9 + 1;
     bloco9Lines.push(`|9999|${totalLinesInFile}|`);
 
     const finalFileContent = [...allLines, ...bloco9Lines].join('\r\n') + '\r\n';
