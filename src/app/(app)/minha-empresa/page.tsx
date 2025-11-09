@@ -381,7 +381,14 @@ export default function MinhaEmpresaPage() {
   return (
     <div className="space-y-6">
         <input type="file" ref={fileInputRef} onChange={handleManualFileSelect} className="hidden" accept="image/png, image/jpeg" />
-        <h1 className="text-2xl font-bold">Configurações da Empresa</h1>
+        <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Configurações da Empresa</h1>
+            <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEstablishmentModalOpen(true)}><FileKey className="mr-2 h-4 w-4"/>Ficha do Estabelecimento (eSocial)</Button>
+                <Button variant="outline" onClick={() => setReopenPeriodModalOpen(true)}><KeyRound className="mr-2 h-4 w-4"/>Reabrir Período Fiscal</Button>
+                <Button variant="secondary" onClick={() => setBackupModalOpen(true)}><Archive className="mr-2 h-4 w-4"/>Backup e Restauração</Button>
+            </div>
+        </div>
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid gap-6 lg:grid-cols-1">
@@ -847,6 +854,32 @@ export default function MinhaEmpresaPage() {
                 </div>
             </form>
         </Form>
+        {user && activeCompany && (
+            <EstablishmentForm
+                isOpen={isEstablishmentModalOpen}
+                onClose={() => setEstablishmentModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompany.id}
+                initialData={establishmentData}
+                onSave={handleSaveEstablishment}
+            />
+        )}
+        {user && activeCompany && (
+            <ReopenPeriodModal 
+                isOpen={isReopenPeriodModalOpen}
+                onClose={() => setReopenPeriodModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompany.id}
+            />
+        )}
+         {user && activeCompany && (
+            <BackupModal 
+                isOpen={isBackupModalOpen}
+                onClose={() => setBackupModalOpen(false)}
+                userId={user.uid}
+                companyId={activeCompany.id}
+            />
+        )}
     </div>
   );
 }
