@@ -4,7 +4,7 @@
  * @fileOverview An AI flow that acts as a support assistant for the application.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, googleAiPlugin } from '@/ai/genkit';
 import { z } from 'genkit';
 import { readFileSync } from 'fs';
 import path from 'path';
