@@ -3,14 +3,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regra para a coleção de tickets de suporte
-    match /tickets/{ticketId} {
-      // Qualquer usuário autenticado pode criar um ticket.
-      allow create: if request.auth != null;
-      // Apenas o criador do ticket pode lê-lo ou atualizá-lo.
-      allow read, update: if request.auth != null && resource.data.requesterUid == request.auth.uid;
-    }
-
     // Regra para os dados do próprio usuário
     match /users/{userId} {
       // O usuário pode ler, atualizar e deletar seu próprio documento de usuário
@@ -19,7 +11,13 @@ service cloud.firestore {
       allow create: if request.auth != null;
     }
 
-    // Regra para TODAS as subcoleções e documentos dentro de uma empresa específica
+    // Regra para a coleção de tickets de suporte dentro de uma empresa
+    match /users/{userId}/companies/{companyId}/tickets/{ticketId} {
+      // O usuário só pode criar, ler, e atualizar tickets dentro de suas próprias empresas.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regra para TODAS as outras subcoleções e documentos dentro de uma empresa específica
     match /users/{userId}/companies/{companyId}/{document=**} {
       // O usuário só pode ler e escrever nos documentos de suas próprias empresas
       allow read, write: if request.auth != null && request.auth.uid == userId;
