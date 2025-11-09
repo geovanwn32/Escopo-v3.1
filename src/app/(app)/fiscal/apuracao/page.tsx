@@ -6,17 +6,18 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, Loader2, ArrowLeft, BarChart2, Calculator, Scale, Lock, RefreshCcw } from "lucide-react";
+import { FileText, Loader2, ArrowLeft, BarChart2, Calculator, Scale, Lock, RefreshCcw, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
 import { collection, getDocs, query, where, Timestamp, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useFirebase } from "@/lib/firebase";
 import type { Launch } from '@/app/(app)/fiscal/page';
 import type { Payroll } from '@/types/payroll';
 import type { RCI } from '@/types/rci';
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
+import { ReopenPeriodModal } from "@/components/fiscal/reopen-period-modal";
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
@@ -37,8 +38,10 @@ export default function ApuracaoPage() {
     const [activeCompany, setActiveCompany] = useState<Company | null>(null);
     const [calculationResult, setCalculationResult] = useState<TaxResult | null>(null);
     const [isClosingModalOpen, setClosingModalOpen] = useState(false);
+    const [isReopenModalOpen, setReopenModalOpen] = useState(false);
 
     const { user } = useAuth();
+    const { db } = useFirebase();
     const { toast } = useToast();
     
     useEffect(() => {
@@ -69,8 +72,8 @@ export default function ApuracaoPage() {
     };
 
     const handleCalculate = async () => {
-        if (!user || !activeCompany) {
-            toast({ variant: 'destructive', title: 'Usuário ou empresa não identificados.' });
+        if (!user || !activeCompany || !db) {
+            toast({ variant: 'destructive', title: 'Usuário, empresa ou conexão com banco de dados não identificados.' });
             return;
         }
 
@@ -180,10 +183,16 @@ export default function ApuracaoPage() {
                     </Button>
                     <h1 className="text-2xl font-bold">Apuração de Impostos</h1>
                 </div>
-                 <Button onClick={() => setClosingModalOpen(true)} disabled={!activeCompany}>
-                    <Lock className="mr-2 h-4 w-4"/>
-                    Realizar Fechamento Fiscal
-                </Button>
+                 <div className="flex items-center gap-2">
+                    <Button variant="destructive" onClick={() => setReopenModalOpen(true)} disabled={!activeCompany}>
+                      <KeyRound className="mr-2 h-4 w-4"/>
+                      Reabrir Período
+                    </Button>
+                    <Button onClick={() => setClosingModalOpen(true)} disabled={!activeCompany}>
+                      <Lock className="mr-2 h-4 w-4"/>
+                      Realizar Fechamento Fiscal
+                    </Button>
+                </div>
             </div>
 
             <Card className="max-w-4xl mx-auto">
@@ -236,6 +245,14 @@ export default function ApuracaoPage() {
                 <FiscalClosingModal
                     isOpen={isClosingModalOpen}
                     onClose={() => setClosingModalOpen(false)}
+                    userId={user.uid}
+                    companyId={activeCompany.id}
+                />
+            )}
+             {user && activeCompany && (
+                <ReopenPeriodModal
+                    isOpen={isReopenModalOpen}
+                    onClose={() => setReopenModalOpen(false)}
                     userId={user.uid}
                     companyId={activeCompany.id}
                 />
