@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -13,7 +12,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText, Printer } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, FileText, Printer } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -22,13 +21,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { RCI } from "@/types/rci";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { ptBR } from "date-fns/locale";
-import { format, isValid } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { generateProLaboreReceiptPdf } from "@/services/pro-labore-receipt-service";
 import type { Socio } from "@/types/socio";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
 
 
 export default function PessoalPageWrapper() {
@@ -52,8 +49,7 @@ export default function PessoalPageWrapper() {
 
   // Vacation Filters
   const [vacationNameFilter, setVacationNameFilter] = useState('');
-  const [vacationStartDateFilter, setVacationStartDateFilter] = useState<Date | undefined>();
-  const [vacationEndDateFilter, setVacationEndDateFilter] = useState<Date | undefined>();
+  const [vacationDateFilter, setVacationDateFilter] = useState<DateRange | undefined>();
 
   // Thirteenth Filters
   const [thirteenthNameFilter, setThirteenthNameFilter] = useState('');
@@ -61,9 +57,8 @@ export default function PessoalPageWrapper() {
   const [thirteenthParcelFilter, setThirteenthParcelFilter] = useState('');
 
   // Termination Filters
+  const [terminationDateFilter, setTerminationDateFilter] = useState<DateRange | undefined>();
   const [terminationNameFilter, setTerminationNameFilter] = useState('');
-  const [terminationStartDateFilter, setTerminationStartDateFilter] = useState<Date | undefined>();
-  const [terminationEndDateFilter, setTerminationEndDateFilter] = useState<Date | undefined>();
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -183,23 +178,23 @@ export default function PessoalPageWrapper() {
         return vacations.filter(v => {
             const nameMatch = v.employeeName.toLowerCase().includes(vacationNameFilter.toLowerCase());
             let dateMatch = true;
-            if (vacationStartDateFilter) {
+            if (vacationDateFilter?.from) {
                 const itemDate = new Date(v.startDate as Date);
                 itemDate.setHours(0,0,0,0);
-                const startDate = new Date(vacationStartDateFilter);
+                const startDate = new Date(vacationDateFilter.from);
                 startDate.setHours(0,0,0,0);
                 dateMatch = itemDate >= startDate;
             }
-            if (vacationEndDateFilter && dateMatch) {
+            if (vacationDateFilter?.to && dateMatch) {
                 const itemDate = new Date(v.startDate as Date);
                 itemDate.setHours(23,59,59,999);
-                const endDate = new Date(vacationEndDateFilter);
+                const endDate = new Date(vacationDateFilter.to);
                 endDate.setHours(23,59,59,999);
                 dateMatch = itemDate <= endDate;
             }
             return nameMatch && dateMatch;
         });
-    }, [vacations, vacationNameFilter, vacationStartDateFilter, vacationEndDateFilter]);
+    }, [vacations, vacationNameFilter, vacationDateFilter]);
 
     const filteredThirteenths = useMemo(() => {
         return thirteenths.filter(t =>
@@ -213,23 +208,23 @@ export default function PessoalPageWrapper() {
         return terminations.filter(t => {
             const nameMatch = t.employeeName.toLowerCase().includes(terminationNameFilter.toLowerCase());
             let dateMatch = true;
-            if (terminationStartDateFilter) {
+            if (terminationDateFilter?.from) {
                 const itemDate = new Date(t.terminationDate as Date);
                 itemDate.setHours(0,0,0,0);
-                const startDate = new Date(terminationStartDateFilter);
+                const startDate = new Date(terminationDateFilter.from);
                 startDate.setHours(0,0,0,0);
                 dateMatch = itemDate >= startDate;
             }
-            if (terminationEndDateFilter && dateMatch) {
+            if (terminationDateFilter?.to && dateMatch) {
                 const itemDate = new Date(t.terminationDate as Date);
                 itemDate.setHours(23,59,59,999);
-                const endDate = new Date(terminationEndDateFilter);
+                const endDate = new Date(terminationDateFilter.to);
                 endDate.setHours(23,59,59,999);
                 dateMatch = itemDate <= endDate;
             }
             return nameMatch && dateMatch;
         });
-    }, [terminations, terminationNameFilter, terminationStartDateFilter, terminationEndDateFilter]);
+    }, [terminations, terminationNameFilter, terminationDateFilter]);
 
   const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
@@ -248,13 +243,7 @@ export default function PessoalPageWrapper() {
       const socioRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId);
       const socioSnap = await getDoc(socioRef);
       if (socioSnap.exists()) {
-        const data = socioSnap.data();
-        const socioData: Socio = { 
-            id: socioSnap.id,
-            ...data,
-            dataEntrada: (data.dataEntrada as Timestamp).toDate(),
-            dataNascimento: (data.dataNascimento as Timestamp).toDate(),
-        } as Socio;
+        const socioData = { id: socioSnap.id, ...socioSnap.data() } as Socio;
         generateProLaboreReceiptPdf(activeCompany, socioData, rci);
       } else {
         toast({ variant: "destructive", title: "Sócio não encontrado" });
@@ -678,20 +667,10 @@ export default function PessoalPageWrapper() {
           <CardDescription>Visualize os cálculos de férias salvos.</CardDescription>
         </CardHeader>
         <CardContent>
-             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <Input placeholder="Filtrar por nome..." value={vacationNameFilter} onChange={(e) => setVacationNameFilter(e.target.value)} className="max-w-xs" />
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {vacationStartDateFilter && vacationEndDateFilter ? (<>{format(vacationStartDateFilter, "dd/MM/yy")} - {format(vacationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Início</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="range" selected={{ from: vacationStartDateFilter, to: vacationEndDateFilter }} onSelect={(range) => { setVacationStartDateFilter(range?.from); setVacationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
-                    </PopoverContent>
-                </Popover>
-                <Button variant="ghost" onClick={() => { setVacationNameFilter(''); setVacationStartDateFilter(undefined); setVacationEndDateFilter(undefined); }} className="sm:ml-auto">
+                <DateRangePicker date={vacationDateFilter} onDateChange={setVacationDateFilter} placeholder="Filtrar por Data de Início" />
+                <Button variant="ghost" onClick={() => { setVacationNameFilter(''); setVacationDateFilter(undefined); }} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
                 </Button>
             </div>
@@ -782,20 +761,10 @@ export default function PessoalPageWrapper() {
           <CardDescription>Visualize os cálculos de rescisão salvos.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <Input placeholder="Filtrar por nome..." value={terminationNameFilter} onChange={(e) => setTerminationNameFilter(e.target.value)} className="max-w-xs" />
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {terminationStartDateFilter && terminationEndDateFilter ? (<>{format(terminationStartDateFilter, "dd/MM/yy")} - {format(terminationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Afastamento</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="range" selected={{ from: terminationStartDateFilter, to: terminationEndDateFilter }} onSelect={(range) => { setTerminationStartDateFilter(range?.from); setTerminationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
-                    </PopoverContent>
-                </Popover>
-                <Button variant="ghost" onClick={() => { setTerminationNameFilter(''); setTerminationStartDateFilter(undefined); setTerminationEndDateFilter(undefined); }} className="sm:ml-auto">
+                <DateRangePicker date={terminationDateFilter} onDateChange={setTerminationDateFilter} placeholder="Filtrar por Data de Afastamento" />
+                <Button variant="ghost" onClick={() => { setTerminationNameFilter(''); setTerminationDateFilter(undefined); }} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
                 </Button>
             </div>
@@ -880,8 +849,3 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
-
-    
-
-    
-

@@ -1,22 +1,17 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Loader2, ArrowLeft, Calendar as CalendarIcon } from "lucide-react";
+import { FileText, Loader2, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import Link from 'next/link';
 import type { Company } from '@/types/company';
 import { DateRange } from "react-day-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
 import { startOfMonth } from "date-fns";
 import { generateReceiptsReportPdf } from "@/services/receipts-report-service";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 
 export default function RecibosReportPage() {
@@ -90,43 +85,7 @@ export default function RecibosReportPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="grid gap-2">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <Button
-                                id="date"
-                                variant={"outline"}
-                                className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !dateRange && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (
-                                dateRange.to ? (
-                                    <>
-                                    {format(dateRange.from, "dd/MM/yy", { locale: ptBR })} -{" "}
-                                    {format(dateRange.to, "dd/MM/yy", { locale: ptBR })}
-                                    </>
-                                ) : (
-                                    format(dateRange.from, "dd/MM/yy", { locale: ptBR })
-                                )
-                                ) : (
-                                <span>Selecione um período</span>
-                                )}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                initialFocus
-                                mode="range"
-                                defaultMonth={dateRange?.from}
-                                selected={dateRange}
-                                onSelect={setDateRange}
-                                numberOfMonths={2}
-                                locale={ptBR}
-                            />
-                            </PopoverContent>
-                        </Popover>
+                        <DateRangePicker date={dateRange} onDateChange={setDateRange} />
                     </div>
                     <Button onClick={handleGenerateReport} className="w-full" disabled={isGenerating || !activeCompany}>
                         {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}

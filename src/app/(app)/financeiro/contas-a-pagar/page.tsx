@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { collection, onSnapshot, query, doc, updateDoc, where, orderBy } from 'f
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowDownLeftSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -17,12 +16,9 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import type { Launch } from '@/app/(app)/fiscal/page';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
-import { cn } from '@/lib/utils';
-import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -196,10 +192,10 @@ export default function ContasAPagarPage() {
                     <CardDescription>Visualize as notas fiscais de compra pendentes de pagamento.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+                     <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                         <div className="relative w-full sm:max-w-xs"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input placeholder="Filtrar por fornecedor..." value={filterPartner} onChange={(e) => setFilterPartner(e.target.value)} className="pl-8"/></div>
                         <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as any)}><SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Filtrar por Status" /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="pago">Pago</SelectItem><SelectItem value="vencido">Vencido</SelectItem></SelectContent></Select>
-                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4" />{filterDate?.from && filterDate.to ? (<>{format(filterDate.from, "dd/MM/yy")} - {format(filterDate.to, "dd/MM/yy")}</>) : <span>Filtrar por Data</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={filterDate} onSelect={setFilterDate} locale={ptBR} numberOfMonths={2} /></PopoverContent></Popover>
+                        <DateRangePicker date={filterDate} onDateChange={setFilterDate} />
                         <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto"><FilterX className="mr-2 h-4 w-4" />Limpar Filtros</Button>
                     </div>
                     {loading ? (<div className="flex justify-center items-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>)
@@ -234,5 +230,3 @@ export default function ContasAPagarPage() {
         </div>
     );
 }
-
-    

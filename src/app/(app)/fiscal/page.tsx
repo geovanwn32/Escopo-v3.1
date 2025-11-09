@@ -5,7 +5,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3 } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -15,9 +15,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format, isValid, startOfMonth, endOfMonth, isWithinInterval, subMonths } from "date-fns";
+import { DateRange } from "react-day-picker";
+import { format, isValid, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { FiscalClosingModal } from "@/components/fiscal/fiscal-closing-modal";
@@ -29,10 +28,11 @@ import type { Produto } from '@/types/produto';
 import type { Servico } from '@/types/servico';
 import type { Employee } from '@/types/employee';
 import { XmlFile, Launch, Company, Recibo } from "@/types";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ReceiptFormModal, ReceiptModalOptions } from "@/components/fiscal/receipt-form-modal";
 import { useRouter } from 'next/navigation';
 import { AnnualReportModal } from "@/components/fiscal/annual-report-modal";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
@@ -101,8 +101,7 @@ export default function FiscalPage() {
 
   const [filterKey, setFilterKey] = useState("");
   const [filterType, setFilterType] = useState("");
-  const [filterStartDate, setFilterStartDate] = useState<Date | undefined>();
-  const [filterEndDate, setFilterEndDate] = useState<Date | undefined>();
+  const [filterDate, setFilterDate] = useState<DateRange | undefined>(undefined);
   const [launchesCurrentPage, setLaunchesCurrentPage] = useState(1);
   const launchesItemsPerPage = 10;
 
@@ -539,24 +538,24 @@ export default function FiscalPage() {
         const itemDateRaw = item.docType === 'launch' ? item.date : item.data;
         const itemDate = (itemDateRaw as any)?.toDate ? (itemDateRaw as any).toDate() : new Date(itemDateRaw);
 
-        if (filterStartDate) {
-            const startDate = new Date(filterStartDate);
+        if (filterDate?.from) {
+            const startDate = new Date(filterDate.from);
             startDate.setHours(0,0,0,0);
             dateMatch = itemDate >= startDate;
         }
-        if (filterEndDate && dateMatch) {
-            const endDate = new Date(filterEndDate);
+        if (filterDate?.to && dateMatch) {
+            const endDate = new Date(filterDate.to);
             endDate.setHours(23,59,59,999);
             dateMatch = itemDate <= endDate;
         }
 
         return keyMatch && typeMatch && dateMatch;
     });
-  }, [launches, recibos, filterKey, filterType, filterStartDate, filterEndDate]);
+  }, [launches, recibos, filterKey, filterType, filterDate]);
 
   useEffect(() => {
     setLaunchesCurrentPage(1);
-  }, [filterKey, filterType, filterStartDate, filterEndDate]);
+  }, [filterKey, filterType, filterDate]);
 
   const getPartnerName = (item: GenericLaunch): string => {
     if (item.docType === 'recibo') return item.pagadorNome;
@@ -600,8 +599,7 @@ export default function FiscalPage() {
   const clearLaunchesFilters = () => {
     setFilterKey('');
     setFilterType('');
-    setFilterStartDate(undefined);
-    setFilterEndDate(undefined);
+    setFilterDate(undefined);
   };
 
 
@@ -1001,7 +999,7 @@ export default function FiscalPage() {
           <CardDescription>Visualize e filtre os lançamentos fiscais e recibos.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <Input
                     placeholder="Filtrar por Chave/Número..."
                     value={filterKey}
@@ -1020,33 +1018,7 @@ export default function FiscalPage() {
                         <SelectItem value="comprovante">Comprovante</SelectItem>
                     </SelectContent>
                 </Select>
-                 <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={"outline"}
-                            className="w-full sm:w-[280px] justify-start text-left font-normal"
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {filterStartDate && filterEndDate ? (
-                                <>
-                                {format(filterStartDate, "dd/MM/yy")} - {format(filterEndDate, "dd/MM/yy")}
-                                </>
-                            ) : <span>Filtrar por Data</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                        mode="range"
-                        selected={{ from: filterStartDate, to: filterEndDate }}
-                        onSelect={(range) => {
-                            setFilterStartDate(range?.from);
-                            setFilterEndDate(range?.to);
-                        }}
-                        locale={ptBR}
-                        numberOfMonths={2}
-                        />
-                    </PopoverContent>
-                </Popover>
+                 <DateRangePicker date={filterDate} onDateChange={setFilterDate} />
                 <Button variant="ghost" onClick={clearLaunchesFilters} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" />
                     Limpar Filtros

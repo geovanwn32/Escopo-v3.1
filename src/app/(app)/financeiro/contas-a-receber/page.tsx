@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -6,7 +5,7 @@ import { collection, onSnapshot, query, doc, updateDoc, where, orderBy } from 'f
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, Calendar as CalendarIcon, FileText, FileSpreadsheet } from "lucide-react";
+import { MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ArrowUpRightSquare, ArrowLeft, CheckCircle, Hourglass, Wallet, Banknote, AlertTriangle, Search, FilterX, FileText, FileSpreadsheet } from "lucide-react";
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Company } from '@/types/company';
@@ -18,13 +17,10 @@ import { format } from 'date-fns';
 import type { Launch } from '@/app/(app)/fiscal/page';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
-import { cn } from '@/lib/utils';
-import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { generateReceivablesReportPdf } from '@/services/receivables-report-service';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
@@ -295,7 +291,7 @@ export default function ContasAReceberPage() {
           <CardDescription>Visualize as notas fiscais de venda e serviço pendentes de pagamento.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                  <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -315,30 +311,7 @@ export default function ContasAReceberPage() {
                         <SelectItem value="vencido">Vencido</SelectItem>
                     </SelectContent>
                 </Select>
-                 <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={"outline"}
-                            className="w-full sm:w-[280px] justify-start text-left font-normal"
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {filterDate?.from && filterDate.to ? (
-                                <>
-                                {format(filterDate.from, "dd/MM/yy")} - {format(filterDate.to, "dd/MM/yy")}
-                                </>
-                            ) : <span>Filtrar por Data</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                        mode="range"
-                        selected={filterDate}
-                        onSelect={setFilterDate}
-                        locale={ptBR}
-                        numberOfMonths={2}
-                        />
-                    </PopoverContent>
-                </Popover>
+                <DateRangePicker date={filterDate} onDateChange={setFilterDate} />
                 <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" />
                     Limpar Filtros
@@ -425,5 +398,3 @@ export default function ContasAReceberPage() {
     </div>
   );
 }
-
-    
