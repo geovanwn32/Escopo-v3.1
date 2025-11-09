@@ -72,13 +72,17 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
     // --- 2. PROCESS DATA ---
      const monthlyData: { 
         month: string; 
-        faturamento: { total: number; normal: number; cancelado: number; substituida: number };
-        custos: { total: number; normal: number; cancelado: number; substituida: number };
+        faturamentoNormal: number;
+        faturamentoCancelado: number;
+        custosNormal: number;
+        custosCancelado: number;
         saldo: number 
     }[] = Array.from({ length: 12 }, (_, i) => ({
         month: format(new Date(year, i, 1), 'MMMM', { locale: ptBR }),
-        faturamento: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
-        custos: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
+        faturamentoNormal: 0,
+        faturamentoCancelado: 0,
+        custosNormal: 0,
+        custosCancelado: 0,
         saldo: 0,
     }));
 
@@ -86,39 +90,39 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         const launchDate = (launch.date as any).toDate ? (launch.date as any).toDate() : new Date(launch.date);
         const monthIndex = getMonth(launchDate);
         const value = launch.valorLiquido || launch.valorTotalNota || 0;
-        const status = (launch.status || 'Normal').toLowerCase() as 'normal' | 'cancelado' | 'substituida';
+        const isCancelled = launch.status === 'Cancelado';
 
         if (launch.type === 'saida' || launch.type === 'servico') {
-            monthlyData[monthIndex].faturamento.total += value;
-            if (status === 'normal') monthlyData[monthIndex].faturamento.normal += value;
-            if (status === 'cancelado') monthlyData[monthIndex].faturamento.cancelado += value;
-            if (status === 'substituida') monthlyData[monthIndex].faturamento.substituida += value;
+            if (isCancelled) {
+                 monthlyData[monthIndex].faturamentoCancelado += value;
+            } else {
+                monthlyData[monthIndex].faturamentoNormal += value;
+            }
         } else if (launch.type === 'entrada') {
-             monthlyData[monthIndex].custos.total += value;
-            if (status === 'normal') monthlyData[monthIndex].custos.normal += value;
-            if (status === 'cancelado') monthlyData[monthIndex].custos.cancelado += value;
-            if (status === 'substituida') monthlyData[monthIndex].custos.substituida += value;
+             if (isCancelled) {
+                 monthlyData[monthIndex].custosCancelado += value;
+            } else {
+                monthlyData[monthIndex].custosNormal += value;
+            }
         }
     });
 
     const totals = {
-        faturamento: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
-        custos: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
+        faturamentoNormal: 0,
+        faturamentoCancelado: 0,
+        custosNormal: 0,
+        custosCancelado: 0,
         saldo: 0
     };
 
     monthlyData.forEach(month => {
-        month.saldo = month.faturamento.normal - month.custos.normal; // Saldo considera apenas o normal
-        totals.faturamento.total += month.faturamento.total;
-        totals.faturamento.normal += month.faturamento.normal;
-        totals.faturamento.cancelado += month.faturamento.cancelado;
-        totals.faturamento.substituida += month.faturamento.substituida;
-        totals.custos.total += month.custos.total;
-        totals.custos.normal += month.custos.normal;
-        totals.custos.cancelado += month.custos.cancelado;
-        totals.custos.substituida += month.custos.substituida;
+        month.saldo = month.faturamentoNormal - month.custosNormal;
+        totals.faturamentoNormal += month.faturamentoNormal;
+        totals.faturamentoCancelado += month.faturamentoCancelado;
+        totals.custosNormal += month.custosNormal;
+        totals.custosCancelado += month.custosCancelado;
     });
-    totals.saldo = totals.faturamento.normal - totals.custos.normal;
+    totals.saldo = totals.faturamentoNormal - totals.custosNormal;
 
 
     // --- 3. PDF GENERATION ---
@@ -129,42 +133,40 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
     
     const tableRows = monthlyData.map(data => [
         data.month.charAt(0).toUpperCase() + data.month.slice(1),
-        `${formatCurrency(data.faturamento.total)}\n(N: ${formatCurrency(data.faturamento.normal)} | C: ${formatCurrency(data.faturamento.cancelado)})`,
-        `${formatCurrency(data.custos.total)}\n(N: ${formatCurrency(data.custos.normal)} | C: ${formatCurrency(data.custos.cancelado)})`,
+        formatCurrency(data.faturamentoNormal),
+        formatCurrency(data.faturamentoCancelado),
+        formatCurrency(data.custosNormal),
+        formatCurrency(data.custosCancelado),
         formatCurrency(data.saldo)
     ]);
 
     autoTable(doc, {
         startY: y,
-        head: [['Mês', 'Faturamento (Saídas + Serviços)', 'Custos (Entradas)', 'Saldo (Normal)']],
+        head: [['Mês', 'Faturamento (Normal)', 'Faturamento (Cancelado)', 'Custos (Normal)', 'Custos (Cancelado)', 'Saldo']],
         body: tableRows,
         foot: [
             [
                 { content: 'Total Anual', styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: `${formatCurrency(totals.faturamento.total)}\n(N: ${formatCurrency(totals.faturamento.normal)} | C: ${formatCurrency(totals.faturamento.cancelado)})`, styles: { fontStyle: 'bold' } },
-                { content: `${formatCurrency(totals.custos.total)}\n(N: ${formatCurrency(totals.custos.normal)} | C: ${formatCurrency(totals.custos.cancelado)})`, styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.faturamentoNormal), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.faturamentoCancelado), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.custosNormal), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.custosCancelado), styles: { fontStyle: 'bold' } },
                 { content: formatCurrency(totals.saldo), styles: { fontStyle: 'bold' } }
             ]
         ],
         theme: 'grid',
         headStyles: { fillColor: [51, 145, 255], textColor: 255, fontStyle: 'bold' },
         footStyles: { fillColor: [240, 245, 255], textColor: 0, fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 2 },
+        styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
-            0: { cellWidth: 25 },
+            0: { cellWidth: 22 },
             1: { cellWidth: 'auto', halign: 'right' },
             2: { cellWidth: 'auto', halign: 'right' },
             3: { cellWidth: 'auto', halign: 'right' },
+            4: { cellWidth: 'auto', halign: 'right' },
+            5: { cellWidth: 'auto', halign: 'right' },
         },
-        didParseCell: (data) => {
-            // Add a small note about the breakdown
-            if (data.section === 'head' && data.column.index === 1) {
-                data.cell.text = [data.cell.text[0], '(Total | Normal | Cancelado)'];
-            }
-        }
     });
 
     doc.output('dataurlnewwindow');
 }
-
-    
