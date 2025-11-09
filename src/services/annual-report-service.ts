@@ -49,6 +49,7 @@ function addHeader(doc: jsPDF, company: Company, year: number) {
 
 export async function generateAnnualReportPdf(userId: string, company: Company, year: number): Promise<void> {
     const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
     let y = addHeader(doc, company, year);
 
     // --- 1. FETCH DATA ---
@@ -62,17 +63,22 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
     );
 
     const snapshot = await getDocs(q);
-    const launches = snapshot.docs.map(doc => doc.data() as Launch).filter(l => l.status === 'Normal');
+    const launches = snapshot.docs.map(doc => doc.data() as Launch);
 
     if (launches.length === 0) {
-        throw new Error("Nenhum lançamento fiscal com status 'Normal' encontrado para o ano selecionado.");
+        throw new Error("Nenhum lançamento fiscal encontrado para o ano selecionado.");
     }
 
     // --- 2. PROCESS DATA ---
-    const monthlyData: { month: string; entradas: number; saidas: number; saldo: number }[] = Array.from({ length: 12 }, (_, i) => ({
+     const monthlyData: { 
+        month: string; 
+        faturamento: { total: number; normal: number; cancelado: number; substituida: number };
+        custos: { total: number; normal: number; cancelado: number; substituida: number };
+        saldo: number 
+    }[] = Array.from({ length: 12 }, (_, i) => ({
         month: format(new Date(year, i, 1), 'MMMM', { locale: ptBR }),
-        entradas: 0,
-        saidas: 0,
+        faturamento: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
+        custos: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
         saldo: 0,
     }));
 
@@ -80,55 +86,85 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         const launchDate = (launch.date as any).toDate ? (launch.date as any).toDate() : new Date(launch.date);
         const monthIndex = getMonth(launchDate);
         const value = launch.valorLiquido || launch.valorTotalNota || 0;
+        const status = (launch.status || 'Normal').toLowerCase() as 'normal' | 'cancelado' | 'substituida';
 
         if (launch.type === 'saida' || launch.type === 'servico') {
-            monthlyData[monthIndex].saidas += value;
+            monthlyData[monthIndex].faturamento.total += value;
+            if (status === 'normal') monthlyData[monthIndex].faturamento.normal += value;
+            if (status === 'cancelado') monthlyData[monthIndex].faturamento.cancelado += value;
+            if (status === 'substituida') monthlyData[monthIndex].faturamento.substituida += value;
         } else if (launch.type === 'entrada') {
-            monthlyData[monthIndex].entradas += value;
+             monthlyData[monthIndex].custos.total += value;
+            if (status === 'normal') monthlyData[monthIndex].custos.normal += value;
+            if (status === 'cancelado') monthlyData[monthIndex].custos.cancelado += value;
+            if (status === 'substituida') monthlyData[monthIndex].custos.substituida += value;
         }
     });
 
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    monthlyData.forEach(month => {
-        month.saldo = month.saidas - month.entradas;
-        totalEntradas += month.entradas;
-        totalSaidas += month.saidas;
-    });
+    const totals = {
+        faturamento: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
+        custos: { total: 0, normal: 0, cancelado: 0, substituida: 0 },
+        saldo: 0
+    };
 
-    const totalSaldo = totalSaidas - totalEntradas;
+    monthlyData.forEach(month => {
+        month.saldo = month.faturamento.normal - month.custos.normal; // Saldo considera apenas o normal
+        totals.faturamento.total += month.faturamento.total;
+        totals.faturamento.normal += month.faturamento.normal;
+        totals.faturamento.cancelado += month.faturamento.cancelado;
+        totals.faturamento.substituida += month.faturamento.substituida;
+        totals.custos.total += month.custos.total;
+        totals.custos.normal += month.custos.normal;
+        totals.custos.cancelado += month.custos.cancelado;
+        totals.custos.substituida += month.custos.substituida;
+    });
+    totals.saldo = totals.faturamento.normal - totals.custos.normal;
+
 
     // --- 3. PDF GENERATION ---
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Relatório Fiscal Anual - ${year}`, pageWidth / 2, y, { align: 'center' });
+    y += 10;
+    
     const tableRows = monthlyData.map(data => [
         data.month.charAt(0).toUpperCase() + data.month.slice(1),
-        formatCurrency(data.saidas),
-        formatCurrency(data.entradas),
+        `${formatCurrency(data.faturamento.total)}\n(N: ${formatCurrency(data.faturamento.normal)} | C: ${formatCurrency(data.faturamento.cancelado)})`,
+        `${formatCurrency(data.custos.total)}\n(N: ${formatCurrency(data.custos.normal)} | C: ${formatCurrency(data.custos.cancelado)})`,
         formatCurrency(data.saldo)
     ]);
 
     autoTable(doc, {
         startY: y,
-        head: [['Mês', 'Faturamento (Saídas + Serviços)', 'Custos (Entradas)', 'Saldo']],
+        head: [['Mês', 'Faturamento (Saídas + Serviços)', 'Custos (Entradas)', 'Saldo (Normal)']],
         body: tableRows,
         foot: [
             [
                 { content: 'Total Anual', styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: formatCurrency(totalSaidas), styles: { fontStyle: 'bold' } },
-                { content: formatCurrency(totalEntradas), styles: { fontStyle: 'bold' } },
-                { content: formatCurrency(totalSaldo), styles: { fontStyle: 'bold' } }
+                { content: `${formatCurrency(totals.faturamento.total)}\n(N: ${formatCurrency(totals.faturamento.normal)} | C: ${formatCurrency(totals.faturamento.cancelado)})`, styles: { fontStyle: 'bold' } },
+                { content: `${formatCurrency(totals.custos.total)}\n(N: ${formatCurrency(totals.custos.normal)} | C: ${formatCurrency(totals.custos.cancelado)})`, styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.saldo), styles: { fontStyle: 'bold' } }
             ]
         ],
         theme: 'grid',
         headStyles: { fillColor: [51, 145, 255], textColor: 255, fontStyle: 'bold' },
-        footStyles: { fillColor: [240, 245, 255], textColor: 0 },
-        styles: { fontSize: 9, cellPadding: 2 },
+        footStyles: { fillColor: [240, 245, 255], textColor: 0, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 2 },
         columnStyles: {
-            0: { cellWidth: 40 },
-            1: { halign: 'right' },
-            2: { halign: 'right' },
-            3: { halign: 'right' },
+            0: { cellWidth: 25 },
+            1: { cellWidth: 'auto', halign: 'right' },
+            2: { cellWidth: 'auto', halign: 'right' },
+            3: { cellWidth: 'auto', halign: 'right' },
+        },
+        didParseCell: (data) => {
+            // Add a small note about the breakdown
+            if (data.section === 'head' && data.column.index === 1) {
+                data.cell.text = [data.cell.text[0], '(Total | Normal | Cancelado)'];
+            }
         }
     });
 
     doc.output('dataurlnewwindow');
 }
+
+    
