@@ -48,7 +48,7 @@ function addHeader(doc: jsPDF, company: Company, year: number) {
 }
 
 export async function generateAnnualReportPdf(userId: string, company: Company, year: number): Promise<void> {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.width;
     let y = addHeader(doc, company, year);
 
@@ -74,15 +74,19 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         month: string; 
         faturamentoNormal: number;
         faturamentoCancelado: number;
+        faturamentoSubstituido: number;
         custosNormal: number;
         custosCancelado: number;
+        custosSubstituido: number;
         saldo: number 
     }[] = Array.from({ length: 12 }, (_, i) => ({
         month: format(new Date(year, i, 1), 'MMMM', { locale: ptBR }),
         faturamentoNormal: 0,
         faturamentoCancelado: 0,
+        faturamentoSubstituido: 0,
         custosNormal: 0,
         custosCancelado: 0,
+        custosSubstituido: 0,
         saldo: 0,
     }));
 
@@ -90,19 +94,18 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         const launchDate = (launch.date as any).toDate ? (launch.date as any).toDate() : new Date(launch.date);
         const monthIndex = getMonth(launchDate);
         const value = launch.valorLiquido || launch.valorTotalNota || 0;
-        const isCancelled = launch.status === 'Cancelado';
-
+        
         if (launch.type === 'saida' || launch.type === 'servico') {
-            if (isCancelled) {
-                 monthlyData[monthIndex].faturamentoCancelado += value;
-            } else {
-                monthlyData[monthIndex].faturamentoNormal += value;
+            switch(launch.status) {
+                case 'Normal': monthlyData[monthIndex].faturamentoNormal += value; break;
+                case 'Cancelado': monthlyData[monthIndex].faturamentoCancelado += value; break;
+                case 'Substituida': monthlyData[monthIndex].faturamentoSubstituido += value; break;
             }
         } else if (launch.type === 'entrada') {
-             if (isCancelled) {
-                 monthlyData[monthIndex].custosCancelado += value;
-            } else {
-                monthlyData[monthIndex].custosNormal += value;
+             switch(launch.status) {
+                case 'Normal': monthlyData[monthIndex].custosNormal += value; break;
+                case 'Cancelado': monthlyData[monthIndex].custosCancelado += value; break;
+                case 'Substituida': monthlyData[monthIndex].custosSubstituido += value; break;
             }
         }
     });
@@ -110,8 +113,10 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
     const totals = {
         faturamentoNormal: 0,
         faturamentoCancelado: 0,
+        faturamentoSubstituido: 0,
         custosNormal: 0,
         custosCancelado: 0,
+        custosSubstituido: 0,
         saldo: 0
     };
 
@@ -119,8 +124,10 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         month.saldo = month.faturamentoNormal - month.custosNormal;
         totals.faturamentoNormal += month.faturamentoNormal;
         totals.faturamentoCancelado += month.faturamentoCancelado;
+        totals.faturamentoSubstituido += month.faturamentoSubstituido;
         totals.custosNormal += month.custosNormal;
         totals.custosCancelado += month.custosCancelado;
+        totals.custosSubstituido += month.custosSubstituido;
     });
     totals.saldo = totals.faturamentoNormal - totals.custosNormal;
 
@@ -135,22 +142,26 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         data.month.charAt(0).toUpperCase() + data.month.slice(1),
         formatCurrency(data.faturamentoNormal),
         formatCurrency(data.faturamentoCancelado),
+        formatCurrency(data.faturamentoSubstituido),
         formatCurrency(data.custosNormal),
         formatCurrency(data.custosCancelado),
+        formatCurrency(data.custosSubstituido),
         formatCurrency(data.saldo)
     ]);
 
     autoTable(doc, {
         startY: y,
-        head: [['Mês', 'Faturamento (Normal)', 'Faturamento (Cancelado)', 'Custos (Normal)', 'Custos (Cancelado)', 'Saldo']],
+        head: [['Mês', 'Fat. (Normal)', 'Fat. (Cancel.)', 'Fat. (Subst.)', 'Custos (Normal)', 'Custos (Cancel.)', 'Custos (Subst.)', 'Saldo']],
         body: tableRows,
         foot: [
             [
                 { content: 'Total Anual', styles: { fontStyle: 'bold', halign: 'right' } },
                 { content: formatCurrency(totals.faturamentoNormal), styles: { fontStyle: 'bold' } },
                 { content: formatCurrency(totals.faturamentoCancelado), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.faturamentoSubstituido), styles: { fontStyle: 'bold' } },
                 { content: formatCurrency(totals.custosNormal), styles: { fontStyle: 'bold' } },
                 { content: formatCurrency(totals.custosCancelado), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(totals.custosSubstituido), styles: { fontStyle: 'bold' } },
                 { content: formatCurrency(totals.saldo), styles: { fontStyle: 'bold' } }
             ]
         ],
@@ -160,11 +171,13 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
         styles: { fontSize: 8, cellPadding: 1.5 },
         columnStyles: {
             0: { cellWidth: 22 },
-            1: { cellWidth: 'auto', halign: 'right' },
-            2: { cellWidth: 'auto', halign: 'right' },
-            3: { cellWidth: 'auto', halign: 'right' },
-            4: { cellWidth: 'auto', halign: 'right' },
-            5: { cellWidth: 'auto', halign: 'right' },
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+            5: { halign: 'right' },
+            6: { halign: 'right' },
+            7: { halign: 'right' },
         },
     });
 
