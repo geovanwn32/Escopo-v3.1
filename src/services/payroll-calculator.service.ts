@@ -25,7 +25,7 @@ export function calculateAutomaticEvent(
 
     const baseSalary = employee.salarioBase;
 
-    // Correctly determine the calculation base by looking for the base salary event or using the employee's base salary directly.
+    // Correctly determine the calculation base by summing all relevant earnings
     const inssCalculationBase = allEvents
         .filter(e => e.rubrica.incideINSS)
         .reduce((sum, e) => sum + e.provento, 0);

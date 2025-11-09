@@ -75,8 +75,8 @@ const employeeSchema = z.object({
 
 type FormData = z.infer<typeof employeeSchema>;
 
-const formatCpf = (cpf: string) => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-const formatCep = (cep: string) => cep?.replace(/(\d{5})(\d{3})/, "$1-$2");
+const formatCpf = (cpf: string = '') => cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+const formatCep = (cep: string = '') => cep?.replace(/(\d{5})(\d{3})/, "$1-$2");
 
 function EmployeeForm({ userId, companyId, employee, onClose }: Omit<EmployeeFormModalProps, 'isOpen'>) {
     const [loading, setLoading] = useState(false);

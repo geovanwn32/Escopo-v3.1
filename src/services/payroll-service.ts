@@ -91,14 +91,6 @@ function calculateIRRF(baseIrrf: number, dependents: number, inssDeduction: numb
 export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boolean }), events: PayrollEvent[]): PayrollCalculationResult {
     const isSocio = 'proLabore' in employee || (employee as any).isSocio;
 
-    const totalProventos = events
-        .filter(e => e.rubrica.tipo === 'provento')
-        .reduce((acc, e) => acc + (e.provento || 0), 0);
-    
-    const initialDescontos = events
-        .filter(e => e.rubrica.tipo === 'desconto')
-        .reduce((acc, e) => acc + (e.desconto || 0), 0);
-
     const baseFGTS = events
         .filter(e => e.rubrica.incideFGTS && e.rubrica.tipo === 'provento')
         .reduce((acc, e) => acc + (e.provento || 0), 0);
@@ -137,6 +129,7 @@ export function calculatePayroll(employee: Employee | (Socio & { isSocio?: boole
     if (inss.valor > 0) finalEvents.push(inssEvent);
     if (irrf.value > 0) finalEvents.push(irrfEvent);
 
+    const totalProventos = finalEvents.filter(e => e.rubrica.tipo === 'provento').reduce((acc, e) => acc + (e.provento || 0), 0);
     const totalDescontos = finalEvents.filter(e => e.rubrica.tipo === 'desconto').reduce((acc, e) => acc + (e.desconto || 0), 0);
     const liquido = totalProventos - totalDescontos;
 
