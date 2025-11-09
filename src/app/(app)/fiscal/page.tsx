@@ -67,6 +67,32 @@ const formatCurrency = (value: number) => {
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
+const getPartnerName = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return item.pagadorNome;
+    switch (item.type) {
+      case 'entrada':
+        return item.emitente?.nome || 'N/A';
+      case 'saida':
+         if (item.destinatario?.nome) return item.destinatario.nome;
+         if (item.tomador?.nome) return item.tomador.nome;
+         return 'N/A';
+      case 'servico':
+        return item.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+};
+
+const getLaunchValue = (item: GenericLaunch): number => {
+    if (item.docType === 'recibo') return item.valor;
+    return item.valorLiquido || item.valorTotalNota || 0;
+};
+  
+const getLaunchDocRef = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return String(item.numero);
+    return item.numeroNfse || item.chaveNfe || 'N/A';
+};
+
 const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
 const MemoizedReceiptFormModal = React.memo(ReceiptFormModal);
 
@@ -164,60 +190,68 @@ export default function FiscalPage() {
     }
   }, [xmlFiles, activeCompany]);
 
-  const fetchData = useCallback(() => {
+  useEffect(() => {
     if (!user || !activeCompany) {
-      setLoadingData(false);
-      return;
+        setLoadingData(false);
+        return;
     }
 
     setLoadingData(true);
     const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
 
     const collectionsToFetch = [
-      { name: 'launches', setter: setLaunches, orderByField: 'date' },
-      { name: 'recibos', setter: setRecibos, orderByField: 'data' },
-      { name: 'orcamentos', setter: setOrcamentos, orderByField: 'createdAt' },
-      { name: 'partners', setter: setPartners, orderByField: 'razaoSocial' },
-      { name: 'produtos', setter: setProducts, orderByField: 'descricao' },
-      { name: 'servicos', setter: setServices, orderByField: 'descricao' },
-      { name: 'employees', setter: setEmployees, orderByField: 'nomeCompleto' },
+        { name: 'launches', setter: setLaunches, orderByField: 'date' },
+        { name: 'recibos', setter: setRecibos, orderByField: 'data' },
+        { name: 'orcamentos', setter: setOrcamentos, orderByField: 'createdAt' },
+        { name: 'partners', setter: setPartners, orderByField: 'razaoSocial' },
+        { name: 'produtos', setter: setProducts, orderByField: 'descricao' },
+        { name: 'servicos', setter: setServices, orderByField: 'descricao' },
+        { name: 'employees', setter: setEmployees, orderByField: 'nomeCompleto' },
     ];
+    
+    let activeListeners = collectionsToFetch.length + 1; // +1 for closures
+    
+    const onDone = () => {
+        activeListeners--;
+        if (activeListeners === 0) {
+            setLoadingData(false);
+        }
+    };
 
     const unsubscribes = collectionsToFetch.map(({ name, setter, orderByField }) => {
-      const ref = collection(db, `${companyPath}/${name}`);
-      const q = query(ref, orderBy(orderByField, 'desc'));
-      return onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => {
-          const docData = doc.data();
-          const dateFields = ['date', 'data', 'createdAt', 'dataAdmissao', 'dataNascimento', 'startDate', 'terminationDate'];
-          for (const field of dateFields) {
-            if (docData[field] instanceof Timestamp) {
-              docData[field] = docData[field].toDate();
-            }
-          }
-          return { id: doc.id, ...docData };
+        const ref = collection(db, `${companyPath}/${name}`);
+        const q = query(ref, orderBy(orderByField, 'desc'));
+        return onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                // Convert all timestamp fields
+                Object.keys(docData).forEach(key => {
+                    if (docData[key] instanceof Timestamp) {
+                        docData[key] = docData[key].toDate();
+                    }
+                });
+                return { id: doc.id, ...docData };
+            });
+            setter(data as any);
+            onDone();
+        }, (error) => {
+            console.error(`Error fetching ${name}:`, error);
+            toast({ variant: "destructive", title: `Erro ao buscar ${name}` });
+            onDone();
         });
-        setter(data as any);
-      }, (error) => {
-        console.error(`Error fetching ${name}:`, error);
-        toast({ variant: "destructive", title: `Erro ao buscar ${name}` });
-      });
     });
 
     const closuresRef = collection(db, `${companyPath}/fiscalClosures`);
     const unsubClosures = onSnapshot(closuresRef, (snapshot) => {
         setClosedPeriods(snapshot.docs.map(doc => doc.id));
+        onDone();
     });
     unsubscribes.push(unsubClosures);
 
-    setLoadingData(false);
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [user, activeCompany, toast]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    return () => {
+        unsubscribes.forEach(unsub => unsub());
+    };
+}, [user, activeCompany, toast]);
   
   const monthlySummary = useMemo(() => {
     const now = new Date();
@@ -469,8 +503,7 @@ export default function FiscalPage() {
          }
          return f;
      }));
-     fetchData(); // Refetch data to update the launches list
-  }, [user, activeCompany, fetchData]);
+  }, [user, activeCompany]);
 
   const handleDeleteLaunch = async (launch: GenericLaunch) => {
     if (!user || !activeCompany || !launch.id) return;
@@ -490,7 +523,6 @@ export default function FiscalPage() {
         }
 
         toast({ title: "Lançamento excluído com sucesso!" });
-        fetchData();
     } catch (error) {
         console.error("Error deleting launch: ", error);
         toast({
@@ -509,32 +541,6 @@ export default function FiscalPage() {
     });
   };
 
-  const getPartnerName = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return item.pagadorNome;
-    switch (item.type) {
-      case 'entrada':
-        return item.emitente?.nome || 'N/A';
-      case 'saida':
-         if (item.destinatario?.nome) return item.destinatario.nome;
-         if (item.tomador?.nome) return item.tomador.nome;
-         return 'N/A';
-      case 'servico':
-        return item.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
-    }
-  };
-
-  const getLaunchValue = (item: GenericLaunch): number => {
-    if (item.docType === 'recibo') return item.valor;
-    return item.valorLiquido || item.valorTotalNota || 0;
-  }
-  
-  const getLaunchDocRef = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return String(item.numero);
-    return item.numeroNfse || item.chaveNfe || 'N/A';
-  }
-  
   const getBadgeForLaunchType = (item: GenericLaunch) => {
     if (item.docType === 'recibo') {
         return <Badge className="capitalize bg-indigo-100 text-indigo-800">{item.tipo}</Badge>
@@ -683,7 +689,6 @@ export default function FiscalPage() {
      try {
          await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
          toast({ title: "Orçamento excluído com sucesso." });
-         fetchData();
      } catch (error) {
         toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
      }
@@ -1194,3 +1199,5 @@ export default function FiscalPage() {
   );
 }
 
+
+    
