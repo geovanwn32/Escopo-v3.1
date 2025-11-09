@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '@/components/ui/badge';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 import Link from 'next/link';
+import { ptBR } from 'date-fns/locale';
 
 const licenseMap: Record<AppUser['licenseType'], string> = {
     pending_approval: 'Aprovação Pendente',
@@ -60,12 +61,12 @@ export default function AdminPage() {
 
                 const usersData = (usersResult.data as any[]).map(u => ({
                     ...u,
-                    createdAt: u.createdAt ? new Date(u.createdAt._seconds * 1000) : new Date(),
+                    createdAt: u.createdAt?._seconds ? new Date(u.createdAt._seconds * 1000) : new Date(),
                 })) as AppUser[];
                 
                 const ticketsData = (ticketsResult.data as any[]).map(t => ({
                     ...t,
-                    createdAt: t.createdAt ? new Date(t.createdAt._seconds * 1000) : new Date(),
+                    createdAt: t.createdAt?._seconds ? new Date(t.createdAt._seconds * 1000) : new Date(),
                 })) as Ticket[];
 
                 setUsers(usersData);
@@ -86,7 +87,7 @@ export default function AdminPage() {
         const activeUsers = users.filter(u => u.licenseType !== 'pending_approval').length;
         const newUsersThisMonth = users.filter(u => {
             const createdAt = u.createdAt as Date;
-            return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
+            return createdAt && createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
         }).length;
         const totalTickets = tickets.length;
         const pendingTickets = tickets.filter(t => t.status === 'open').length;
@@ -142,7 +143,7 @@ export default function AdminPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">+{metrics.newUsersThisMonth}</div>
-                        <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: 'pt-BR' })}.</p>
+                        <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: ptBR })}.</p>
                     </CardContent>
                 </Card>
                 <Card>

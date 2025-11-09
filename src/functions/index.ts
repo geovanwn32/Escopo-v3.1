@@ -104,6 +104,39 @@ export const updateUserLicense = functions
         }
     });
 
+/**
+ * Updates the status of a specific support ticket. Only callable by an admin.
+ */
+export const updateTicketStatus = functions
+    .region('us-central1')
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'A função deve ser chamada por um usuário autenticado.');
+        }
+        if (!adminApp) {
+            throw new functions.https.HttpsError('failed-precondition', 'O Admin SDK não foi inicializado.');
+        }
+        const callerUser = await getAuth(adminApp).getUser(context.auth.uid);
+        if (callerUser.email !== 'geovaniwn@gmail.com') {
+             throw new functions.https.HttpsError('permission-denied', 'Apenas administradores podem alterar o status de chamados.');
+        }
+        
+        const { ticketPath, newStatus } = data;
+        if (!ticketPath || !newStatus) {
+            throw new functions.https.HttpsError('invalid-argument', 'ticketPath e newStatus são obrigatórios.');
+        }
+
+        try {
+            const firestore = adminApp.firestore();
+            const ticketRef = firestore.doc(ticketPath);
+            await ticketRef.update({ status: newStatus, updatedAt: adminApp.firestore.FieldValue.serverTimestamp() });
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating ticket status:', error);
+            throw new functions.https.HttpsError('internal', 'Não foi possível atualizar o status do chamado.');
+        }
+    });
+
 
 /**
  * A callable function to export a single company's data.

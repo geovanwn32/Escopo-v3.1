@@ -2,8 +2,6 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, functions } from '@/lib/firebase.tsx';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Ticket } from '@/types/ticket';
@@ -18,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TicketStatus } from '@/types';
 import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase.tsx';
 
 const statusMap: Record<TicketStatus, string> = {
     open: 'Aberto',
@@ -51,7 +50,7 @@ export default function AllTicketsPage() {
                 const result = await listAllTickets();
                 const ticketsData = (result.data as any[]).map(t => ({
                     ...t,
-                    createdAt: t.createdAt ? new Date(t.createdAt._seconds * 1000) : new Date(),
+                    createdAt: t.createdAt?._seconds ? new Date(t.createdAt._seconds * 1000) : new Date(),
                 })) as (Ticket & { _path: string })[];
                 setTickets(ticketsData);
             } catch (error: any) {
@@ -66,16 +65,17 @@ export default function AllTicketsPage() {
 
     }, [adminUser, toast]);
 
-    const handleUpdateStatus = async (ticket: Ticket & { _path: string }, newStatus: TicketStatus) => {
-        setIsUpdating(ticket.id!);
+    const handleUpdateStatus = async (ticketPath: string, ticketId: string, newStatus: TicketStatus) => {
+        setIsUpdating(ticketId);
         try {
-            const ticketRef = doc(db, ticket._path);
-            await updateDoc(ticketRef, { status: newStatus, updatedAt: serverTimestamp() });
-            setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: newStatus } : t));
+            const updateTicketStatus = httpsCallable(functions, 'updateTicketStatus');
+            await updateTicketStatus({ ticketPath, newStatus });
+
+            setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: newStatus } : t));
             toast({ title: 'Status do chamado atualizado!' });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error updating status:", error);
-            toast({ variant: 'destructive', title: 'Erro ao atualizar status.' });
+            toast({ variant: 'destructive', title: 'Erro ao atualizar status.', description: error.message });
         } finally {
             setIsUpdating(null);
         }
@@ -127,7 +127,7 @@ export default function AllTicketsPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                         {formatDistanceToNow(ticket.createdAt, { addSuffix: true, locale: ptBR })}
+                                         {formatDistanceToNow(ticket.createdAt as Date, { addSuffix: true, locale: ptBR })}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
@@ -142,7 +142,7 @@ export default function AllTicketsPage() {
                                                     <DropdownMenuItem 
                                                         key={statusKey} 
                                                         disabled={ticket.status === statusKey}
-                                                        onClick={() => handleUpdateStatus(ticket as Ticket & { _path: string }, statusKey as TicketStatus)}
+                                                        onClick={() => handleUpdateStatus((ticket as any)._path, ticket.id!, statusKey as TicketStatus)}
                                                     >
                                                         {statusMap[statusKey as keyof typeof statusMap]}
                                                     </DropdownMenuItem>
