@@ -68,29 +68,41 @@ export async function generateEfdContribuicoesTxt(
 
     // --- Bloco 0 ---
     const bloco0Lines = [];
-    bloco0Lines.push(`|0000|006|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|5201405|${company.inscricaoMunicipal || ''}||9|`);
-    bloco0Lines.push('|0001|0|'); // Bloco 0 com dados
-    bloco0Lines.push('|0110|1|1|1||');
+    bloco0Lines.push(`|0000|008|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0|`);
+    bloco0Lines.push('|0001|' + (semMovimento ? '1' : '0') + '|'); 
+    
+    // -- Registro 0100 - Contabilista
+    bloco0Lines.push(`|0100|CONTADOR EXEMPLO|00000000000|00000000|contador@example.com|62999999999|5201405|RUA TESTE|123|CENTRO|`);
+    
+    // --- Registro 0110 - Regimes
+    bloco0Lines.push(`|0110|${company.metodoApropriacaoCredito || '1'}|${company.tipoContribuicao || '1'}|${company.incidenciaTributaria || '1'}|`);
     
     // --- Registro 0140 - Cadastro de Participantes ---
-    const partners = new Map<string, { nome: string; uf: string, ie: string, codMun: string }>();
+    const partners = new Map<string, { nome: string; uf: string; ie: string; codMun: string }>();
     launches.forEach(launch => {
         const partnerInfo = launch.type === 'entrada' ? launch.emitente : (launch.destinatario || launch.tomador);
         const cnpj = partnerInfo?.cnpj?.replace(/\D/g, '');
         if (cnpj && !partners.has(cnpj)) {
             partners.set(cnpj, {
                 nome: sanitizeString(partnerInfo.nome),
-                uf: '', // These fields would need to be in the partner's record
+                uf: '',
                 ie: '',
                 codMun: ''
             });
         }
     });
+    
+    if (partners.size > 0) {
+        bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}||${company.uf}||${company.inscricaoMunicipal || ''}|`);
+        partners.forEach((partner, cnpj) => {
+            bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|${cnpj}||${partner.uf}||${partner.ie || ''}|`);
+        });
+    }
 
-    bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}||${company.uf}||${company.inscricaoMunicipal || ''}|`);
-    partners.forEach((partner, cnpj) => {
-        bloco0Lines.push(`|0140|${cnpj}|${partner.nome}|${cnpj}||${partner.uf}||${partner.ie || ''}|`);
-    });
+    // -- Registro 0500 - Plano de Contas
+    // Placeholder - would need to fetch chart of accounts
+    // bloco0Lines.push('|0500|...|');
+    
 
     bloco0Lines.push('|0990|' + (bloco0Lines.length + 1) + '|');
     allLines.push(...bloco0Lines);
@@ -102,9 +114,9 @@ export async function generateEfdContribuicoesTxt(
     if (servicos.length > 0) {
         servicos.forEach(s => {
             const tomadorCnpj = s.tomador?.cnpj?.replace(/\D/g, '') || '';
-            blocoALines.push(`|A010|${tomadorCnpj}|`);
+            blocoALines.push(`|A010|${company.cnpj?.replace(/\D/g, '')}|`); // Empresa é o prestador
             blocoALines.push(
-                `|A100|0|01|${s.numeroNfse || ''}|${s.chaveNfe || ''}|${formatDate(s.date as Date)}|${formatDate(s.date as Date)}|${formatValue(s.valorServicos)}|0|0|0|0|${formatValue(s.valorLiquido)}||||||||`
+                `|A100|2|01|${s.serie || ''}|${s.numeroNfse || ''}|${s.chaveNfe || ''}|${formatDate(s.date as Date)}|${formatDate(s.date as Date)}|${formatValue(s.valorServicos)}|${formatValue(s.valorPis)}|${formatValue(s.valorCofins)}|0|0|`
             );
         });
     }
@@ -116,11 +128,11 @@ export async function generateEfdContribuicoesTxt(
     const blocoCLines = [];
     blocoCLines.push('|C001|' + (produtos.length > 0 ? '0' : '1') + '|');
      if (produtos.length > 0) {
+        blocoCLines.push(`|C010|${company.cnpj?.replace(/\D/g, '')}|0|`);
         produtos.forEach(p => {
              const destCnpj = p.destinatario?.cnpj?.replace(/\D/g, '') || '';
-             blocoCLines.push(`|C010|${destCnpj}|`);
              blocoCLines.push(
-                `|C100|1|0|${destCnpj}|55|01||${p.chaveNfe}|${formatDate(p.date as Date)}|${formatDate(p.date as Date)}|${formatValue(p.valorTotalNota)}|1|0|0|${formatValue(p.valorTotalNota)}|9|${formatValue(p.valorTotalNota)}|0|0|0|`
+                `|C100|0|1|${destCnpj}|55|01|${p.serie || ''}|${p.numeroNfse || ''}|${p.chaveNfe}|${formatDate(p.date as Date)}|${formatDate(p.date as Date)}|${formatValue(p.valorTotalNota)}|1|0|0|${formatValue(p.valorTotalNota)}|9|${formatValue(p.valorTotalNota)}|${formatValue(p.valorPis)}|${formatValue(p.valorCofins)}|`
              );
         });
     }
@@ -161,20 +173,22 @@ export async function generateEfdContribuicoesTxt(
     const bloco9Lines = [];
     bloco9Lines.push('|9001|0|');
     
+    // Adiciona os registros 9900 ao Bloco 9
     const sortedRecordTypes = Object.keys(recordCounts).sort();
     sortedRecordTypes.forEach(record => {
         bloco9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
-    // Add Bloco 9 records themselves to the count
+    // Adiciona a contagem dos próprios registros do Bloco 9
     bloco9Lines.push(`|9900|9001|1|`);
+    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`); // +4 for 9001, 9900, 9990, 9999
     bloco9Lines.push(`|9900|9990|1|`);
     bloco9Lines.push(`|9900|9999|1|`);
-    // Re-sort to maintain order
-    bloco9Lines.sort();
+    
+    bloco9Lines.sort(); // Re-sort to maintain correct order
 
     const totalLinesInBlock9 = bloco9Lines.length + 1; // Count 9990 itself
-    bloco9Lines.push(`|9990|${totalLinesInBlock9}|`);
+    bloco9Lines.push(`|9990|${totalLinesInBlockOk + 1}|`);
     
     const totalLinesInFile = allLines.length + totalLinesInBlock9 + 1; // Count 9999 itself
     bloco9Lines.push(`|9999|${totalLinesInFile}|`);
