@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -6,7 +5,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Calendar as CalendarIcon, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +32,7 @@ import { XmlFile, Launch, Company, Recibo } from "@/types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts';
 import { ReceiptFormModal, ReceiptModalOptions } from "@/components/fiscal/receipt-form-modal";
 import { useRouter } from 'next/navigation';
+import { AnnualReportModal } from "@/components/fiscal/annual-report-modal";
 
 
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
@@ -86,6 +86,7 @@ export default function FiscalPage() {
   const [currentReceiptModalData, setCurrentReceiptModalData] = useState<ReceiptModalOptions | null>(null);
 
   const [isClosingModalOpen, setIsClosingModalOpen] = useState(false);
+  const [isAnnualReportModalOpen, setAnnualReportModalOpen] = useState(false);
   
   const [partners, setPartners] = useState<Partner[]>([]);
   const [products, setProducts] = useState<Produto[]>([]);
@@ -677,7 +678,7 @@ export default function FiscalPage() {
   const handleDeleteOrcamento = async (id: string) => {
      if (!user || !activeCompany) return;
      try {
-         await deleteDoc(doc(db, `users/${userId}/companies/${activeCompany.id}/orcamentos`, id));
+         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
          toast({ title: "Orçamento excluído com sucesso." });
          fetchData();
      } catch (error) {
@@ -719,7 +720,7 @@ export default function FiscalPage() {
           <CardTitle>Ações Fiscais</CardTitle>
           <CardDescription>Realize lançamentos fiscais de forma rápida.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'saida', mode: 'create' })} className="w-full bg-blue-100 text-blue-800 hover:bg-blue-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Saída</Button>
           <Button onClick={() => openReceiptModal({ mode: 'create' })} className="w-full bg-indigo-100 text-indigo-800 hover:bg-indigo-200"><FileText className="mr-2 h-4 w-4" /> Lançamentos diversos</Button>
           <Button onClick={() => openLaunchModal({ manualLaunchType: 'entrada', mode: 'create' })} className="w-full bg-red-100 text-red-800 hover:bg-red-200"><FileText className="mr-2 h-4 w-4" /> Lançar Nota de Entrada</Button>
@@ -746,6 +747,9 @@ export default function FiscalPage() {
              <Link href="/fiscal/apuracao">
                 <Scale className="mr-2 h-4 w-4" /> Apuração de Impostos
              </Link>
+          </Button>
+          <Button onClick={() => setAnnualReportModalOpen(true)} className="w-full bg-gray-100 text-gray-800 hover:bg-gray-200">
+            <BarChart3 className="mr-2 h-4 w-4" /> Relatório Anual
           </Button>
         </CardContent>
       </Card>
@@ -1193,6 +1197,15 @@ export default function FiscalPage() {
             onClose={() => setIsClosingModalOpen(false)}
             userId={user.uid}
             companyId={activeCompany.id}
+        />
+      )}
+
+      {user && activeCompany && (
+        <AnnualReportModal
+            isOpen={isAnnualReportModalOpen}
+            onClose={() => setAnnualReportModalOpen(false)}
+            userId={user.uid}
+            company={activeCompany}
         />
       )}
     </div>
