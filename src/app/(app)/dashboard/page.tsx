@@ -35,7 +35,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { ptBR } from "date-fns/locale"
-import { startOfDay, format, parse, isValid } from 'date-fns';
+import { startOfDay, format, parse, isValid, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import type { CalendarEvent } from "@/types/event"
 import { EventFormModal } from "@/components/utilitarios/event-form-modal"
 import { Button } from "@/components/ui/button"
@@ -75,20 +75,16 @@ export default function DashboardPage() {
       const companyDataString = companyId ? sessionStorage.getItem(`company_${companyId}`) : null;
       if (companyDataString) {
           setActiveCompany(JSON.parse(companyDataString));
+      } else {
+        setLoadingData(false);
       }
     }
   }, []);
 
-  const fetchData = useCallback(async () => {
-    if (!user || !activeCompany?.id) {
-      setLoadingData(false);
-      setLaunches([]); setRecibos([]); setPersonnelCosts([]); setEmployeesCount(0); setProductsCount(0); setEvents([]);
-      return;
-    }
-
+  const fetchData = useCallback(async (userId: string, companyId: string) => {
     setLoadingData(true);
     try {
-        const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+        const companyPath = `users/${userId}/companies/${companyId}`;
         
         const [
             launchesSnap,
@@ -114,17 +110,25 @@ export default function DashboardPage() {
             getDocs(collection(db, `${companyPath}/thirteenths`))
         ]);
 
-        setLaunches(launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch)));
-        setRecibos(recibosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), data: (doc.data().data as Timestamp).toDate() } as Recibo)));
+        const parseTimestamp = (docData: any, field: string) => {
+            const dateValue = docData[field];
+            if (dateValue instanceof Timestamp) {
+                return dateValue.toDate();
+            }
+            return new Date(dateValue); // Fallback for serialized dates
+        };
+
+        setLaunches(launchesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: parseTimestamp(doc.data(), 'date') } as Launch)));
+        setRecibos(recibosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), data: parseTimestamp(doc.data(), 'data') } as Recibo)));
         setEmployeesCount(employeesSnap.size);
         setProductsCount(productsSnap.size);
-        setEvents(eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as CalendarEvent)));
+        setEvents(eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), date: parseTimestamp(doc.data(), 'date') } as CalendarEvent)));
         
         const allPersonnelCosts = [
             ...payrollsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payroll)),
             ...rcisSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RCI)),
-            ...vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: (doc.data().startDate as Timestamp).toDate() } as Vacation)),
-            ...terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: (doc.data().terminationDate as Timestamp).toDate() } as Termination)),
+            ...vacationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), startDate: parseTimestamp(doc.data(), 'startDate') } as Vacation)),
+            ...terminationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), terminationDate: parseTimestamp(doc.data(), 'terminationDate') } as Termination)),
             ...thirteenthsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Thirteenth)),
         ];
         setPersonnelCosts(allPersonnelCosts);
@@ -135,40 +139,72 @@ export default function DashboardPage() {
     } finally {
         setLoadingData(false);
     }
-  }, [user, activeCompany, toast]);
+  }, [toast]);
 
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if(user && activeCompany) {
+        fetchData(user.uid, activeCompany.id);
+    }
+  }, [user, activeCompany, fetchData]);
 
 
   const { totalReceitas, totalDespesas, totalNotas, chartData } = useMemo(() => {
-    const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
     const today = new Date();
+    const currentMonthStart = startOfMonth(today);
+    const currentMonthEnd = endOfMonth(today);
+
+    let monthRevenue = 0;
+    let monthExpenses = 0;
+    let monthDocs = 0;
     
+    // Monthly totals for cards
+    launches.forEach(l => {
+        const value = l.valorLiquido || l.valorTotalNota || 0;
+        const launchDate = l.date as Date;
+        if (!isValid(launchDate)) return;
+
+        if (isWithinInterval(launchDate, { start: currentMonthStart, end: currentMonthEnd })) {
+            monthDocs++;
+            if (l.type === 'saida' || l.type === 'servico') {
+                monthRevenue += value;
+            } else if (l.type === 'entrada') {
+                monthExpenses += value;
+            }
+        }
+    });
+
+    recibos.forEach(r => {
+        const value = r.valor || 0;
+        const receiptDate = r.data as Date;
+        if (!isValid(receiptDate)) return;
+
+        if (isWithinInterval(receiptDate, { start: currentMonthStart, end: currentMonthEnd })) {
+            monthDocs++;
+            monthExpenses += value;
+        }
+    });
+    
+    // Chart data for last 6 months
+    const monthlyTotals: { [key: string]: { receitas: number, despesas: number } } = {};
     for (let i = 5; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
         monthlyTotals[key] = { receitas: 0, despesas: 0 };
     }
 
-    let totalReceitas = 0;
-    let totalDespesas = 0;
-
     launches.forEach(l => {
         const value = l.valorLiquido || l.valorTotalNota || 0;
         const launchDate = l.date as Date;
         if (!isValid(launchDate)) return;
-
         const key = `${launchDate.getFullYear()}-${launchDate.getMonth()}`;
 
-        if (l.type === 'saida' || l.type === 'servico') {
-            totalReceitas += value;
-            if (monthlyTotals[key]) monthlyTotals[key].receitas += value;
-        } else if (l.type === 'entrada') {
-            totalDespesas += value;
-            if (monthlyTotals[key]) monthlyTotals[key].despesas += value;
+        if (monthlyTotals[key]) {
+            if (l.type === 'saida' || l.type === 'servico') {
+                monthlyTotals[key].receitas += value;
+            } else if (l.type === 'entrada') {
+                monthlyTotals[key].despesas += value;
+            }
         }
     });
 
@@ -177,20 +213,23 @@ export default function DashboardPage() {
         const receiptDate = r.data as Date;
         if (!isValid(receiptDate)) return;
         const key = `${receiptDate.getFullYear()}-${receiptDate.getMonth()}`;
-        totalDespesas += value;
-        if (monthlyTotals[key]) monthlyTotals[key].despesas += value;
+        if(monthlyTotals[key]) {
+           monthlyTotals[key].despesas += value;
+        }
     });
 
     personnelCosts.forEach(item => {
         let itemDate;
         if ('period' in item && typeof item.period === 'string') {
-            itemDate = parse(`01/${item.period}`, 'dd/MM/yyyy', new Date());
+            const [month, year] = item.period.split('/');
+            itemDate = new Date(parseInt(year), parseInt(month) - 1, 1);
         } else if ('startDate' in item && (item as any).startDate) {
             itemDate = new Date((item as any).startDate);
         } else if ('terminationDate' in item && (item as any).terminationDate) {
              itemDate = new Date((item as any).terminationDate);
         } else if ('createdAt' in item && (item as any).createdAt) {
-             itemDate = new Date((item as any).createdAt);
+             const ts = (item as any).createdAt;
+             itemDate = ts.toDate ? ts.toDate() : new Date(ts);
         }
 
         if (!itemDate || !isValid(itemDate)) return;
@@ -205,17 +244,16 @@ export default function DashboardPage() {
         }
         
         if(value > 0 && monthlyTotals[key]) {
-            totalDespesas += value;
             monthlyTotals[key].despesas += value;
         }
-      });
+    });
     
     const newChartData = Object.keys(monthlyTotals).map(key => {
         const [year, month] = key.split('-').map(Number);
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
 
-    return { totalReceitas, totalDespesas, totalNotas: launches.length + recibos.length, chartData: newChartData };
+    return { totalReceitas: monthRevenue, totalDespesas: monthExpenses, totalNotas: monthDocs, chartData: newChartData };
   }, [launches, recibos, personnelCosts]);
   
   const stats = [
@@ -396,3 +434,5 @@ export default function DashboardPage() {
     </>
   )
 }
+
+    
