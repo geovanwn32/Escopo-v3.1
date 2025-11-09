@@ -215,34 +215,34 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     } 
     else { // NFS-e logic
-        const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse');
+        const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('NFSe > infNFSe');
         if(infNfse) {
-            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet']);
+            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet', 'DPS > infDPS > dhEmi']);
             if (dateString) {
                 const tempDate = new Date(dateString.split('T')[0]);
                 const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
                 data.date = new Date(tempDate.getTime() + timezoneOffset);
             }
-            data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero']);
+            data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero', 'DPS > infDPS > nDPS']);
             data.codigoVerificacaoNfse = querySelectorText(infNfse, ['CodigoVerificacao']);
             
             const serviceNode = xmlDoc.querySelector('serv') || infNfse.querySelector('Servico') || infNfse;
             data.discriminacao = querySelectorText(serviceNode, ['xDescServ', 'Discriminacao']);
             data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
 
-            const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse;
+            const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
             data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
             data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
             data.valorTotalNota = data.valorServicos; // Simplified
             data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
 
             data.prestador = {
-                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome']),
+                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome', 'emit > xNome']),
                 cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > CpfCnpj > Cnpj', 'prest > CNPJ']),
             }
             data.tomador = {
-                nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial']),
-                cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf']),
+                nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial', 'DPS > infDPS > toma > xNome']),
+                cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf', 'DPS > infDPS > toma > CNPJ']),
             }
         }
     }
@@ -341,8 +341,10 @@ const getInitialData = (
                 produtos: [],
                 modalidadeFrete: '9'
             };
-            if (manualLaunchType === 'saida') manualData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
-            if (manualLaunchType === 'servico') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            if (manualLaunchType === 'saida' || manualLaunchType === 'servico') {
+              const partyKey = manualLaunchType === 'saida' ? 'emitente' : 'prestador';
+              manualData[partyKey] = { nome: company.razaoSocial, cnpj: company.cnpj };
+            }
             if (manualLaunchType === 'entrada') manualData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
             return manualData;
         }
@@ -442,8 +444,8 @@ export const LaunchFormModal = ({
         }
     }, [isOpen, initialData, company, reset, userId, toast]);
   
-    const { mode = 'create' } = initialData;
-    const isReadOnly = mode === 'view';
+    const mode = initialData.launch ? 'edit' : 'create';
+    const isReadOnly = false; // Always allow editing
 
     const handleSelectPartner = (partner: Partner) => {
         if (!partnerTarget) return;
@@ -480,37 +482,24 @@ export const LaunchFormModal = ({
     };
 
     const handleSubmit = async (values: FormData) => {
-        if (mode === 'view') {
-            // In view mode, allow saving if changes are made
-            setLoading(true);
-            try {
-                 const dataToSave: any = { ...values, updatedAt: serverTimestamp() };
-                 delete dataToSave.createdAt; // Do not overwrite creation date
-                 const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, initialData.launch!.id);
-                 await updateDoc(launchRef, dataToSave);
-                 toast({ title: "Lançamento Atualizado!", description: "As alterações foram salvas com sucesso."});
-                 onClose();
-            } catch (error) {
-                console.error(error); 
-                toast({ variant: 'destructive', title: 'Erro ao Salvar', description: 'Ocorreu um erro ao salvar as alterações.'});
-            } finally {
-                setLoading(false);
-            }
-            return; 
-        }
-
         setLoading(true);
         try {
-            const dataToSave: any = { ...values,
-                emitente: values.emitente ? { nome: values.emitente.nome || null, cnpj: values.emitente.cnpj?.replace(/\D/g, '') || null } : null,
-                destinatario: values.destinatario ? { nome: values.destinatario.nome || null, cnpj: values.destinatario.cnpj?.replace(/\D/g, '') || null } : null,
-                prestador: values.prestador ? { nome: values.prestador.nome || null, cnpj: values.prestador.cnpj?.replace(/\D/g, '') || null } : null,
-                tomador: values.tomador ? { nome: values.tomador.nome || null, cnpj: values.tomador.cnpj?.replace(/\D/g, '') || null } : null,
-                updatedAt: serverTimestamp(),
-            };
+            const dataToSave: any = { ...values, updatedAt: serverTimestamp() };
+            
+            const parties = ['emitente', 'destinatario', 'prestador', 'tomador'];
+            parties.forEach(party => {
+                if (dataToSave[party]) {
+                    dataToSave[party] = {
+                        nome: dataToSave[party].nome || null,
+                        cnpj: dataToSave[party].cnpj?.replace(/\D/g, '') || null,
+                    };
+                }
+            });
             
             if (mode === 'create') {
                 dataToSave.createdAt = serverTimestamp();
+            } else {
+                 delete dataToSave.createdAt; // Do not overwrite creation date
             }
 
             let partnerType: 'cliente' | 'fornecedor' = 'cliente';
@@ -539,8 +528,10 @@ export const LaunchFormModal = ({
             if (mode === 'create') {
                 await addDoc(launchRef, dataToSave);
                 onLaunchSuccess(dataToSave.chaveNfe || `${dataToSave.numeroNfse}`, dataToSave.status);
+                 toast({ title: "Lançamento Criado!", description: `A nota foi salva com sucesso.` });
             } else {
                 await updateDoc(launchRef as any, dataToSave);
+                 toast({ title: "Lançamento Atualizado!", description: `As alterações foram salvas com sucesso.`});
             }
             onClose();
         } catch (error) { 
@@ -552,9 +543,9 @@ export const LaunchFormModal = ({
     };
   
     const getTitle = () => {
-        const { xmlFile } = initialData;
+        const { xmlFile, launch } = initialData;
         if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
-        return mode === 'edit' ? 'Alterar Lançamento Fiscal' : 'Visualizar Lançamento Fiscal';
+        return launch ? `Alterar Lançamento Fiscal` : 'Alterar Lançamento';
     };
     
      const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string, disabled: boolean = false) => (
@@ -597,12 +588,12 @@ export const LaunchFormModal = ({
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
                             <TabsTrigger value="parties">{launchType === 'servico' ? 'Partes' : 'Partes'}</TabsTrigger>
-                            <TabsTrigger value="details" disabled={launchType === 'servico'}>Detalhes</TabsTrigger>
+                            <TabsTrigger value="details">{launchType === 'servico' ? 'Detalhes' : 'Produtos'}</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
                         <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
                              <TabsContent value="geral" className="space-y-4">
-                                {launchType === 'servico' && initialData.manualLaunchType && (
+                                {launchType === 'servico' && mode === 'create' && (
                                     <div className="space-y-2">
                                         <Label htmlFor="xml-content">Conteúdo do XML (Opcional)</Label>
                                         <Textarea id="xml-content" placeholder="Cole o conteúdo do XML da NFS-e aqui..." value={xmlContent} onChange={(e) => setXmlContent(e.target.value)} rows={6} />
@@ -621,11 +612,18 @@ export const LaunchFormModal = ({
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                      {launchType === 'servico' ? (
                                         <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    ) : null}
-                                     {launchType === 'servico' && (
+                                    ) : (
+                                       <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                    )}
+                                     {launchType === 'servico' ? (
                                         <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                     ) : (
+                                       <>
+                                        <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                        <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
+                                       </>
                                      )}
-                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly && launchType !== 'servico'} className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
@@ -670,9 +668,8 @@ export const LaunchFormModal = ({
                         </div>
                     </Tabs>
                     <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onClose}>{mode === 'create' ? 'Cancelar' : 'Fechar'}</Button>
-                    {mode !== 'create' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar Alterações</Button>}
-                    {mode === 'create' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Confirmar Lançamento</Button>}
+                    <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+                    <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>
                     </DialogFooter>
                     </form>
                     </Form>
@@ -690,4 +687,3 @@ export const LaunchFormModal = ({
         </>
     );
 };
-
