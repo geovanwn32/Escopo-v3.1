@@ -3,7 +3,7 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, UploadCloud, BookUp, Sparkles } from "lucide-react";
+import { BookMarked, ListChecks, Banknote, LineChart, ArrowRight, ArrowLeft, UploadCloud, BookUp, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 const accountingSections = [
@@ -47,7 +47,15 @@ const accountingSections = [
 export default function ContabilPage() {
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold">Módulo Contábil</h1>
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" asChild>
+                    <Link href="/dashboard">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span className="sr-only">Voltar para Dashboard</span>
+                    </Link>
+                </Button>
+                <h1 className="text-2xl font-bold">Módulo Contábil</h1>
+            </div>
              <div className="grid gap-6 md:grid-cols-1">
                 <Card>
                     <CardHeader>
