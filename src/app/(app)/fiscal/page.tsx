@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -553,6 +554,11 @@ export default function FiscalPage() {
     });
   }, [launches, recibos, filterKey, filterType, filterDate]);
 
+  const totalFilteredValue = useMemo(() => {
+    return filteredItems.reduce((acc, item) => acc + getLaunchValue(item), 0);
+  }, [filteredItems]);
+
+
   useEffect(() => {
     setLaunchesCurrentPage(1);
   }, [filterKey, filterType, filterDate]);
@@ -1087,9 +1093,9 @@ export default function FiscalPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                             {item.docType === 'launch' && <DropdownMenuItem onClick={() => handleGeneratePdf(item)}><FileText className="mr-2 h-4 w-4" />Visualizar PDF</DropdownMenuItem>}
-                                            <DropdownMenuItem onClick={() => item.docType === 'launch' ? openLaunchModal({ launch: item, mode: 'view' }) : openReceiptModal({ receipt: item, mode: 'view' })}>
-                                                <Eye className="mr-2 h-4 w-4" />
-                                                Visualizar / Alterar
+                                            <DropdownMenuItem onClick={() => item.docType === 'launch' ? openLaunchModal({ launch: item, mode: 'edit' }) : openReceiptModal({ receipt: item, mode: 'edit' })}>
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                Alterar
                                             </DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -1121,19 +1127,24 @@ export default function FiscalPage() {
                 </Table>
             )}
         </CardContent>
-        {totalLaunchPages > 1 && (
-            <CardFooter className="flex justify-end items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p - 1)} disabled={launchesCurrentPage === 1}>
-                    <ChevronLeft className="h-4 w-4" />
-                    Anterior
-                </Button>
-                <span className="text-sm text-muted-foreground">Página {launchesCurrentPage} de {totalLaunchPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p + 1)} disabled={launchesCurrentPage === totalLaunchPages}>
-                    Próximo
-                    <ChevronRight className="h-4 w-4" />
-                </Button>
-            </CardFooter>
-        )}
+        <CardFooter className="flex justify-between items-center">
+            <div>
+                 <p className="text-sm font-semibold">Valor Total Filtrado: <span className="text-primary">{formatCurrency(totalFilteredValue)}</span></p>
+            </div>
+            {totalLaunchPages > 1 && (
+                <div className="flex justify-end items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p - 1)} disabled={launchesCurrentPage === 1}>
+                        <ChevronLeft className="h-4 w-4" />
+                        Anterior
+                    </Button>
+                    <span className="text-sm text-muted-foreground">Página {launchesCurrentPage} de {totalLaunchPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setLaunchesCurrentPage(p => p + 1)} disabled={launchesCurrentPage === totalLaunchPages}>
+                        Próximo
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+        </CardFooter>
       </Card>
       
        {user && activeCompany && currentLaunchModalData &&
