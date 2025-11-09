@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDocs, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -90,8 +91,9 @@ export default function PessoalPageWrapper() {
         return;
     }
 
-    let isMounted = true;
+    setLoading(true);
     const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+    
     const collectionsToListen = [
         { name: 'payrolls', setter: setPayrolls },
         { name: 'rcis', setter: setRcis },
@@ -99,60 +101,39 @@ export default function PessoalPageWrapper() {
         { name: 'thirteenths', setter: setThirteenths },
         { name: 'vacations', setter: setVacations },
     ];
-
-    const fetchInitialData = async () => {
-        if (!isMounted) return;
-        setLoading(true);
-        try {
-            await Promise.all(collectionsToListen.map(async ({ name, setter }) => {
-                const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                if (isMounted) {
-                    const data = snapshot.docs.map(doc => {
-                        const docData = doc.data();
-                        Object.keys(docData).forEach(key => {
-                            if (docData[key] instanceof Timestamp) {
-                                docData[key] = docData[key].toDate();
-                            }
-                        });
-                        return { id: doc.id, ...docData };
-                    });
-                    setter(data as any);
-                }
-            }));
-        } catch (error) {
-            console.error("Error fetching initial data:", error);
-            if (isMounted) toast({ variant: "destructive", title: "Erro ao carregar dados." });
-        } finally {
-            if (isMounted) setLoading(false);
-        }
-    };
     
-    fetchInitialData();
+    let listenersInitialized = 0;
 
     const unsubscribes = collectionsToListen.map(({ name, setter }) => {
         const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snapshot) => {
-            if (isMounted) {
-                 const data = snapshot.docs.map(doc => {
-                    const docData = doc.data();
-                    Object.keys(docData).forEach(key => {
-                        if (docData[key] instanceof Timestamp) {
-                            docData[key] = docData[key].toDate();
-                        }
-                    });
-                    return { id: doc.id, ...docData };
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                // Safely convert all Timestamps to Dates
+                Object.keys(docData).forEach(key => {
+                    if (docData[key] instanceof Timestamp) {
+                        docData[key] = docData[key].toDate();
+                    }
                 });
-                setter(data as any);
+                return { id: doc.id, ...docData };
+            });
+            setter(data as any);
+            
+            listenersInitialized++;
+            if (listenersInitialized === collectionsToListen.length) {
+                setLoading(false);
             }
         }, (error) => {
             console.error(`Error fetching ${name}:`, error);
-            if (isMounted) toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            listenersInitialized++;
+            if (listenersInitialized === collectionsToListen.length) {
+                setLoading(false);
+            }
         });
     });
     
     return () => {
-        isMounted = false;
         unsubscribes.forEach(unsub => unsub());
     }
 
@@ -231,7 +212,6 @@ export default function PessoalPageWrapper() {
       try {
         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, docId));
         toast({ title: `${docName} excluído(a) com sucesso!` });
-        // The onSnapshot will handle the state update automatically
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }
