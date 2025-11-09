@@ -62,7 +62,7 @@ const companySchema = z.object({
     if (tipoInscricao === 'cnpj' && cleanedInscricao.length !== 14) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "CNPJ inválido.",
+            message: "CNPJ inválido. Deve conter 14 dígitos.",
             path: ["inscricao"]
         });
     }
@@ -453,6 +453,12 @@ export default function MinhaEmpresaPage() {
                                                 <Input 
                                                     {...field}
                                                     placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            if (tipoInscricao === 'cnpj') handleCnpjLookup();
+                                                        }
+                                                    }}
                                                     onChange={(e) => {
                                                         const { value } = e.target;
                                                         if (tipoInscricao === 'cnpj') {
@@ -844,3 +850,5 @@ export default function MinhaEmpresaPage() {
     </div>
   );
 }
+
+    
