@@ -19,11 +19,12 @@ import { createCompanyWithDefaults } from '@/services/company-creation-service';
 import { doc, setDoc } from 'firebase/firestore';
 import { Badge } from './ui/badge';
 import { cn } from '@/lib/utils';
+import { lookupCnpj } from '@/services/data-lookup-service';
 
 const companySchema = z.object({
   nomeFantasia: z.string().min(1, "Nome Fantasia é obrigatório."),
   razaoSocial: z.string().min(1, "Razão Social é obrigatória."),
-  cnpj: z.string().min(18, "CNPJ deve ter 14 dígitos.").transform(val => val.replace(/[^\d]/g, '')),
+  cnpj: z.string().refine(val => val.replace(/\D/g, '').length === 14, "CNPJ deve ter 14 dígitos."),
 });
 
 
@@ -74,24 +75,22 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
   }, [companies, searchTerm]);
   
   const handleCnpjLookup = async () => {
-    const cnpj = form.getValues('cnpj');
-    const cleanedCnpj = cnpj.replace(/\D/g, '');
-    if (cleanedCnpj.length !== 14) {
-      toast({ variant: 'destructive', title: 'CNPJ inválido' });
+    const cnpjValue = form.getValues('cnpj');
+    if (cnpjValue.replace(/\D/g, '').length !== 14) {
+      toast({ variant: 'destructive', title: 'A busca automática funciona apenas para CNPJ.' });
       return;
     }
     setLoadingCnpj(true);
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCnpj}`);
-      if (!response.ok) throw new Error('CNPJ não encontrado ou API indisponível.');
-      const data = await response.json();
-      form.setValue('razaoSocial', data.razao_social || '');
-      form.setValue('nomeFantasia', data.nome_fantasia || data.razao_social || '');
-      toast({ title: 'Dados do CNPJ preenchidos!' });
+        const data = await lookupCnpj(cnpjValue);
+        form.setValue('razaoSocial', data.razaoSocial, { shouldValidate: true });
+        form.setValue('nomeFantasia', data.nomeFantasia, { shouldValidate: true });
+        toast({ title: 'Dados do CNPJ preenchidos!' });
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
+        console.error("Lookup failed:", error);
+        toast({ variant: 'destructive', title: 'Erro ao buscar CNPJ', description: (error as Error).message });
     } finally {
-      setLoadingCnpj(false);
+        setLoadingCnpj(false);
     }
   };
 
@@ -99,14 +98,18 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
   const handleCreateOrUpdateCompany = async (values: z.infer<typeof companySchema>) => {
     setIsSubmitting(true);
     try {
+      const companyData = {
+          ...values,
+          cnpj: values.cnpj.replace(/\D/g, ''),
+      };
       if (editingCompany) {
         // Handle update
         const companyRef = doc(db, `users/${userId}/companies`, editingCompany.id);
-        await setDoc(companyRef, values, { merge: true });
+        await setDoc(companyRef, companyData, { merge: true });
         toast({ title: "Empresa atualizada com sucesso!" });
       } else {
         // Handle create
-        await createCompanyWithDefaults(userId, values);
+        await createCompanyWithDefaults(userId, companyData);
         toast({ title: "Empresa criada com sucesso!", description: "Um plano de contas padrão foi adicionado." });
       }
       form.reset({ cnpj: '', razaoSocial: '', nomeFantasia: ''});
@@ -169,7 +172,10 @@ export function CompanySelectionModal({ isOpen, onClose, onCompanySelect, userId
                       <FormControl>
                         <Input
                           {...field}
-                          onBlur={handleCnpjLookup}
+                          onBlur={() => {
+                            field.onBlur(); // Important to trigger validation
+                            handleCnpjLookup();
+                          }}
                           onChange={(e) => {
                             const { value } = e.target;
                             e.target.value = value
