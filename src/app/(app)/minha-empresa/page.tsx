@@ -144,6 +144,29 @@ export default function MinhaEmpresaPage() {
         }
     };
 
+    const handleCepLookup = async (cep: string) => {
+        const cleanedCep = cep.replace(/\D/g, '');
+        if (cleanedCep.length !== 8) return;
+
+        setLoadingCnpj(true); // Re-use loading state
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`);
+            if (!response.ok) throw new Error('CEP não encontrado');
+            const data = await response.json();
+            if (data.erro) throw new Error('CEP inválido');
+            
+            form.setValue('logradouro', data.logradouro);
+            form.setValue('bairro', data.bairro);
+            form.setValue('cidade', data.localidade);
+            form.setValue('uf', data.uf);
+            form.setFocus('numero'); // Move focus to the number field
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro ao buscar CEP', description: (error as Error).message });
+        } finally {
+            setLoadingCnpj(false);
+        }
+    };
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -704,7 +727,7 @@ export default function MinhaEmpresaPage() {
                                 render={({ field }) => (
                                     <FormItem className="md:col-span-1">
                                         <FormLabel>CEP</FormLabel>
-                                        <FormControl><Input {...field} /></FormControl>
+                                        <FormControl><Input {...field} onBlur={(e) => handleCepLookup(e.target.value)} /></FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
