@@ -1,5 +1,4 @@
 
-
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -36,5 +35,3 @@ export const FirebaseProvider = ({ children }: { children: React.ReactNode }) =>
 
 
 export { app, auth, db, storage, functions };
-
-

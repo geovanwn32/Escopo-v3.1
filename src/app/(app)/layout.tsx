@@ -9,7 +9,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Header } from '@/components/layout/header';
 import { useAuth } from '@/lib/auth';
-import { db, FirebaseProvider } from '@/lib/firebase';
+import { db, FirebaseProvider } from '@/lib/firebase.tsx';
 import { CompanySelectionModal } from '@/components/company-selection-modal';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

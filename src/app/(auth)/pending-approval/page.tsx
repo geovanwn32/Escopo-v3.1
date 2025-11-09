@@ -4,7 +4,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/firebase.tsx";
 import { signOut } from "firebase/auth";
 import { Clock, Mail, LogOut, BookCheck } from "lucide-react";
 import Link from "next/link";

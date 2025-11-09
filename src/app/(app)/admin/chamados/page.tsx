@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { collectionGroup, getDocs, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase.tsx';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Ticket } from '@/types/ticket';

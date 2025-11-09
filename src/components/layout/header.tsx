@@ -6,7 +6,7 @@ import { signOut } from "firebase/auth";
 import { LogOut, Repeat, UserCircle, Settings, Menu, LayoutDashboard, Search, Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/firebase.tsx";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {

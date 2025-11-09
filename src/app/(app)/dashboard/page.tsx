@@ -29,7 +29,7 @@ import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tool
 import { useEffect, useState, useMemo, useCallback, Suspense } from "react"
 import { useAuth } from "@/lib/auth"
 import { collection, query, onSnapshot, orderBy, limit, Timestamp, where, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { db } from "@/lib/firebase.tsx"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
