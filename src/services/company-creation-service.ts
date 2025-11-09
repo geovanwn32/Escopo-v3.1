@@ -2,6 +2,7 @@
 import { collection, addDoc, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { ContaContabil } from "@/types/conta-contabil";
+import { v4 as uuidv4 } from 'uuid'; // Import UUID generator
 
 interface CompanyData {
     nomeFantasia: string;
@@ -69,7 +70,7 @@ const defaultChartOfAccounts: Omit<ContaContabil, 'id'>[] = [
 ];
 
 /**
- * Creates a new company and populates it with a default chart of accounts.
+ * Creates a new company and populates it with a default chart of accounts and a unique pseudo-IP.
  * @param userId The ID of the user creating the company.
  * @param companyData The basic data for the new company.
  */
@@ -77,9 +78,12 @@ export async function createCompanyWithDefaults(
   userId: string,
   companyData: CompanyData
 ): Promise<void> {
-  // 1. Create the company document
+  // 1. Create the company document with a pseudo-IP
   const companiesRef = collection(db, `users/${userId}/companies`);
-  const companyDocRef = await addDoc(companiesRef, companyData);
+  const companyDocRef = await addDoc(companiesRef, {
+    ...companyData,
+    pseudoIp: uuidv4(), // Generate a unique identifier
+  });
 
   // 2. Create the chart of accounts in a batch
   const chartOfAccountsRef = collection(db, `users/${userId}/companies/${companyDocRef.id}/contasContabeis`);

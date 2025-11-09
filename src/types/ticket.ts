@@ -10,7 +10,7 @@ export interface Ticket {
   requesterUid: string;
   requesterCompanyId: string;
   requesterCompanyName: string;
-  requesterIp?: string; // IP address of the user who created the ticket
+  requesterIdentifier?: string; // IP address or other identifier
   problemLocation: string;
   description: string;
   status: TicketStatus;

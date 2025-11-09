@@ -109,7 +109,7 @@ export default function AllTicketsPage() {
                             <TableRow>
                                 <TableHead>Nº Chamado</TableHead>
                                 <TableHead>Empresa</TableHead>
-                                <TableHead>IP do Solicitante</TableHead>
+                                <TableHead>Identificador</TableHead>
                                 <TableHead>Problema</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Data</TableHead>
@@ -121,7 +121,7 @@ export default function AllTicketsPage() {
                                 <TableRow key={ticket.id}>
                                     <TableCell className="font-mono">{ticket.ticketNumber}</TableCell>
                                     <TableCell className="font-medium">{ticket.requesterCompanyName}</TableCell>
-                                    <TableCell className="font-mono text-xs">{ticket.requesterIp || 'N/A'}</TableCell>
+                                    <TableCell className="font-mono text-xs">{ticket.requesterIdentifier || 'N/A'}</TableCell>
                                     <TableCell className="max-w-xs truncate">{ticket.problemLocation}</TableCell>
                                     <TableCell>
                                         <Badge variant={statusVariantMap[ticket.status]}>

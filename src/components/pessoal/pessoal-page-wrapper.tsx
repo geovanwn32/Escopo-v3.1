@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, query, orderBy, Timestamp, doc, deleteDoc, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase.tsx";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import type { Company } from '@/types/company';
@@ -13,7 +13,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText, Printer } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText, Printer, BarChart as BarChartIcon } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,12 @@ import { format, isValid } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { generateProLaboreReceiptPdf } from "@/services/pro-labore-receipt-service";
 import type { Socio } from "@/types/socio";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { subMonths, startOfMonth, endOfMonth } from 'date-fns';
 
+const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function PessoalPageWrapper() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -52,8 +57,7 @@ export default function PessoalPageWrapper() {
 
   // Vacation Filters
   const [vacationNameFilter, setVacationNameFilter] = useState('');
-  const [vacationStartDateFilter, setVacationStartDateFilter] = useState<Date | undefined>();
-  const [vacationEndDateFilter, setVacationEndDateFilter] = useState<Date | undefined>();
+  const [vacationDateFilter, setVacationDateFilter] = useState<DateRange | undefined>();
 
   // Thirteenth Filters
   const [thirteenthNameFilter, setThirteenthNameFilter] = useState('');
@@ -61,9 +65,8 @@ export default function PessoalPageWrapper() {
   const [thirteenthParcelFilter, setThirteenthParcelFilter] = useState('');
 
   // Termination Filters
+  const [terminationDateFilter, setTerminationDateFilter] = useState<DateRange | undefined>();
   const [terminationNameFilter, setTerminationNameFilter] = useState('');
-  const [terminationStartDateFilter, setTerminationStartDateFilter] = useState<Date | undefined>();
-  const [terminationEndDateFilter, setTerminationEndDateFilter] = useState<Date | undefined>();
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -95,8 +98,9 @@ export default function PessoalPageWrapper() {
         return;
     }
 
-    let isMounted = true;
+    setLoading(true);
     const companyPath = `users/${user.uid}/companies/${activeCompany.id}`;
+    
     const collectionsToListen = [
         { name: 'payrolls', setter: setPayrolls },
         { name: 'rcis', setter: setRcis },
@@ -104,60 +108,39 @@ export default function PessoalPageWrapper() {
         { name: 'thirteenths', setter: setThirteenths },
         { name: 'vacations', setter: setVacations },
     ];
-
-    const fetchInitialData = async () => {
-        if (!isMounted) return;
-        setLoading(true);
-        try {
-            await Promise.all(collectionsToListen.map(async ({ name, setter }) => {
-                const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
-                const snapshot = await getDocs(q);
-                if (isMounted) {
-                    const data = snapshot.docs.map(doc => {
-                        const docData = doc.data();
-                        Object.keys(docData).forEach(key => {
-                            if (docData[key] instanceof Timestamp) {
-                                docData[key] = docData[key].toDate();
-                            }
-                        });
-                        return { id: doc.id, ...docData };
-                    });
-                    setter(data as any);
-                }
-            }));
-        } catch (error) {
-            console.error("Error fetching initial data:", error);
-            if (isMounted) toast({ variant: "destructive", title: "Erro ao carregar dados." });
-        } finally {
-            if (isMounted) setLoading(false);
-        }
-    };
     
-    fetchInitialData();
+    let listenersInitialized = 0;
 
     const unsubscribes = collectionsToListen.map(({ name, setter }) => {
         const q = query(collection(db, `${companyPath}/${name}`), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snapshot) => {
-            if (isMounted) {
-                 const data = snapshot.docs.map(doc => {
-                    const docData = doc.data();
-                    Object.keys(docData).forEach(key => {
-                        if (docData[key] instanceof Timestamp) {
-                            docData[key] = docData[key].toDate();
-                        }
-                    });
-                    return { id: doc.id, ...docData };
+            const data = snapshot.docs.map(doc => {
+                const docData = doc.data();
+                // Safely convert all Timestamps to Dates
+                Object.keys(docData).forEach(key => {
+                    if (docData[key] instanceof Timestamp) {
+                        docData[key] = docData[key].toDate();
+                    }
                 });
-                setter(data as any);
+                return { id: doc.id, ...docData };
+            });
+            setter(data as any);
+            
+            listenersInitialized++;
+            if (listenersInitialized === collectionsToListen.length) {
+                setLoading(false);
             }
         }, (error) => {
             console.error(`Error fetching ${name}:`, error);
-            if (isMounted) toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            toast({ variant: "destructive", title: `Erro ao buscar ${name}.` });
+            listenersInitialized++;
+            if (listenersInitialized === collectionsToListen.length) {
+                setLoading(false);
+            }
         });
     });
     
     return () => {
-        isMounted = false;
         unsubscribes.forEach(unsub => unsub());
     }
 
@@ -183,23 +166,23 @@ export default function PessoalPageWrapper() {
         return vacations.filter(v => {
             const nameMatch = v.employeeName.toLowerCase().includes(vacationNameFilter.toLowerCase());
             let dateMatch = true;
-            if (vacationStartDateFilter) {
+            if (vacationDateFilter?.from) {
                 const itemDate = new Date(v.startDate as Date);
                 itemDate.setHours(0,0,0,0);
-                const startDate = new Date(vacationStartDateFilter);
+                const startDate = new Date(vacationDateFilter.from);
                 startDate.setHours(0,0,0,0);
                 dateMatch = itemDate >= startDate;
             }
-            if (vacationEndDateFilter && dateMatch) {
+            if (vacationDateFilter?.to && dateMatch) {
                 const itemDate = new Date(v.startDate as Date);
                 itemDate.setHours(23,59,59,999);
-                const endDate = new Date(vacationEndDateFilter);
+                const endDate = new Date(vacationDateFilter.to);
                 endDate.setHours(23,59,59,999);
                 dateMatch = itemDate <= endDate;
             }
             return nameMatch && dateMatch;
         });
-    }, [vacations, vacationNameFilter, vacationStartDateFilter, vacationEndDateFilter]);
+    }, [vacations, vacationNameFilter, vacationDateFilter]);
 
     const filteredThirteenths = useMemo(() => {
         return thirteenths.filter(t =>
@@ -213,30 +196,69 @@ export default function PessoalPageWrapper() {
         return terminations.filter(t => {
             const nameMatch = t.employeeName.toLowerCase().includes(terminationNameFilter.toLowerCase());
             let dateMatch = true;
-            if (terminationStartDateFilter) {
+            if (terminationDateFilter?.from) {
                 const itemDate = new Date(t.terminationDate as Date);
                 itemDate.setHours(0,0,0,0);
-                const startDate = new Date(terminationStartDateFilter);
+                const startDate = new Date(terminationDateFilter.from);
                 startDate.setHours(0,0,0,0);
                 dateMatch = itemDate >= startDate;
             }
-            if (terminationEndDateFilter && dateMatch) {
+            if (terminationDateFilter?.to && dateMatch) {
                 const itemDate = new Date(t.terminationDate as Date);
                 itemDate.setHours(23,59,59,999);
-                const endDate = new Date(terminationEndDateFilter);
+                const endDate = new Date(terminationDateFilter.to);
                 endDate.setHours(23,59,59,999);
                 dateMatch = itemDate <= endDate;
             }
             return nameMatch && dateMatch;
         });
-    }, [terminations, terminationNameFilter, terminationStartDateFilter, terminationEndDateFilter]);
+    }, [terminations, terminationNameFilter, terminationDateFilter]);
+
+    const monthlyCostData = useMemo(() => {
+        const monthlyTotals: { [key: string]: { totalCost: number } } = {};
+        const today = new Date();
+        
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            monthlyTotals[key] = { totalCost: 0 };
+        }
+
+        const allCosts = [...payrolls, ...rcis, ...vacations, ...thirteenths, ...terminations];
+
+        allCosts.forEach(item => {
+            let itemDate: Date | null = null;
+            if ('period' in item && typeof item.period === 'string') {
+                const [month, year] = item.period.split('/');
+                itemDate = new Date(parseInt(year), parseInt(month) - 1, 15);
+            } else if ('startDate' in item) { // Vacation
+                itemDate = new Date(item.startDate as Date);
+            } else if ('terminationDate' in item) { // Termination
+                itemDate = new Date(item.terminationDate as Date);
+            } else if ('createdAt' in item) { // Thirteenth (fallback)
+                itemDate = new Date(item.createdAt as Date);
+            }
+
+            if (itemDate && isValid(itemDate)) {
+                const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
+                if (monthlyTotals[key]) {
+                    const proventos = (item.totals || item.result)?.totalProventos || 0;
+                    monthlyTotals[key].totalCost += proventos;
+                }
+            }
+        });
+        
+        return Object.keys(monthlyTotals).map(key => {
+            const [year, month] = key.split('-').map(Number);
+            return { month: monthNames[month], ...monthlyTotals[key] };
+        });
+    }, [payrolls, rcis, vacations, thirteenths, terminations]);
 
   const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
       try {
         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/${collectionName}`, docId));
         toast({ title: `${docName} excluído(a) com sucesso!` });
-        // The onSnapshot will handle the state update automatically
       } catch (error) {
         toast({ variant: 'destructive', title: `Erro ao excluir ${docName}.` });
       }
@@ -245,8 +267,7 @@ export default function PessoalPageWrapper() {
   const handleGenerateRciPdf = async (rci: RCI) => {
     if (!user || !activeCompany) return;
     try {
-      const socioRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId);
-      const socioSnap = await getDoc(socioRef);
+      const socioSnap = await getDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/socios`, rci.socioId));
       if (socioSnap.exists()) {
         const socioData = { id: socioSnap.id, ...socioSnap.data() } as Socio;
         generateProLaboreReceiptPdf(activeCompany, socioData, rci);
@@ -290,8 +311,8 @@ export default function PessoalPageWrapper() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Módulo Pessoal</h1>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Cálculos e Processamentos</CardTitle>
             <CardDescription>Execute os principais cálculos da folha de pagamento.</CardDescription>
@@ -322,20 +343,32 @@ export default function PessoalPageWrapper() {
                 <span><UserMinus className="mr-2 h-4 w-4" />Calcular Rescisão</span>
               </Link>
             </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Relatórios</CardTitle>
-            <CardDescription>Gere relatórios importantes do departamento pessoal.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Button asChild className="w-full justify-start">
+             <Button asChild className="w-full justify-start mt-4">
               <Link href="/pessoal/resumo-folha">
                 <span><BookCheck className="mr-2 h-4 w-4" />Resumo da Folha</span>
               </Link>
             </Button>
           </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+           <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BarChartIcon className="h-5 w-5 text-primary"/>Evolução de Custos com Pessoal</CardTitle>
+            <CardDescription>Custo total (salários + encargos) nos últimos 6 meses.</CardDescription>
+          </CardHeader>
+           <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={monthlyCostData} >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(value as number)} />
+                        <Tooltip
+                            contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                            formatter={(value: number) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), "Custo Total"]}
+                        />
+                        <Bar dataKey="totalCost" fill="hsl(var(--primary))" name="Custo Total" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </CardContent>
         </Card>
       </div>
 
@@ -672,20 +705,10 @@ export default function PessoalPageWrapper() {
           <CardDescription>Visualize os cálculos de férias salvos.</CardDescription>
         </CardHeader>
         <CardContent>
-             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <Input placeholder="Filtrar por nome..." value={vacationNameFilter} onChange={(e) => setVacationNameFilter(e.target.value)} className="max-w-xs" />
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {vacationStartDateFilter && vacationEndDateFilter ? (<>{format(vacationStartDateFilter, "dd/MM/yy")} - {format(vacationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Início</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="range" selected={{ from: vacationStartDateFilter, to: vacationEndDateFilter }} onSelect={(range) => { setVacationStartDateFilter(range?.from); setVacationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
-                    </PopoverContent>
-                </Popover>
-                <Button variant="ghost" onClick={() => { setVacationNameFilter(''); setVacationStartDateFilter(undefined); setVacationEndDateFilter(undefined); }} className="sm:ml-auto">
+                <DateRangePicker date={vacationDateFilter} onDateChange={setVacationDateFilter} placeholder="Filtrar por Data de Início" />
+                <Button variant="ghost" onClick={() => { setVacationNameFilter(''); setVacationDateFilter(undefined); }} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
                 </Button>
             </div>
@@ -776,20 +799,10 @@ export default function PessoalPageWrapper() {
           <CardDescription>Visualize os cálculos de rescisão salvos.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <Input placeholder="Filtrar por nome..." value={terminationNameFilter} onChange={(e) => setTerminationNameFilter(e.target.value)} className="max-w-xs" />
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className="w-full sm:w-[280px] justify-start text-left font-normal">
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {terminationStartDateFilter && terminationEndDateFilter ? (<>{format(terminationStartDateFilter, "dd/MM/yy")} - {format(terminationEndDateFilter, "dd/MM/yy")}</>) : <span>Filtrar por Data de Afastamento</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="range" selected={{ from: terminationStartDateFilter, to: terminationEndDateFilter }} onSelect={(range) => { setTerminationStartDateFilter(range?.from); setTerminationEndDateFilter(range?.to); }} locale={ptBR} numberOfMonths={2} />
-                    </PopoverContent>
-                </Popover>
-                <Button variant="ghost" onClick={() => { setTerminationNameFilter(''); setTerminationStartDateFilter(undefined); setTerminationEndDateFilter(undefined); }} className="sm:ml-auto">
+                <DateRangePicker date={terminationDateFilter} onDateChange={setTerminationDateFilter} placeholder="Filtrar por Data de Afastamento" />
+                <Button variant="ghost" onClick={() => { setTerminationNameFilter(''); setTerminationDateFilter(undefined); }} className="sm:ml-auto">
                     <FilterX className="mr-2 h-4 w-4" /> Limpar Filtros
                 </Button>
             </div>
@@ -874,7 +887,3 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
-
-    
-
-    

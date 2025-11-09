@@ -1,5 +1,4 @@
 
-
 export interface EstablishmentData {
     aliqRat: number;
     fap: number;
@@ -21,6 +20,7 @@ export interface Company {
     nomeFantasia: string;
     razaoSocial: string;
     cnpj: string;
+    pseudoIp?: string; // Unique identifier for tracking
     ativo?: boolean;
     tipoEstabelecimento?: 'matriz' | 'filial';
     logradouro?: string;
