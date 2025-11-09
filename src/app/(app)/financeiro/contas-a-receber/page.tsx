@@ -86,37 +86,6 @@ export default function ContasAReceberPage() {
 
   const launches = useMemo(() => allLaunches.filter(l => l.type === 'saida' || l.type === 'servico'), [allLaunches]);
 
-  const financialTotals = useMemo(() => {
-    return launches.reduce((acc, launch) => {
-        const value = launch.valorLiquido || launch.valorTotalNota || 0;
-        const status = launch.financialStatus || 'pendente';
-        acc[status] = (acc[status] || 0) + value;
-        return acc;
-    }, {} as Record<FinancialStatus, number>);
-  }, [launches]);
-
-  const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
-     if (!user || !activeCompany) return;
-    try {
-      const docRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, id)
-      await updateDoc(docRef, { financialStatus: status });
-      toast({ title: 'Status financeiro atualizado!' });
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Erro ao atualizar status' });
-    }
-  }
-
-  const getPartnerName = (launch: Launch): string => {
-    switch (launch.type) {
-      case 'saida':
-        return launch.destinatario?.nome || 'N/A';
-      case 'servico':
-        return launch.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
-    }
-  };
-
    const filteredLaunches = useMemo(() => {
     return launches.filter(launch => {
         const partnerName = getPartnerName(launch).toLowerCase();
@@ -143,6 +112,37 @@ export default function ContasAReceberPage() {
         return partnerMatch && statusMatch && dateMatch;
     });
   }, [launches, filterPartner, filterStatus, filterDate]);
+
+  const financialTotals = useMemo(() => {
+    return filteredLaunches.reduce((acc, launch) => {
+        const value = launch.valorLiquido || launch.valorTotalNota || 0;
+        const status = launch.financialStatus || 'pendente';
+        acc[status] = (acc[status] || 0) + value;
+        return acc;
+    }, {} as Record<FinancialStatus, number>);
+  }, [filteredLaunches]);
+
+  const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
+     if (!user || !activeCompany) return;
+    try {
+      const docRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, id)
+      await updateDoc(docRef, { financialStatus: status });
+      toast({ title: 'Status financeiro atualizado!' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao atualizar status' });
+    }
+  }
+
+  const getPartnerName = (launch: Launch): string => {
+    switch (launch.type) {
+      case 'saida':
+        return launch.destinatario?.nome || 'N/A';
+      case 'servico':
+        return launch.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+  };
 
   const clearFilters = () => {
     setFilterPartner("");
@@ -238,7 +238,7 @@ export default function ContasAReceberPage() {
         <CardHeader className="flex-row justify-between items-start">
             <div>
                 <CardTitle>Resumo Financeiro a Receber</CardTitle>
-                <CardDescription>Visualize o status atual das suas contas a receber.</CardDescription>
+                <CardDescription>Visualize o status atual das suas contas a receber com base nos filtros aplicados.</CardDescription>
             </div>
             <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleGeneratePdf} disabled={loading || filteredLaunches.length === 0}>
@@ -264,7 +264,7 @@ export default function ContasAReceberPage() {
             </Card>
              <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Recebido (Últimos 30 dias)</CardTitle>
+                    <CardTitle className="text-sm font-medium">Recebido</CardTitle>
                     <Banknote className="h-4 w-4 text-muted-foreground"/>
                 </CardHeader>
                 <CardContent>

@@ -85,26 +85,6 @@ export default function ContasAPagarPage() {
 
     const launches = useMemo(() => allLaunches.filter(l => l.type === 'entrada'), [allLaunches]);
 
-    const financialTotals = useMemo(() => {
-        return launches.reduce((acc, launch) => {
-            const value = launch.valorTotalNota || 0;
-            const status = launch.financialStatus || 'pendente';
-            acc[status] = (acc[status] || 0) + value;
-            return acc;
-        }, {} as Record<FinancialStatus, number>);
-    }, [launches]);
-
-    const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
-        if (!user || !activeCompany) return;
-        try {
-            const docRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, id)
-            await updateDoc(docRef, { financialStatus: status });
-            toast({ title: 'Status financeiro atualizado!' });
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Erro ao atualizar status' });
-        }
-    }
-
     const filteredLaunches = useMemo(() => {
         return launches.filter(launch => {
             const partnerName = (launch.emitente?.nome || '').toLowerCase();
@@ -123,6 +103,26 @@ export default function ContasAPagarPage() {
             return partnerMatch && statusMatch && dateMatch;
         });
     }, [launches, filterPartner, filterStatus, filterDate]);
+
+    const financialTotals = useMemo(() => {
+        return filteredLaunches.reduce((acc, launch) => {
+            const value = launch.valorTotalNota || 0;
+            const status = launch.financialStatus || 'pendente';
+            acc[status] = (acc[status] || 0) + value;
+            return acc;
+        }, {} as Record<FinancialStatus, number>);
+    }, [filteredLaunches]);
+
+    const handleUpdateStatus = async (id: string, status: FinancialStatus) => {
+        if (!user || !activeCompany) return;
+        try {
+            const docRef = doc(db, `users/${user.uid}/companies/${activeCompany.id}/launches`, id)
+            await updateDoc(docRef, { financialStatus: status });
+            toast({ title: 'Status financeiro atualizado!' });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro ao atualizar status' });
+        }
+    }
 
     const clearFilters = () => {
         setFilterPartner("");
@@ -168,7 +168,7 @@ export default function ContasAPagarPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Resumo Financeiro a Pagar</CardTitle>
-                    <CardDescription>Visualize o status atual das suas contas a pagar.</CardDescription>
+                    <CardDescription>Visualize o status atual das suas contas a pagar com base nos filtros aplicados.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
                     <Card>
