@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
@@ -36,10 +37,12 @@ function addHeader(doc: jsPDF, company: Company, year: number) {
     y += 4;
     doc.text(`CNPJ: ${formatCnpj(company.cnpj)}`, pageWidth - 14, y, { align: 'right' });
     y += 4;
-    
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Relatório Fiscal Anual - ${year}`, pageWidth / 2, y, { align: 'center' });
+    const address = `${company.logradouro || ''}, ${company.numero || 'S/N'} - ${company.bairro || ''}`;
+    doc.text(address, pageWidth - 14, y, { align: 'right' });
+    y += 4;
+    doc.text(`${company.cidade || ''}/${company.uf || ''} - CEP: ${company.cep || ''}`, pageWidth - 14, y, { align: 'right' });
+     y += 4;
+    doc.text(`Tel: ${company.telefone || ''} | Email: ${company.email || ''}`, pageWidth - 14, y, { align: 'right' });
     
     return y + 10;
 }
@@ -59,10 +62,10 @@ export async function generateAnnualReportPdf(userId: string, company: Company, 
     );
 
     const snapshot = await getDocs(q);
-    const launches = snapshot.docs.map(doc => doc.data() as Launch);
+    const launches = snapshot.docs.map(doc => doc.data() as Launch).filter(l => l.status === 'Normal');
 
     if (launches.length === 0) {
-        throw new Error("Nenhum lançamento fiscal encontrado para o ano selecionado.");
+        throw new Error("Nenhum lançamento fiscal com status 'Normal' encontrado para o ano selecionado.");
     }
 
     // --- 2. PROCESS DATA ---
