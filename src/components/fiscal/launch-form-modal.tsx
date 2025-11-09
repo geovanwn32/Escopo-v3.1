@@ -228,6 +228,12 @@ const getInitialData = (
     company: Company,
 ): Partial<FormData> => {
     const { mode = 'create', xmlFile, launch, manualLaunchType, orcamento } = options;
+
+    const sanitizeParty = (party: any) => ({
+        nome: party?.nome || '',
+        cnpj: party?.cnpj || '',
+    });
+
     if (mode === 'create') {
         if (xmlFile) {
             const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
@@ -237,6 +243,12 @@ const getInitialData = (
                 type: xmlFile.type,
                 fileName: xmlFile.file.name,
                 status: xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal',
+                emitente: sanitizeParty(parsedData.emitente),
+                destinatario: sanitizeParty(parsedData.destinatario),
+                chaveNfe: parsedData.chaveNfe || '',
+                numeroNfse: parsedData.numeroNfse || '',
+                serie: parsedData.serie || '',
+                observacoes: parsedData.observacoes || '',
             };
         }
         if (orcamento) {
@@ -271,7 +283,16 @@ const getInitialData = (
             return manualData;
         }
     } else if ((mode === 'edit' || mode === 'view') && launch) {
-        return { ...defaultLaunchValues, ...launch };
+        return { 
+            ...defaultLaunchValues, 
+            ...launch,
+            emitente: sanitizeParty(launch.emitente),
+            destinatario: sanitizeParty(launch.destinatario),
+            chaveNfe: launch.chaveNfe || '',
+            numeroNfse: launch.numeroNfse || '',
+            serie: launch.serie || '',
+            observacoes: launch.observacoes || '',
+         };
     }
     return defaultLaunchValues;
 };
@@ -327,23 +348,16 @@ export const LaunchFormModal = ({
                     const partnerSnap = await getDoc(doc(db, `users/${userId}/companies/${company.id}/partners`, orcamentoData.partnerId));
                     const partnerData = partnerSnap.data();
 
-                    reset({
-                        ...defaultLaunchValues,
-                        type: orcamentoData.items.some(i => i.type === 'servico') ? 'servico' : 'saida',
-                        date: new Date(),
-                        fileName: `Baseado no Orçamento Nº ${orcamentoData.quoteNumber}`,
-                        destinatario: { nome: orcamentoData.partnerName, cnpj: partnerData?.cpfCnpj || '' },
-                        emitente: { nome: company.razaoSocial, cnpj: company.cnpj },
-                        produtos: orcamentoData.items.map(item => ({
-                            descricao: item.description,
-                            quantidade: item.quantity,
-                            valorUnitario: item.unitPrice,
-                            valorTotal: item.total,
-                            codigo: item.id.startsWith('manual_') ? '' : item.id,
-                        })),
-                        valorTotalNota: orcamentoData.total,
-                        valorProdutos: orcamentoData.total,
-                    });
+                    const initialFormState = getInitialData({orcamento: orcamentoData}, company)
+                    
+                    if (partnerData) {
+                        initialFormState.destinatario = {
+                            nome: orcamentoData.partnerName,
+                            cnpj: partnerData.cpfCnpj || ''
+                        };
+                    }
+                    
+                    reset(initialFormState);
                 }
             } catch (error) {
                 toast({ variant: 'destructive', title: "Erro ao Carregar Orçamento" });
@@ -544,10 +558,3 @@ export const LaunchFormModal = ({
         </>
     );
 };
-
-    
-
-
-
-
-    
