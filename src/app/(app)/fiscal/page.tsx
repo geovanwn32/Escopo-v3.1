@@ -6,7 +6,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where,
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3 } from "lucide-react";
+import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3, Users } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,32 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
 
+const getPartnerName = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return item.pagadorNome;
+    switch (item.type) {
+      case 'entrada':
+        return item.emitente?.nome || 'N/A';
+      case 'saida':
+         if (item.destinatario?.nome) return item.destinatario.nome;
+         if (item.tomador?.nome) return item.tomador.nome;
+         return 'N/A';
+      case 'servico':
+        return item.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+};
+
+const getLaunchValue = (item: GenericLaunch): number => {
+    if (item.docType === 'recibo') return item.valor;
+    return item.valorLiquido || item.valorTotalNota || 0;
+};
+  
+const getLaunchDocRef = (item: GenericLaunch): string => {
+    if (item.docType === 'recibo') return String(item.numero);
+    return item.numeroNfse || item.chaveNfe || 'N/A';
+};
+
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -67,31 +93,7 @@ const formatCurrency = (value: number) => {
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-const getPartnerName = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return item.pagadorNome;
-    switch (item.type) {
-      case 'entrada':
-        return item.emitente?.nome || 'N/A';
-      case 'saida':
-         if (item.destinatario?.nome) return item.destinatario.nome;
-         if (item.tomador?.nome) return item.tomador.nome;
-         return 'N/A';
-      case 'servico':
-        return item.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
-    }
-};
 
-const getLaunchValue = (item: GenericLaunch): number => {
-    if (item.docType === 'recibo') return item.valor;
-    return item.valorLiquido || item.valorTotalNota || 0;
-};
-  
-const getLaunchDocRef = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return String(item.numero);
-    return item.numeroNfse || item.chaveNfe || 'N/A';
-};
 
 const MemoizedLaunchFormModal = React.memo(LaunchFormModal);
 const MemoizedReceiptFormModal = React.memo(ReceiptFormModal);
@@ -321,6 +323,23 @@ export default function FiscalPage() {
         return { month: monthNames[month], ...monthlyTotals[key] };
     });
   }, [launches, recibos]);
+
+  const topClientsData = useMemo(() => {
+    const clientRevenue: { [name: string]: number } = {};
+    launches
+        .filter(l => (l.type === 'saida' || l.type === 'servico') && l.status === 'Normal')
+        .forEach(l => {
+            const clientName = getPartnerName({ ...l, docType: 'launch' });
+            if (clientName && clientName !== 'N/A') {
+                clientRevenue[clientName] = (clientRevenue[clientName] || 0) + (l.valorLiquido || l.valorTotalNota || 0);
+            }
+        });
+    
+    return Object.entries(clientRevenue)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5); // Top 5
+}, [launches]);
 
 
   const refreshXmlFileStatus = useCallback(() => {
@@ -802,25 +821,45 @@ export default function FiscalPage() {
         </CardContent>
        </Card>
 
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/>Resultado Mensal</CardTitle>
-                <CardDescription>Receitas vs. Despesas nos últimos 6 meses.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={monthlyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
-                        <Legend />
-                        <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="despesas" fill="#dc2626" name="Despesas" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/>Resultado Mensal</CardTitle>
+                    <CardDescription>Receitas vs. Despesas nos últimos 6 meses.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={monthlyChartData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
+                            <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
+                            <Legend />
+                            <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="despesas" fill="#dc2626" name="Despesas" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-primary"/>Top 5 Clientes</CardTitle>
+                    <CardDescription>Maiores faturamentos por cliente no período.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={topClientsData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                             <CartesianGrid strokeDasharray="3 3" />
+                             <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
+                             <YAxis type="category" dataKey="name" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} width={80} tickFormatter={(value) => value.length > 12 ? `${value.substring(0,10)}...` : value} />
+                             <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
+                             <Bar dataKey="total" fill="#1e90ff" name="Faturamento" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+        </div>
+
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card>
@@ -1198,6 +1237,3 @@ export default function FiscalPage() {
     </div>
   );
 }
-
-
-    
