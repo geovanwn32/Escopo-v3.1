@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -25,6 +26,23 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 type FinancialStatus = 'pendente' | 'pago' | 'vencido';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+const getPartnerName = (launch: Launch): string => {
+    switch (launch.type) {
+      case 'saida':
+        return launch.destinatario?.nome || 'N/A';
+      case 'servico':
+        return launch.tomador?.nome || 'N/A';
+      default:
+        return 'N/A';
+    }
+};
+
+const getStatusLabel = (status?: FinancialStatus): string => {
+    if (!status) return 'Pendente';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+};
+
 
 export default function ContasAReceberPage() {
   const [allLaunches, setAllLaunches] = useState<Launch[]>([]);
@@ -133,16 +151,6 @@ export default function ContasAReceberPage() {
     }
   }
 
-  const getPartnerName = (launch: Launch): string => {
-    switch (launch.type) {
-      case 'saida':
-        return launch.destinatario?.nome || 'N/A';
-      case 'servico':
-        return launch.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
-    }
-  };
 
   const clearFilters = () => {
     setFilterPartner("");
@@ -158,10 +166,6 @@ export default function ContasAReceberPage() {
         default: return 'outline';
     }
   }
-   const getStatusLabel = (status?: FinancialStatus): string => {
-    if (!status) return 'Pendente';
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
   
   const handleExportExcel = () => {
     if (filteredLaunches.length === 0) {
