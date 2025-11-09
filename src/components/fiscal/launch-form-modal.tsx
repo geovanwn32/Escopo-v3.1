@@ -136,13 +136,18 @@ const querySelectorText = (element: Element | Document | null, selectors: string
 
 const getFloat = (node: Element | null, selector: string) => parseFloat(node?.querySelector(selector)?.textContent || '0');
 
-function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> {
+function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> | { error: string } {
+    if (!xmlString || !xmlString.trim().startsWith('<')) {
+        return { error: 'O texto fornecido não parece ser um XML válido.' };
+    }
+
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlString, "text/xml");
     const errorNode = xmlDoc.querySelector("parsererror");
+    
     if (errorNode) {
         console.error("Error parsing XML:", errorNode.textContent);
-        return {};
+        return { error: `Erro ao analisar o XML: ${errorNode.textContent}` };
     }
 
     const data: Partial<FormData> = {};
@@ -277,6 +282,11 @@ const getInitialData = (
     if (mode === 'create') {
         if (xmlFile) {
             const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
+             if ('error' in parsedData) {
+                // In a real app, you might show a toast here
+                console.error("Failed to parse XML on init:", parsedData.error);
+                return { ...defaultLaunchValues, type: xmlFile.type, fileName: xmlFile.file.name };
+            }
             return {
                 ...defaultLaunchValues,
                 ...parsedData,
@@ -329,9 +339,9 @@ const getInitialData = (
                 produtos: [],
                 modalidadeFrete: '9'
             };
-            if (manualLaunchType === 'saida') manualData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
+            if (manualLaunchType === 'saida') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
             if (manualLaunchType === 'servico') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
-            if (manualLaunchType === 'entrada') manualData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
+            if (manualLaunchType === 'entrada') manualData.tomador = { nome: company.razaoSocial, cnpj: company.cnpj };
             return manualData;
         }
     } else if ((mode === 'edit' || mode === 'view') && launch) {
@@ -457,6 +467,10 @@ export const LaunchFormModal = ({
         }
         try {
             const parsedData = parseXmlAdvanced(xmlContent, 'servico'); // Assume service for manual paste
+             if ('error' in parsedData) {
+                toast({ variant: 'destructive', title: 'Erro ao Analisar XML', description: 'O texto fornecido não é um XML válido.' });
+                return;
+            }
             Object.keys(parsedData).forEach(key => {
                 setValue(key as keyof FormData, (parsedData as any)[key]);
             });
@@ -566,7 +580,7 @@ export const LaunchFormModal = ({
                      <Tabs defaultValue="geral" className="w-full pt-4">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
-                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Prestador/Tomador' : 'Emitente/Destinatário'}</TabsTrigger>
+                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Prestador/Tomador' : 'Partes'}</TabsTrigger>
                             <TabsTrigger value="details">{launchType === 'servico' ? 'Detalhes do Serviço' : 'Produtos'}</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
@@ -597,21 +611,21 @@ export const LaunchFormModal = ({
                                     ) : (
                                         <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly /></FormControl></FormItem> )} />
                                     )}
-                                    {launchType !== 'servico' && (
+                                     {launchType !== 'servico' && (
                                          <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    )}
+                                     )}
                                      {launchType !== 'servico' && (
                                         <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                      )}
                                      {launchType === 'servico' && (
                                         <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                      )}
-                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={launchType !== 'servico' || isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={launchType !== 'servico' && !isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {renderPartyField(launchType === 'servico' ? 'prestador' : 'emitente', launchType === 'servico' ? 'Prestador' : 'Emitente', launchType === 'servico' || launchType === 'saida')}
+                                    {renderPartyField(launchType === 'servico' ? 'prestador' : 'emitente', launchType === 'servico' ? 'Prestador' : 'Emitente', launchType === 'saida' || launchType === 'servico')}
                                     {renderPartyField(launchType === 'servico' ? 'tomador' : 'destinatario', launchType === 'servico' ? 'Tomador' : 'Destinatário', launchType === 'entrada')}
                                 </div>
                             </TabsContent>
