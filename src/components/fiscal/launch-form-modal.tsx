@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -213,30 +214,34 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
 
     } 
     else { // NFS-e logic
-        const infNfse = xmlDoc.querySelector('InfNfse');
+        const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse');
         if(infNfse) {
-            const dateString = querySelectorText(infNfse, ['DataEmissao']);
+            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi']);
             if (dateString) {
                 const tempDate = new Date(dateString.split('T')[0]);
                 const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
                 data.date = new Date(tempDate.getTime() + timezoneOffset);
             }
-            data.numeroNfse = querySelectorText(infNfse, ['Numero']);
+            data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero']);
             data.codigoVerificacaoNfse = querySelectorText(infNfse, ['CodigoVerificacao']);
-            data.discriminacao = querySelectorText(xmlDoc, ['Discriminacao']);
-            data.itemLc116 = querySelectorText(xmlDoc, ['ItemListaServico']);
-            data.valorServicos = getFloat(xmlDoc.querySelector('Valores'), 'ValorServicos');
-            data.valorIss = getFloat(xmlDoc.querySelector('Valores'), 'ValorIss');
+            
+            const serviceNode = xmlDoc.querySelector('serv') || infNfse;
+            data.discriminacao = querySelectorText(serviceNode, ['xDescServ', 'Discriminacao']);
+            data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
+
+            const valoresNode = xmlDoc.querySelector('valores') || infNfse;
+            data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ']);
+            data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
             data.valorTotalNota = data.valorServicos; // Simplified
-            data.valorLiquido = getFloat(xmlDoc.querySelector('Valores'), 'ValorLiquidoNfse');
+            data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
 
             data.prestador = {
-                nome: querySelectorText(xmlDoc.querySelector('PrestadorServico'), ['RazaoSocial']),
-                cnpj: querySelectorText(xmlDoc.querySelector('PrestadorServico'), ['Cnpj']),
+                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial']),
+                cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > Cnpj']),
             }
             data.tomador = {
-                nome: querySelectorText(xmlDoc.querySelector('TomadorServico'), ['RazaoSocial']),
-                cnpj: querySelectorText(xmlDoc.querySelector('TomadorServico'), ['Cnpj']),
+                nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial']),
+                cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf']),
             }
         }
     }
@@ -297,10 +302,6 @@ const getInitialData = (
                 destinatario: sanitizeParty(parsedData.destinatario),
                 prestador: sanitizeParty(parsedData.prestador),
                 tomador: sanitizeParty(parsedData.tomador),
-                chaveNfe: parsedData.chaveNfe || '',
-                numeroNfse: parsedData.numeroNfse || '',
-                serie: parsedData.serie || '',
-                observacoes: parsedData.observacoes || '',
             };
         }
         if (orcamento) {
@@ -339,9 +340,9 @@ const getInitialData = (
                 produtos: [],
                 modalidadeFrete: '9'
             };
-            if (manualLaunchType === 'saida') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            if (manualLaunchType === 'saida') manualData.emitente = { nome: company.razaoSocial, cnpj: company.cnpj };
             if (manualLaunchType === 'servico') manualData.prestador = { nome: company.razaoSocial, cnpj: company.cnpj };
-            if (manualLaunchType === 'entrada') manualData.tomador = { nome: company.razaoSocial, cnpj: company.cnpj };
+            if (manualLaunchType === 'entrada') manualData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
             return manualData;
         }
     } else if ((mode === 'edit' || mode === 'view') && launch) {
@@ -352,10 +353,6 @@ const getInitialData = (
             destinatario: sanitizeParty(launch.destinatario),
             prestador: sanitizeParty(launch.prestador),
             tomador: sanitizeParty(launch.tomador),
-            chaveNfe: launch.chaveNfe || '',
-            numeroNfse: launch.numeroNfse || '',
-            serie: launch.serie || '',
-            observacoes: launch.observacoes || '',
          };
     }
     return defaultLaunchValues;
@@ -468,7 +465,7 @@ export const LaunchFormModal = ({
         try {
             const parsedData = parseXmlAdvanced(xmlContent, 'servico'); // Assume service for manual paste
              if ('error' in parsedData) {
-                toast({ variant: 'destructive', title: 'Erro ao Analisar XML', description: 'O texto fornecido não é um XML válido.' });
+                toast({ variant: 'destructive', title: 'Erro ao Analisar XML', description: parsedData.error });
                 return;
             }
             Object.keys(parsedData).forEach(key => {
@@ -580,8 +577,8 @@ export const LaunchFormModal = ({
                      <Tabs defaultValue="geral" className="w-full pt-4">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
-                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Prestador/Tomador' : 'Partes'}</TabsTrigger>
-                            <TabsTrigger value="details">{launchType === 'servico' ? 'Detalhes do Serviço' : 'Produtos'}</TabsTrigger>
+                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Partes' : 'Partes'}</TabsTrigger>
+                            <TabsTrigger value="details" disabled={launchType === 'servico'}>Detalhes</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
                         <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
@@ -592,9 +589,6 @@ export const LaunchFormModal = ({
                                         <Textarea id="xml-content" placeholder="Cole o conteúdo do XML da NFS-e aqui..." value={xmlContent} onChange={(e) => setXmlContent(e.target.value)} rows={6} />
                                         <Button type="button" variant="secondary" onClick={handleParseXmlFromText}><Bot className="mr-2 h-4 w-4"/> Analisar XML</Button>
                                     </div>
-                                )}
-                                {launchType !== 'servico' && (
-                                    <FormField control={control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso (NF-e)</FormLabel><FormControl><Input {...field} value={field.value || ''} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                 )}
                                 <div className="grid grid-cols-3 gap-4">
                                     <FormField control={control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} value={field.value || ''} readOnly={isReadOnly} /></FormControl></FormItem> )} />
@@ -608,19 +602,11 @@ export const LaunchFormModal = ({
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                      {launchType === 'servico' ? (
                                         <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    ) : (
-                                        <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly /></FormControl></FormItem> )} />
-                                    )}
-                                     {launchType !== 'servico' && (
-                                         <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                     )}
-                                     {launchType !== 'servico' && (
-                                        <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                     )}
+                                    ) : null}
                                      {launchType === 'servico' && (
                                         <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                      )}
-                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={launchType !== 'servico' && !isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly={isReadOnly} className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
