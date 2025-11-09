@@ -3,6 +3,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
     // Regra para os dados do próprio usuário
     match /users/{userId} {
       // O usuário pode ler, atualizar e deletar seu próprio documento de usuário
@@ -10,17 +11,24 @@ service cloud.firestore {
       // Qualquer usuário autenticado pode criar seu próprio registro de usuário
       allow create: if request.auth != null;
     }
-
+    
     // Regra para a coleção de tickets de suporte dentro de uma empresa
     match /users/{userId}/companies/{companyId}/tickets/{ticketId} {
-      // O usuário só pode criar, ler, e atualizar tickets dentro de suas próprias empresas.
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+        // O usuário só pode criar, ler e atualizar tickets dentro de suas próprias empresas.
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow read, update: if request.auth != null && request.auth.uid == userId;
     }
 
     // Regra para TODAS as outras subcoleções e documentos dentro de uma empresa específica
     match /users/{userId}/companies/{companyId}/{document=**} {
       // O usuário só pode ler e escrever nos documentos de suas próprias empresas
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regra de Administrador
+    match /users/{userId}/{document=**} {
+        // O admin pode ler os dados de todos os usuários
+        allow read: if request.auth != null && request.auth.token.email == 'geovaniwn@gmail.com';
     }
   }
 }

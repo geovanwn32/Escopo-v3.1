@@ -1,13 +1,13 @@
 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Notification } from '@/types';
 
 /**
- * Sends a notification to a specific user.
- * It finds all companies for that user and sends the notification to each one.
- * @param targetUserId - The ID of the user to send the notification to.
- * @param data - The notification title and message.
+ * Sends a notification to a specific user. It finds all companies for that user
+ * and sends the notification to the first one found for simplicity.
+ * A more robust solution might involve a user-specific notification collection or
+ * sending to all companies.
  */
 export async function sendNotification(
     targetUserId: string,
@@ -16,23 +16,20 @@ export async function sendNotification(
     if (!targetUserId) {
         throw new Error("Target user ID is required.");
     }
-
-    // In a real multi-company scenario, we'd fetch all companies for the user
-    // and send a notification to each. For simplicity, we'll assume one for now
-    // or require a companyId to be passed. This implementation sends to a user-level
-    // notification board that can be expanded.
     
-    // For this implementation, we will assume there's a primary company or
-    // we will send it to all. Let's find the active one from sessionStorage if possible.
-    const companyId = sessionStorage.getItem('activeCompanyId');
-
-    if (!companyId) {
-        // Fallback or error. For now, let's throw an error.
-        // A better approach might be to send to a user-level notification collection.
-        throw new Error("Não foi possível encontrar a empresa ativa para enviar a notificação.");
+    // Find the first company for that user to send the notification to.
+    const companiesRef = collection(db, `users/${targetUserId}/companies`);
+    const companiesSnap = await getDocs(companiesRef);
+    
+    if (companiesSnap.empty) {
+        // Fallback or error. For this implementation, we can't send a notification
+        // if the user has no companies, as notifications are company-specific.
+        throw new Error("O usuário alvo não possui empresas para receber a notificação.");
     }
 
-    const notificationsRef = collection(db, `users/${targetUserId}/companies/${companyId}/notifications`);
+    // Send notification to the first company found.
+    const firstCompanyId = companiesSnap.docs[0].id;
+    const notificationsRef = collection(db, `users/${targetUserId}/companies/${firstCompanyId}/notifications`);
     
     const newNotification: Omit<Notification, 'id'> = {
         title: data.title,
