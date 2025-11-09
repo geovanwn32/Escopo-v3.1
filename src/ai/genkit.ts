@@ -13,11 +13,7 @@ export const ai = genkit({
   plugins: [
     googleAiPlugin,
   ],
-  models: [
-    googleAiPlugin.model('gemini-pro', {
-      config: {
-        temperature: 0.5,
-      }
-    }),
-  ]
+  // Custom model configurations are now handled directly in the prompt call
+  // or by defining a custom model with a unique name if needed.
+  // The 'models' array in this config is deprecated for this use case.
 });
