@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collectionGroup, getDocs, doc, updateDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase.tsx';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, functions } from '@/lib/firebase.tsx';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { Ticket } from '@/types/ticket';
@@ -17,8 +17,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TicketStatus } from '@/types';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
+import { httpsCallable } from 'firebase/functions';
 
 const statusMap: Record<TicketStatus, string> = {
     open: 'Aberto',
@@ -45,52 +44,41 @@ export default function AllTicketsPage() {
             return;
         }
 
-        const ticketsQuery = query(collectionGroup(db, 'tickets'), orderBy('createdAt', 'desc'));
-        
-        const unsubscribe = onSnapshot(ticketsQuery, (snapshot) => {
-            const ticketsData = snapshot.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    // Reconstruct path for updates
-                    _path: doc.ref.path,
-                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-                } as Ticket & { _path: string };
-            });
-            setTickets(ticketsData);
-            setLoading(false);
-        }, async (error) => {
-            console.error("Error fetching tickets:", error);
-            const permissionError = new FirestorePermissionError({
-                path: `tickets (collectionGroup)`,
-                operation: 'list',
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({ variant: 'destructive', title: 'Erro ao buscar chamados.' });
-            setLoading(false);
-        });
+        const fetchTickets = async () => {
+            setLoading(true);
+            try {
+                const listAllTickets = httpsCallable(functions, 'listAllTickets');
+                const result = await listAllTickets();
+                const ticketsData = (result.data as any[]).map(t => ({
+                    ...t,
+                    createdAt: t.createdAt ? new Date(t.createdAt._seconds * 1000) : new Date(),
+                })) as (Ticket & { _path: string })[];
+                setTickets(ticketsData);
+            } catch (error: any) {
+                console.error("Error fetching tickets:", error);
+                toast({ variant: 'destructive', title: 'Erro ao buscar chamados.', description: error.message });
+            } finally {
+                setLoading(false);
+            }
+        };
 
-        return () => unsubscribe();
+        fetchTickets();
+
     }, [adminUser, toast]);
 
     const handleUpdateStatus = async (ticket: Ticket & { _path: string }, newStatus: TicketStatus) => {
         setIsUpdating(ticket.id!);
-        const ticketRef = doc(db, ticket._path);
-        
-        updateDoc(ticketRef, { status: newStatus, updatedAt: serverTimestamp() }).then(() => {
+        try {
+            const ticketRef = doc(db, ticket._path);
+            await updateDoc(ticketRef, { status: newStatus, updatedAt: serverTimestamp() });
+            setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, status: newStatus } : t));
             toast({ title: 'Status do chamado atualizado!' });
-            setIsUpdating(null);
-        }).catch(async (serverError) => {
-             const permissionError = new FirestorePermissionError({
-                path: ticketRef.path,
-                operation: 'update',
-                requestResourceData: { status: newStatus, updatedAt: 'SERVER_TIMESTAMP' },
-            });
-            errorEmitter.emit('permission-error', permissionError);
+        } catch (error) {
+            console.error("Error updating status:", error);
             toast({ variant: 'destructive', title: 'Erro ao atualizar status.' });
+        } finally {
             setIsUpdating(null);
-        });
+        }
     };
 
     if (loading) {

@@ -11,6 +11,101 @@ if (!adminApp) {
 }
 
 /**
+ * Lists all users in the system. Only callable by an admin.
+ */
+export const listAllUsers = functions
+    .region('us-central1')
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'A função deve ser chamada por um usuário autenticado.');
+        }
+        
+        if (!adminApp) {
+            throw new functions.https.HttpsError('failed-precondition', 'O Admin SDK não foi inicializado.');
+        }
+        
+        // Optional: Check for admin custom claim
+        const callerUser = await getAuth(adminApp).getUser(context.auth.uid);
+        if (callerUser.email !== 'geovaniwn@gmail.com') {
+             throw new functions.https.HttpsError('permission-denied', 'Apenas administradores podem listar usuários.');
+        }
+
+        try {
+            const firestore = adminApp.firestore();
+            const usersSnapshot = await firestore.collection('users').get();
+            const users = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data()}));
+            return users;
+        } catch (error) {
+            console.error('Error listing users:', error);
+            throw new functions.https.HttpsError('internal', 'Não foi possível listar os usuários.');
+        }
+});
+
+/**
+ * Lists all support tickets from all users/companies. Only callable by an admin.
+ */
+export const listAllTickets = functions
+    .region('us-central1')
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'A função deve ser chamada por um usuário autenticado.');
+        }
+        
+        if (!adminApp) {
+            throw new functions.https.HttpsError('failed-precondition', 'O Admin SDK não foi inicializado.');
+        }
+
+        const callerUser = await getAuth(adminApp).getUser(context.auth.uid);
+        if (callerUser.email !== 'geovaniwn@gmail.com') {
+             throw new functions.https.HttpsError('permission-denied', 'Apenas administradores podem listar chamados.');
+        }
+
+        try {
+            const firestore = adminApp.firestore();
+            const ticketsSnapshot = await firestore.collectionGroup('tickets').orderBy('createdAt', 'desc').get();
+            const tickets = ticketsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _path: doc.ref.path }));
+            return tickets;
+        } catch (error) {
+            console.error('Error listing tickets:', error);
+            throw new functions.https.HttpsError('internal', 'Não foi possível listar os chamados de suporte.');
+        }
+});
+
+/**
+ * Updates the license for a specific user. Only callable by an admin.
+ */
+export const updateUserLicense = functions
+    .region('us-central1')
+    .https.onCall(async (data, context) => {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'A função deve ser chamada por um usuário autenticado.');
+        }
+        if (!adminApp) {
+            throw new functions.https.HttpsError('failed-precondition', 'O Admin SDK não foi inicializado.');
+        }
+        const callerUser = await getAuth(adminApp).getUser(context.auth.uid);
+        if (callerUser.email !== 'geovaniwn@gmail.com') {
+             throw new functions.https.HttpsError('permission-denied', 'Apenas administradores podem alterar licenças.');
+        }
+        
+        const { userId, newLicense } = data;
+        if (!userId || !newLicense) {
+            throw new functions.https.HttpsError('invalid-argument', 'userId e newLicense são obrigatórios.');
+        }
+
+        try {
+            const firestore = adminApp.firestore();
+            const userRef = firestore.doc(`users/${userId}`);
+            await userRef.update({ licenseType: newLicense });
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating license:', error);
+            throw new functions.https.HttpsError('internal', 'Não foi possível atualizar a licença.');
+        }
+    });
+
+
+/**
  * A callable function to export a single company's data.
  */
 export const backupCompanyData = functions

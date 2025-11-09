@@ -1,23 +1,23 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { collectionGroup, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useEffect, useMemo } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase.tsx';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { AppUser } from '@/types/user';
+import type { Ticket } from '@/types/ticket';
+import { format } from 'date-fns';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, Ticket } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, Ticket as TicketIcon, User, UserPlus } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 import Link from 'next/link';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 const licenseMap: Record<AppUser['licenseType'], string> = {
     pending_approval: 'Aprovação Pendente',
@@ -32,11 +32,12 @@ const licenseVariantMap: Record<AppUser['licenseType'], "default" | "secondary" 
     trial: 'outline',
     basica: 'secondary',
     profissional: 'default',
-    premium: 'default', // Same as professional for now
+    premium: 'default',
 };
 
 export default function AdminPage() {
     const [users, setUsers] = useState<AppUser[]>([]);
+    const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
     const [notificationUser, setNotificationUser] = useState<Pick<AppUser, 'uid' | 'email'> | null>(null);
@@ -45,50 +46,69 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (!adminUser) return;
-        const fetchUsers = async () => {
+
+        const fetchData = async () => {
             setLoading(true);
             try {
-                // This query assumes you have appropriate Firestore rules
-                const usersRef = collectionGroup(db, 'users');
-                const snapshot = await getDocs(usersRef);
-                const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as AppUser));
+                const listAllUsers = httpsCallable(functions, 'listAllUsers');
+                const listAllTickets = httpsCallable(functions, 'listAllTickets');
+
+                const [usersResult, ticketsResult] = await Promise.all([
+                    listAllUsers(),
+                    listAllTickets()
+                ]);
+
+                const usersData = (usersResult.data as any[]).map(u => ({
+                    ...u,
+                    createdAt: u.createdAt ? new Date(u.createdAt._seconds * 1000) : new Date(),
+                })) as AppUser[];
+                
+                const ticketsData = (ticketsResult.data as any[]).map(t => ({
+                    ...t,
+                    createdAt: t.createdAt ? new Date(t.createdAt._seconds * 1000) : new Date(),
+                })) as Ticket[];
+
                 setUsers(usersData);
-            } catch (error) {
-                console.error("Original error fetching users:", error);
-                 const permissionError = new FirestorePermissionError({
-                    path: `users (collectionGroup)`,
-                    operation: 'list',
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                toast({ variant: 'destructive', title: 'Erro de Permissão', description: 'Você não tem permissão para visualizar todos os usuários.' });
+                setTickets(ticketsData);
+            } catch (error: any) {
+                console.error("Error fetching admin data:", error);
+                toast({ variant: 'destructive', title: 'Erro ao buscar dados', description: error.message });
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchUsers();
+        fetchData();
     }, [adminUser, toast]);
+    
+    const metrics = useMemo(() => {
+        const now = new Date();
+        const activeUsers = users.filter(u => u.licenseType !== 'pending_approval').length;
+        const newUsersThisMonth = users.filter(u => {
+            const createdAt = u.createdAt as Date;
+            return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
+        }).length;
+        const totalTickets = tickets.length;
+        const pendingTickets = tickets.filter(t => t.status === 'open').length;
+
+        return { activeUsers, newUsersThisMonth, totalTickets, pendingTickets };
+    }, [users, tickets]);
+
 
     const handleChangeLicense = async (targetUserId: string, newLicense: AppUser['licenseType']) => {
         setIsSubmitting(targetUserId);
-        const userRef = doc(db, 'users', targetUserId);
-        
-        updateDoc(userRef, { licenseType: newLicense }).then(() => {
+        try {
+            const updateUserLicense = httpsCallable(functions, 'updateUserLicense');
+            await updateUserLicense({ userId: targetUserId, newLicense });
             setUsers(prev => prev.map(u => u.uid === targetUserId ? { ...u, licenseType: newLicense } : u));
             toast({ title: 'Licença atualizada!', description: 'A licença do usuário foi alterada com sucesso.' });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Erro ao atualizar licença.', description: error.message });
+        } finally {
             setIsSubmitting(null);
-        }).catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'update',
-                requestResourceData: { licenseType: newLicense },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-            toast({ variant: 'destructive', title: 'Erro ao atualizar licença.' });
-            setIsSubmitting(null);
-        });
+        }
     };
-
+    
     if (loading) {
         return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
@@ -99,10 +119,55 @@ export default function AdminPage() {
                 <h1 className="text-2xl font-bold">Painel de Administração</h1>
                 <Button asChild>
                     <Link href="/admin/chamados">
-                        <Ticket className="mr-2 h-4 w-4"/> Ver Todos os Chamados
+                        <TicketIcon className="mr-2 h-4 w-4"/> Ver Todos os Chamados
                     </Link>
                 </Button>
             </div>
+
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
+                        <User className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{metrics.activeUsers}</div>
+                        <p className="text-xs text-muted-foreground">Total de usuários com acesso liberado.</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Novos Usuários (Mês)</CardTitle>
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">+{metrics.newUsersThisMonth}</div>
+                        <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: 'pt-BR' })}.</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total de Chamados</CardTitle>
+                        <TicketIcon className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{metrics.totalTickets}</div>
+                        <p className="text-xs text-muted-foreground">Total de chamados já registrados.</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Chamados Pendentes</CardTitle>
+                        <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-destructive">{metrics.pendingTickets}</div>
+                        <p className="text-xs text-muted-foreground">Chamados com status "Aberto".</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+
             <Card>
                 <CardHeader>
                     <CardTitle>Gerenciamento de Usuários</CardTitle>
