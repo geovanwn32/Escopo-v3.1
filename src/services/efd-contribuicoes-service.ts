@@ -1,5 +1,4 @@
 
-
 import type { Company } from '@/types/company';
 import { format, startOfMonth, endOfMonth, isValid } from 'date-fns';
 import { collection, getDocs, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -61,7 +60,10 @@ export async function generateEfdContribuicoesTxt(
         launches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), date: (doc.data().date as Timestamp).toDate() } as Launch));
     }
     
-    if (!semMovimento && launches.length === 0) {
+    // Determine if there is actual movement
+    const hasMovement = launches.length > 0;
+    
+    if (!semMovimento && !hasMovement) {
         return { success: false, message: "Nenhum lançamento fiscal encontrado no período para gerar o arquivo com movimento." };
     }
 
@@ -69,15 +71,12 @@ export async function generateEfdContribuicoesTxt(
 
     // --- Bloco 0 ---
     const bloco0Lines = [];
-    // REG|COD_VER|TIPO_ESCRIT|IND_SIT_ESP|NUM_REC_ANTERIOR|DT_INI|DT_FIN|NOME_EMPRESARIAL|CNPJ|UF|COD_MUN|IM|SUFRAMA|IND_NAT_PJ|DT_SIT_ESP|
-    bloco0Lines.push(`|0000|006|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0||`);
-    bloco0Lines.push('|0001|' + (semMovimento ? '1' : '0') + '|'); 
+    bloco0Lines.push(`|0000|006|${tipoEscrituracao}|0||${formatDate(startDate)}|${formatDate(endDate)}|${sanitizeString(company.razaoSocial)}|${company.cnpj?.replace(/\D/g, '')}|${company.uf}|${company.cidade ? '5201405' : ''}|${company.inscricaoMunicipal || ''}||0|`);
+    bloco0Lines.push('|0001|' + (hasMovement ? '0' : '1') + '|'); 
     
-    // REG|NOME|CPF|CRC|CNPJ|CEP|END|NUM|COMPL|BAIRRO|FONE|FAX|EMAIL|COD_MUN|
     bloco0Lines.push(`|0100|CONTADOR EXEMPLO|00000000000|1SP000000O0||74000000|RUA TESTE|123||CENTRO|62999999999||contador@example.com|5201405|`);
     
-    // REG|IND_APROP_CRED|COD_TIPO_CONT|IND_REG_CUM|
-    bloco0Lines.push(`|0110|${company.metodoApropriacaoCredito || '1'}|${company.tipoContribuicao || '1'}|${company.incidenciaTributaria === '2' ? '1' : '2'}|`);
+    bloco0Lines.push(`|0110|${company.metodoApropriacaoCredito || '1'}|${company.tipoContribuicao || '1'}|${company.incidenciaTributaria === '2' ? '1' : '2'}|${company.apuracaoPisCofins || '1'}|`);
     
     const partners = new Map<string, { nome: string; codMun: string; }>();
     launches.forEach(launch => {
@@ -91,7 +90,6 @@ export async function generateEfdContribuicoesTxt(
         }
     });
     
-    // |REG|COD_PART|NOME|COD_PAIS|CNPJ|CPF|IE|COD_MUN|SUFRAMA|END|NUM|COMPL|BAIRRO|
     if (partners.size > 0) {
         bloco0Lines.push(`|0140|${company.cnpj?.replace(/\D/g, '')}|${sanitizeString(company.razaoSocial)}|105|${company.cnpj?.replace(/\D/g, '')}||${company.inscricaoEstadual || ''}|5201405||${company.logradouro}|${company.numero}|${company.complemento}|${company.bairro}|`);
         partners.forEach((partner, cnpj) => {
@@ -108,7 +106,7 @@ export async function generateEfdContribuicoesTxt(
     const blocoALines = [];
     blocoALines.push('|A001|' + (servicos.length > 0 ? '0' : '1') + '|');
     if (servicos.length > 0) {
-        blocoALines.push(`|A010|${company.cnpj?.replace(/\D/g, '')}|`); // Empresa é o prestador
+        blocoALines.push(`|A010|${company.cnpj?.replace(/\D/g, '')}|`);
         servicos.forEach(s => {
             const tomadorCnpj = s.tomador?.cnpj?.replace(/\D/g, '') || '';
             blocoALines.push(
@@ -158,6 +156,9 @@ export async function generateEfdContribuicoesTxt(
     allLines.push('|1001|1|', '|1990|2|');
 
     // --- Bloco 9 ---
+    const bloco9Lines = [];
+    bloco9Lines.push('|9001|0|');
+    
     const recordCounts: { [key: string]: number } = {};
     allLines.forEach(line => {
         const recordType = line.split('|')[1];
@@ -166,27 +167,24 @@ export async function generateEfdContribuicoesTxt(
         }
     });
 
-    const bloco9Lines = [];
-    bloco9Lines.push('|9001|0|');
-    
     const sortedRecordTypes = Object.keys(recordCounts).sort();
     sortedRecordTypes.forEach(record => {
         bloco9Lines.push(`|9900|${record}|${recordCounts[record]}|`);
     });
     
-    // Add counts for block 9 itself
+    const total9900Records = sortedRecordTypes.length + 4; // 9001, 9900, 9990, 9999
     bloco9Lines.push(`|9900|9001|1|`);
-    bloco9Lines.push(`|9900|9900|${sortedRecordTypes.length + 4}|`); // +4 for 9001, 9900, 9990, 9999
+    bloco9Lines.push(`|9900|9900|${total9900Records}|`);
     bloco9Lines.push(`|9900|9990|1|`);
     bloco9Lines.push(`|9900|9999|1|`);
     
     bloco9Lines.sort((a, b) => a.localeCompare(b)); 
 
-    const totalLinesInFileBefore9 = allLines.length;
-    const totalLinesInBlock9 = bloco9Lines.length + 2; // +2 for 9990 and 9999
+    const totalLinesInBlock9 = bloco9Lines.length + 1; // Count 9990 itself
+    bloco9Lines.push(`|9990|${totalLinesInBlock9 + 1}|`); // +1 for 9999
     
-    bloco9Lines.push(`|9990|${totalLinesInFileBefore9 + totalLinesInBlock9}|`);
-    bloco9Lines.push(`|9999|${totalLinesInFileBefore9 + totalLinesInBlock9 + 1}|`);
+    const totalLinesInFile = allLines.length + totalLinesInBlock9 + 1;
+    bloco9Lines.push(`|9999|${totalLinesInFile}|`);
 
     const finalFileContent = [...allLines, ...bloco9Lines].join('\r\n') + '\r\n';
     
@@ -201,13 +199,12 @@ export async function generateEfdContribuicoesTxt(
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    // Save record to Firestore
     try {
         const fileRecord: Omit<EfdFile, 'id'> = {
             fileName,
             period,
             type: tipoEscrituracao,
-            isSemMovimento: semMovimento,
+            isSemMovimento: !hasMovement,
             createdAt: serverTimestamp(),
             userId,
             companyId: company.id
@@ -216,7 +213,6 @@ export async function generateEfdContribuicoesTxt(
         await addDoc(efdFilesRef, fileRecord);
     } catch (e) {
         console.error("Error saving file record to Firestore:", e);
-        // Do not block the user, just log the error
     }
     
     return { success: true, message: `Arquivo ${fileName} gerado e download iniciado.` };
