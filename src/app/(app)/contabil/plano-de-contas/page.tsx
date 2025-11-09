@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc, writeBatch, getDocs, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,15 +94,55 @@ export default function PlanoDeContasPage() {
 
   const handleDeleteConta = async (contaId: string) => {
     if (!user || !activeCompany) return;
+  
     try {
+      // Check if account is used in any lancamento
+      const lancamentosRef = collection(db, `users/${user.uid}/companies/${activeCompany.id}/lancamentosContabeis`);
+      const q = query(lancamentosRef, where('partidas', 'array-contains-any', [ { contaId: contaId, tipo: 'debito' }, { contaId: contaId, tipo: 'credito' } ]), limit(1));
+      const lancamentoSnap = await getDocs(q);
+      
+      const relatedLancamentos = await getDocs(
+        query(lancamentosRef, where("partidas", "array-contains-any", [{tipo: 'debito', valor: 0, contaId: contaId}, {tipo: 'credito', valor: 0, contaId: contaId}] ))
+      );
+
+      const checkQuery = query(
+        collection(db, `users/${user.uid}/companies/${activeCompany.id}/lancamentosContabeis`),
+        where('partidas', 'array-contains-any', [
+          { contaId, tipo: 'debito', valor: 0 }, // Placeholder, valor doesn't matter for the check
+          { contaId, tipo: 'credito', valor: 0 }
+        ]),
+        limit(1)
+      );
+    
+    // Firestore does not support querying array of objects with partial matches directly.
+    // A workaround is to get all documents and filter client-side, but that's inefficient for large datasets.
+    // The most performant way requires changing the data structure, e.g., adding a `contaIds` array to each lancamento.
+    // For now, we will do a slightly less efficient but functional check.
+    const allLancamentosSnap = await getDocs(collection(db, `users/${user.uid}/companies/${activeCompany.id}/lancamentosContabeis`));
+    const isUsed = allLancamentosSnap.docs.some(doc => 
+      doc.data().partidas.some((partida: any) => partida.contaId === contaId)
+    );
+
+    if (isUsed) {
+        toast({
+          variant: 'destructive',
+          title: 'Exclusão não permitida',
+          description: 'Esta conta está sendo usada em um ou mais lançamentos contábeis e não pode ser excluída.',
+        });
+        return;
+    }
+
+
       await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/contasContabeis`, contaId));
       toast({
         title: 'Conta Contábil excluída!',
       });
     } catch (error) {
+      console.error("Error deleting account:", error);
       toast({
         variant: 'destructive',
         title: 'Erro ao excluir conta',
+        description: 'Ocorreu um problema inesperado ao tentar excluir a conta.'
       });
     }
   };
