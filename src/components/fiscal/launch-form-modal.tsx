@@ -117,6 +117,7 @@ const launchSchema = z.object({
   valorPis: z.coerce.number().optional().nullable(),
   valorCofins: z.coerce.number().optional().nullable(),
   valorIss: z.coerce.number().optional().nullable(),
+  valorLiquido: z.coerce.number().optional().nullable(),
 
   modalidadeFrete: z.string().optional().nullable(),
 });
@@ -139,7 +140,7 @@ const getFloat = (node: Element | null, selector: string) => parseFloat(node?.qu
 
 function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> | { error: string } {
     if (!xmlString || !xmlString.trim().startsWith('<')) {
-        return { error: 'O texto fornecido não parece ser um XML válido.' };
+        return { error: 'O texto fornecido não é um XML válido.' };
     }
 
     const parser = new DOMParser();
@@ -216,7 +217,7 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     else { // NFS-e logic
         const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse');
         if(infNfse) {
-            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi']);
+            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet']);
             if (dateString) {
                 const tempDate = new Date(dateString.split('T')[0]);
                 const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
@@ -225,19 +226,19 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
             data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero']);
             data.codigoVerificacaoNfse = querySelectorText(infNfse, ['CodigoVerificacao']);
             
-            const serviceNode = xmlDoc.querySelector('serv') || infNfse;
+            const serviceNode = xmlDoc.querySelector('serv') || infNfse.querySelector('Servico') || infNfse;
             data.discriminacao = querySelectorText(serviceNode, ['xDescServ', 'Discriminacao']);
             data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
 
-            const valoresNode = xmlDoc.querySelector('valores') || infNfse;
-            data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ']);
+            const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse;
+            data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
             data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
             data.valorTotalNota = data.valorServicos; // Simplified
             data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
 
             data.prestador = {
-                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial']),
-                cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > Cnpj']),
+                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome']),
+                cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > CpfCnpj > Cnpj', 'prest > CNPJ']),
             }
             data.tomador = {
                 nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial']),
@@ -479,7 +480,25 @@ export const LaunchFormModal = ({
     };
 
     const handleSubmit = async (values: FormData) => {
-        if (mode === 'view') { onClose(); return; }
+        if (mode === 'view') {
+            // In view mode, allow saving if changes are made
+            setLoading(true);
+            try {
+                 const dataToSave: any = { ...values, updatedAt: serverTimestamp() };
+                 delete dataToSave.createdAt; // Do not overwrite creation date
+                 const launchRef = doc(db, `users/${userId}/companies/${company.id}/launches`, initialData.launch!.id);
+                 await updateDoc(launchRef, dataToSave);
+                 toast({ title: "Lançamento Atualizado!", description: "As alterações foram salvas com sucesso."});
+                 onClose();
+            } catch (error) {
+                console.error(error); 
+                toast({ variant: 'destructive', title: 'Erro ao Salvar', description: 'Ocorreu um erro ao salvar as alterações.'});
+            } finally {
+                setLoading(false);
+            }
+            return; 
+        }
+
         setLoading(true);
         try {
             const dataToSave: any = { ...values,
@@ -651,8 +670,9 @@ export const LaunchFormModal = ({
                         </div>
                     </Tabs>
                     <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
-                    {mode !== 'view' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
+                    <Button type="button" variant="ghost" onClick={onClose}>{mode === 'create' ? 'Cancelar' : 'Fechar'}</Button>
+                    {mode !== 'create' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Salvar Alterações</Button>}
+                    {mode === 'create' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}Confirmar Lançamento</Button>}
                     </DialogFooter>
                     </form>
                     </Form>
@@ -670,3 +690,4 @@ export const LaunchFormModal = ({
         </>
     );
 };
+
