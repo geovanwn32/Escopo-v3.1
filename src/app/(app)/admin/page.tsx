@@ -182,6 +182,7 @@ export default function AdminPage() {
                             <TableRow>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Status da Licença</TableHead>
+                                <TableHead>Data de Criação</TableHead>
                                 <TableHead className="text-right">Ações</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -193,6 +194,9 @@ export default function AdminPage() {
                                         <Badge variant={licenseVariantMap[user.licenseType]}>
                                             {licenseMap[user.licenseType]}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {format(user.createdAt as Date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <DropdownMenu>
