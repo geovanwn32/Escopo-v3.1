@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -263,6 +263,15 @@ const getInitialData = (
                     quantidade: item.quantity,
                     valorUnitario: item.unitPrice,
                     valorTotal: item.total,
+                    codigo: null,
+                    ncm: null,
+                    cfop: null,
+                    unidade: null,
+                    baseCalculo: null,
+                    vlrIcms: null,
+                    vlrIpi: null,
+                    aliqIcms: null,
+                    aliqIpi: null
                 })),
                 valorTotalNota: orcamento.total,
                 valorProdutos: orcamento.total,
@@ -446,32 +455,32 @@ export const LaunchFormModal = ({
 
     if (isFetchingOrcamento) {
         return (
-            <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent>
-                    <div className="flex flex-col items-center justify-center p-8">
+            <Sheet open={isOpen} onOpenChange={onClose}>
+                <SheetContent>
+                    <div className="flex flex-col items-center justify-center p-8 h-full">
                         <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
                         <p className="text-muted-foreground">Carregando dados do orçamento...</p>
                     </div>
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         )
     }
 
     return (
         <>
-            <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent>
+            <Sheet open={isOpen} onOpenChange={onClose}>
+                <SheetContent className="sm:max-w-4xl w-full flex flex-col">
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
-                    <DialogHeader>
-                    <DialogTitle>{getTitle()}</DialogTitle>
-                    <DialogDescription asChild>
+                    <SheetHeader>
+                    <SheetTitle>{getTitle()}</SheetTitle>
+                    <SheetDescription asChild>
                         <div>
                         <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
                         {(initialData.xmlFile || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
-                    </DialogDescription>
-                    </DialogHeader>
+                    </SheetDescription>
+                    </SheetHeader>
                      <Tabs defaultValue="geral" className="w-full pt-4 flex-grow flex flex-col">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
@@ -485,7 +494,7 @@ export const LaunchFormModal = ({
                                 <div className="grid grid-cols-3 gap-4">
                                     <FormField control={control} name="numeroNfse" render={({ field }) => ( <FormItem><FormLabel>Número da Nota</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                     <FormField control={control} name="serie" render={({ field }) => ( <FormItem><FormLabel>Série</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
-                                    <FormField control={control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><DateInput value={field.value} onChange={field.onChange} readOnly={isReadOnly} /></FormControl></FormItem>)} />
+                                    <FormField control={control} name="date" render={({ field }) => (<FormItem><FormLabel>Data de Emissão</FormLabel><FormControl><DateInput value={field.value} onChange={field.onChange} disabled={isReadOnly} /></FormControl></FormItem>)} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                      <FormField control={control} name="status" render={({ field }) => (<FormItem><FormLabel>Status da Nota</FormLabel><Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Normal">Normal</SelectItem><SelectItem value="Cancelado">Cancelado</SelectItem><SelectItem value="Substituida">Substituída</SelectItem></SelectContent></Select></FormItem>)} />
@@ -538,14 +547,14 @@ export const LaunchFormModal = ({
                             </TabsContent>
                         </div>
                     </Tabs>
-                    <DialogFooter>
+                    <SheetFooter>
                     <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
                     {mode !== 'view' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
-                    </DialogFooter>
+                    </SheetFooter>
                     </form>
                     </Form>
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
             {userId && company && (
                 <PartnerSelectionModal
                     isOpen={isPartnerModalOpen}
