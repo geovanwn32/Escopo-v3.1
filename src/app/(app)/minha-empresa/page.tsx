@@ -6,14 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db, storage } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase.tsx";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Save, Loader2, Search, FileKey, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X, Archive } from "lucide-react";
+import { Save, Loader2, Search, FileKey, KeyRound, Upload, Trash2, UploadCloud, File as FileIcon, X, Archive, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { EstablishmentForm } from "@/components/empresa/establishment-form";
@@ -32,6 +32,7 @@ const companySchema = z.object({
   nomeFantasia: z.string().optional(),
   tipoInscricao: z.enum(['cnpj', 'cpf']),
   inscricao: z.string().min(1, "CNPJ/CPF é obrigatório"),
+  pseudoIp: z.string().optional(),
   ativo: z.boolean().default(true),
   tipoEstabelecimento: z.enum(['matriz', 'filial']).default('matriz'),
   cnaePrincipalCodigo: z.string().optional(),
@@ -197,6 +198,7 @@ export default function MinhaEmpresaPage() {
                           nomeFantasia: data.nomeFantasia ?? '',
                           tipoInscricao: data.tipoInscricao ?? 'cnpj',
                           inscricao: formattedInscricao,
+                          pseudoIp: data.pseudoIp ?? '',
                           ativo: data.ativo ?? true,
                           tipoEstabelecimento: data.tipoEstabelecimento ?? ('isMatriz' in data ? (data.isMatriz ? 'matriz' : 'filial') : 'matriz'),
                           cnaePrincipalCodigo: data.cnaePrincipalCodigo ?? '',
@@ -449,44 +451,60 @@ export default function MinhaEmpresaPage() {
                                     </FormItem>
                                 )}
                             />
-                            <FormField
-                                control={form.control}
-                                name="inscricao"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>{tipoInscricao === 'cnpj' ? 'CNPJ' : 'CPF'}</FormLabel>
-                                        <div className="relative">
-                                             <FormControl>
-                                                <Input 
-                                                    {...field}
-                                                    placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault();
-                                                            if (tipoInscricao === 'cnpj') handleCnpjLookup();
-                                                        }
-                                                    }}
-                                                    onChange={(e) => {
-                                                        const { value } = e.target;
-                                                        if (tipoInscricao === 'cnpj') {
-                                                            e.target.value = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
-                                                        } else {
-                                                            e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-                                                        }
-                                                        field.onChange(e);
-                                                    }}
-                                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="inscricao"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>{tipoInscricao === 'cnpj' ? 'CNPJ' : 'CPF'}</FormLabel>
+                                            <div className="relative">
+                                                <FormControl>
+                                                    <Input 
+                                                        {...field}
+                                                        placeholder={tipoInscricao === 'cnpj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                if (tipoInscricao === 'cnpj') handleCnpjLookup();
+                                                            }
+                                                        }}
+                                                        onChange={(e) => {
+                                                            const { value } = e.target;
+                                                            if (tipoInscricao === 'cnpj') {
+                                                                e.target.value = value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
+                                                            } else {
+                                                                e.target.value = value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                                                            }
+                                                            field.onChange(e);
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                {tipoInscricao === 'cnpj' && (
+                                                    <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingCnpj}>
+                                                        {loadingCnpj ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="pseudoIp"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Identificador Único (IP)</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} readOnly className="italic text-muted-foreground font-mono" />
                                             </FormControl>
-                                            {tipoInscricao === 'cnpj' && (
-                                                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingCnpj}>
-                                                    {loadingCnpj ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                            <FormDescription className="flex items-center gap-1 text-xs"><Info className="h-3 w-3"/> Este ID é gerado pelo sistema.</FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                             <FormField
                                 control={form.control}
                                 name="tipoEstabelecimento"
