@@ -13,7 +13,7 @@ import type { Thirteenth } from "@/types/thirteenth";
 import type { Vacation } from "@/types/vacation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, FileText, Printer } from "lucide-react";
+import { Users, ClipboardList, BookCheck, Gift, SendToBack, UserMinus, Loader2, ListChecks, MoreHorizontal, Eye, Trash2, FileX, Search, FilterX, Calendar as CalendarIcon, FileText, Printer, BarChart as BarChartIcon } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +22,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { cn } from "@/lib/utils";
 import { RCI } from "@/types/rci";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { ptBR } from "date-fns/locale";
+import { format, isValid, subMonths } from "date-fns";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { generateProLaboreReceiptPdf } from "@/services/pro-labore-receipt-service";
 import type { Socio } from "@/types/socio";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function PessoalPageWrapper() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
@@ -207,6 +213,46 @@ export default function PessoalPageWrapper() {
         });
     }, [terminations, terminationNameFilter, terminationDateFilter]);
 
+    const monthlyCostData = useMemo(() => {
+        const monthlyTotals: { [key: string]: { totalCost: number } } = {};
+        const today = new Date();
+        
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            monthlyTotals[key] = { totalCost: 0 };
+        }
+
+        const allCosts = [...payrolls, ...rcis, ...vacations, ...thirteenths, ...terminations];
+
+        allCosts.forEach(item => {
+            let itemDate: Date | null = null;
+            if ('period' in item && typeof item.period === 'string') {
+                const [month, year] = item.period.split('/');
+                itemDate = new Date(parseInt(year), parseInt(month) - 1, 15);
+            } else if ('startDate' in item) { // Vacation
+                itemDate = new Date(item.startDate as Date);
+            } else if ('terminationDate' in item) { // Termination
+                itemDate = new Date(item.terminationDate as Date);
+            } else if ('createdAt' in item) { // Thirteenth (fallback)
+                itemDate = new Date(item.createdAt as Date);
+            }
+
+            if (itemDate && isValid(itemDate)) {
+                const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
+                if (monthlyTotals[key]) {
+                    const proventos = (item.totals || item.result)?.totalProventos || 0;
+                    monthlyTotals[key].totalCost += proventos;
+                }
+            }
+        });
+        
+        return Object.keys(monthlyTotals).map(key => {
+            const [year, month] = key.split('-').map(Number);
+            return { month: monthNames[month], ...monthlyTotals[key] };
+        });
+    }, [payrolls, rcis, vacations, thirteenths, terminations]);
+
   const handleDeleteGeneric = async (collectionName: string, docId: string, docName: string) => {
       if (!user || !activeCompany) return;
       try {
@@ -265,8 +311,8 @@ export default function PessoalPageWrapper() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Módulo Pessoal</h1>
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Cálculos e Processamentos</CardTitle>
             <CardDescription>Execute os principais cálculos da folha de pagamento.</CardDescription>
@@ -297,20 +343,32 @@ export default function PessoalPageWrapper() {
                 <span><UserMinus className="mr-2 h-4 w-4" />Calcular Rescisão</span>
               </Link>
             </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Relatórios</CardTitle>
-            <CardDescription>Gere relatórios importantes do departamento pessoal.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Button asChild className="w-full justify-start">
+             <Button asChild className="w-full justify-start mt-4">
               <Link href="/pessoal/resumo-folha">
                 <span><BookCheck className="mr-2 h-4 w-4" />Resumo da Folha</span>
               </Link>
             </Button>
           </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+           <CardHeader>
+            <CardTitle className="flex items-center gap-2"><BarChartIcon className="h-5 w-5 text-primary"/>Evolução de Custos com Pessoal</CardTitle>
+            <CardDescription>Custo total (salários + encargos) nos últimos 6 meses.</CardDescription>
+          </CardHeader>
+           <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={monthlyCostData} >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(value as number)} />
+                        <Tooltip
+                            contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                            formatter={(value: number) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), "Custo Total"]}
+                        />
+                        <Bar dataKey="totalCost" fill="hsl(var(--primary))" name="Custo Total" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </CardContent>
         </Card>
       </div>
 
@@ -829,3 +887,9 @@ export default function PessoalPageWrapper() {
     </div>
   );
 }
+
+    
+
+    
+
+    
