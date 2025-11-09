@@ -103,6 +103,8 @@ export const relatoriosLinks = [
     { href: "/relatorios/receita-bruta", icon: <FileText />, label: "Receita Bruta" },
     { href: "/relatorios/vendas", icon: <LineChart />, label: "Vendas" },
     { href: "/relatorios/compras", icon: <ArrowDownLeftSquare />, label: "Compras" },
+    { href: "/relatorios/recibos", icon: <FileText />, label: "Recibos" },
+    { href: "/relatorios/comprovantes", icon: <FileText />, label: "Comprovantes" },
     { href: "/relatorios/funcionarios", icon: <Users />, label: "Funcionários" },
     { href: "/relatorios/produtos", icon: <Package />, label: "Produtos" },
 ]
@@ -119,6 +121,7 @@ export const sistemaLinks = [
 ];
 
 export const mainNavLinks = [
+  { href: "/dashboard", icon: <LayoutDashboard />, label: "Dashboard" },
   { href: "/fiscal", icon: <FileStack />, label: "Fiscal" },
   { href: "/pessoal", icon: <Users />, label: "Pessoal" },
   { href: "/contabil", icon: <BookCopy />, label: "Contábil" },
@@ -126,10 +129,10 @@ export const mainNavLinks = [
   { href: "/parceiros", icon: <Handshake />, label: "Cadastros" },
   { href: "/conectividade", icon: <Share2 />, label: "Conectividade"},
   { href: "/relatorios", icon: <BarChart3 />, label: "Relatórios" },
-  { href: "/esocial", icon: <Share2 />, label: "Declarações" },
 ];
 
 const getLinksForPath = (pathname: string) => {
+    if (pathname.startsWith('/dashboard')) return { title: 'Navegação', links: mainNavLinks };
     if (pathname.startsWith('/fiscal')) return { title: 'Fiscal', links: fiscalLinks };
     if (pathname.startsWith('/pessoal')) return { title: 'Pessoal', links: pessoalLinks };
     if (pathname.startsWith('/contabil')) return { title: 'Contábil', links: contabilLinks };
@@ -139,7 +142,7 @@ const getLinksForPath = (pathname: string) => {
     if (pathname.startsWith('/parceiros') || pathname.startsWith('/funcionarios') || pathname.startsWith('/socios') || pathname.startsWith('/produtos') || pathname.startsWith('/servicos') || pathname.startsWith('/aliquotas') || pathname.startsWith('/rubricas') || pathname.startsWith('/fichas')) return { title: 'Cadastros', links: cadastroLinks };
     if (pathname.startsWith('/utilitarios')) return { title: 'Utilitários', links: utilitariosLinks };
     if (pathname.startsWith('/minha-empresa') || pathname.startsWith('/configuracoes') || pathname.startsWith('/admin')) return { title: 'Sistema', links: sistemaLinks };
-    return { title: 'Navegação', links: [] };
+    return { title: 'Navegação', links: mainNavLinks };
 }
 
 
@@ -167,10 +170,6 @@ const Logo = () => {
 export function SidebarNav({ onHelpClick }: { onHelpClick: () => void }) {
   const pathname = usePathname();
   const { title, links } = getLinksForPath(pathname);
-
-  if (links.length === 0) {
-      return null; // Don't render sidebar for dashboard or unhandled routes
-  }
 
   return (
     <Sidebar>

@@ -74,13 +74,13 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
     if (dateRange.from) {
       const startDate = Timestamp.fromDate(dateRange.from);
       launchesQuery = query(launchesQuery, where('date', '>=', startDate));
-      recibosQuery = query(recibosQuery, where('date', '>=', startDate));
+      recibosQuery = query(recibosQuery, where('data', '>=', startDate));
     }
     if (dateRange.to) {
       const endDate = new Date(dateRange.to);
       endDate.setHours(23, 59, 59, 999);
       launchesQuery = query(launchesQuery, where('date', '<=', Timestamp.fromDate(endDate)));
-      recibosQuery = query(recibosQuery, where('date', '<=', Timestamp.fromDate(endDate)));
+      recibosQuery = query(recibosQuery, where('data', '<=', Timestamp.fromDate(endDate)));
     }
 
     const [launchesSnapshot, recibosSnapshot] = await Promise.all([
@@ -98,8 +98,8 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
 
     // Sort client-side by date
     purchases.sort((a, b) => {
-        const dateA = (a.date as any)?.toDate ? (a.date as any).toDate() : new Date(a.date);
-        const dateB = (b.date as any)?.toDate ? (b.date as any).toDate() : new Date(b.date);
+        const dateA = (a as any).date ? ((a as any).date.toDate ? (a as any).date.toDate() : new Date((a as any).date)) : new Date();
+        const dateB = (b as any).date ? ((b as any).date.toDate ? (b as any).date.toDate() : new Date((b as any).date)) : new Date();
         return dateB.getTime() - dateA.getTime();
     });
 
@@ -129,19 +129,19 @@ export async function generatePurchasesReportPdf(userId: string, company: Compan
         let partnerName = 'N/A';
         let document = 'N/A';
         
-        if ('type' in item) { // It's a Launch
+        if ('type' in item && item.type === 'entrada') { // It's a Launch
             value = item.valorTotalNota || 0;
             partnerName = item.emitente?.nome || 'N/A';
             document = `NF-e ${item.chaveNfe || item.numeroNfse}`;
-        } else { // It's a Recibo
+        } else if ('tipo' in item){ // It's a Recibo
             value = item.valor || 0;
             partnerName = item.pagadorNome;
-            document = `Recibo ${item.numero}`;
+            document = `${item.tipo} ${item.numero}`;
         }
 
         totalPurchasesValue += value;
         return [
-            formatDate(item.date),
+            formatDate((item as any).date),
             partnerName,
             document,
             formatCurrency(value)

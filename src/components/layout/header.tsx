@@ -47,9 +47,6 @@ export function Header({ activeCompany, onSwitchCompany }: { activeCompany: any;
                 <span className="sr-only">Toggle Menu</span>
             </Button>
             <nav className="hidden items-center gap-2 text-sm font-medium md:flex">
-                <Link href="/dashboard" className={cn("flex items-center gap-2 rounded-md px-3 py-2 transition-colors", pathname.startsWith('/dashboard') ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                    <LayoutDashboard className="h-4 w-4"/> Dashboard
-                </Link>
                 {mainNavLinks.map((link) => (
                      <Link
                         key={link.label}
