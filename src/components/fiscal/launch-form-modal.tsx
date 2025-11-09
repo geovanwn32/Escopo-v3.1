@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { collection, addDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -455,40 +455,40 @@ export const LaunchFormModal = ({
 
     if (isFetchingOrcamento) {
         return (
-            <Sheet open={isOpen} onOpenChange={onClose}>
-                <SheetContent>
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent>
                     <div className="flex flex-col items-center justify-center p-8 h-full">
                         <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
                         <p className="text-muted-foreground">Carregando dados do orçamento...</p>
                     </div>
-                </SheetContent>
-            </Sheet>
+                </DialogContent>
+            </Dialog>
         )
     }
 
     return (
         <>
-            <Sheet open={isOpen} onOpenChange={onClose}>
-                <SheetContent className="sm:max-w-4xl w-full flex flex-col">
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent className="sm:max-w-4xl w-full">
                     <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
-                    <SheetHeader>
-                    <SheetTitle>{getTitle()}</SheetTitle>
-                    <SheetDescription asChild>
+                    <DialogHeader>
+                    <DialogTitle>{getTitle()}</DialogTitle>
+                    <DialogDescription asChild>
                         <div>
                         <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
                         {(initialData.xmlFile || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
-                    </SheetDescription>
-                    </SheetHeader>
-                     <Tabs defaultValue="geral" className="w-full pt-4 flex-grow flex flex-col">
+                    </DialogDescription>
+                    </DialogHeader>
+                     <Tabs defaultValue="geral" className="w-full pt-4">
                         <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
                             <TabsTrigger value="parties">Emitente/Destinatário</TabsTrigger>
                             <TabsTrigger value="produtos">Produtos</TabsTrigger>
                             <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
                         </TabsList>
-                        <div className="py-4 flex-grow overflow-y-auto pr-4 mt-2">
+                        <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
                              <TabsContent value="geral" className="space-y-4">
                                 <FormField control={control} name="chaveNfe" render={({ field }) => ( <FormItem><FormLabel>Chave de Acesso</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl></FormItem> )} />
                                 <div className="grid grid-cols-3 gap-4">
@@ -547,14 +547,14 @@ export const LaunchFormModal = ({
                             </TabsContent>
                         </div>
                     </Tabs>
-                    <SheetFooter>
+                    <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onClose}>{mode === 'view' ? 'Fechar' : 'Cancelar'}</Button>
                     {mode !== 'view' && <Button type="submit" disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Save className="h-4 w-4"/>}{mode === 'create' ? 'Confirmar Lançamento' : 'Salvar Alterações'}</Button>}
-                    </SheetFooter>
+                    </DialogFooter>
                     </form>
                     </Form>
-                </SheetContent>
-            </Sheet>
+                </DialogContent>
+            </Dialog>
             {userId && company && (
                 <PartnerSelectionModal
                     isOpen={isPartnerModalOpen}
