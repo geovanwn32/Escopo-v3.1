@@ -11,13 +11,14 @@ import { format } from 'date-fns';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, User, UserPlus } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, User, UserPlus, Ticket } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
 import { NotificationFormModal } from '@/components/admin/notification-form-modal';
 import Link from 'next/link';
 import { ptBR } from 'date-fns/locale';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const licenseMap: Record<AppUser['licenseType'], string> = {
     pending_approval: 'Aprovação Pendente',
@@ -40,6 +41,7 @@ export default function AdminPage() {
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
     const [notificationUser, setNotificationUser] = useState<Pick<AppUser, 'uid' | 'email'> | null>(null);
+    const [isTicketsModalOpen, setIsTicketsModalOpen] = useState(false);
     const { user: adminUser } = useAuth();
     const { toast } = useToast();
 
@@ -100,112 +102,149 @@ export default function AdminPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Painel de Administração</h1>
-                <Button>CHAMADOS</Button>
-            </div>
+        <>
+            <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                    <h1 className="text-2xl font-bold">Painel de Administração</h1>
+                    <Button onClick={() => setIsTicketsModalOpen(true)}>CHAMADOS</Button>
+                </div>
 
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{metrics.activeUsers}</div>
+                            <p className="text-xs text-muted-foreground">Total de usuários com acesso liberado.</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Novos Usuários (Mês)</CardTitle>
+                            <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">+{metrics.newUsersThisMonth}</div>
+                            <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: ptBR })}.</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
-                        <User className="h-4 w-4 text-muted-foreground" />
+                    <CardHeader>
+                        <CardTitle>Gerenciamento de Usuários</CardTitle>
+                        <CardDescription>
+                            Aprove novos usuários, gerencie licenças e envie notificações.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{metrics.activeUsers}</div>
-                        <p className="text-xs text-muted-foreground">Total de usuários com acesso liberado.</p>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Email</TableHead>
+                                    <TableHead>Status da Licença</TableHead>
+                                    <TableHead>Data de Criação</TableHead>
+                                    <TableHead className="text-right">Ações</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {users.map((user) => (
+                                    <TableRow key={user.uid}>
+                                        <TableCell className="font-medium">{user.email}</TableCell>
+                                        <TableCell>
+                                            <Badge variant={licenseVariantMap[user.licenseType]}>
+                                                {licenseMap[user.licenseType]}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {format(user.createdAt as Date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" disabled={isSubmitting === user.uid}>
+                                                        {isSubmitting === user.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <MoreHorizontal className="h-4 w-4" />}
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    {user.licenseType === 'pending_approval' && (
+                                                        <DropdownMenuItem onClick={() => handleChangeLicense(user.uid, 'basica')}>
+                                                            <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Aprovar (Licença Básica)
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => setNotificationUser({ uid: user.uid, email: user.email! })}>
+                                                        <Send className="mr-2 h-4 w-4" /> Enviar Notificação
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuLabel>Alterar Licença</DropdownMenuLabel>
+                                                    {Object.keys(licenseMap).filter(key => key !== 'pending_approval').map(licenseKey => (
+                                                        <DropdownMenuItem 
+                                                            key={licenseKey} 
+                                                            disabled={user.licenseType === licenseKey}
+                                                            onClick={() => handleChangeLicense(user.uid, licenseKey as AppUser['licenseType'])}
+                                                        >
+                                                            <ShieldAlert className="mr-2 h-4 w-4" /> {licenseMap[licenseKey as keyof typeof licenseMap]}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Novos Usuários (Mês)</CardTitle>
-                        <UserPlus className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">+{metrics.newUsersThisMonth}</div>
-                        <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: ptBR })}.</p>
-                    </CardContent>
-                </Card>
+
+                {notificationUser && (
+                    <NotificationFormModal 
+                        isOpen={!!notificationUser}
+                        onClose={() => setNotificationUser(null)}
+                        targetUser={notificationUser}
+                    />
+                )}
             </div>
 
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Gerenciamento de Usuários</CardTitle>
-                    <CardDescription>
-                        Aprove novos usuários, gerencie licenças e envie notificações.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Email</TableHead>
-                                <TableHead>Status da Licença</TableHead>
-                                <TableHead>Data de Criação</TableHead>
-                                <TableHead className="text-right">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {users.map((user) => (
-                                <TableRow key={user.uid}>
-                                    <TableCell className="font-medium">{user.email}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={licenseVariantMap[user.licenseType]}>
-                                            {licenseMap[user.licenseType]}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        {format(user.createdAt as Date, 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" disabled={isSubmitting === user.uid}>
-                                                    {isSubmitting === user.uid ? <Loader2 className="h-4 w-4 animate-spin"/> : <MoreHorizontal className="h-4 w-4" />}
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent>
-                                                <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                                                <DropdownMenuSeparator />
-                                                {user.licenseType === 'pending_approval' && (
-                                                    <DropdownMenuItem onClick={() => handleChangeLicense(user.uid, 'basica')}>
-                                                        <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Aprovar (Licença Básica)
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem onClick={() => setNotificationUser({ uid: user.uid, email: user.email! })}>
-                                                    <Send className="mr-2 h-4 w-4" /> Enviar Notificação
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuLabel>Alterar Licença</DropdownMenuLabel>
-                                                {Object.keys(licenseMap).filter(key => key !== 'pending_approval').map(licenseKey => (
-                                                     <DropdownMenuItem 
-                                                        key={licenseKey} 
-                                                        disabled={user.licenseType === licenseKey}
-                                                        onClick={() => handleChangeLicense(user.uid, licenseKey as AppUser['licenseType'])}
-                                                     >
-                                                        <ShieldAlert className="mr-2 h-4 w-4" /> {licenseMap[licenseKey as keyof typeof licenseMap]}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
+            <Dialog open={isTicketsModalOpen} onOpenChange={setIsTicketsModalOpen}>
+                <DialogContent className="max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Central de Chamados de Suporte</DialogTitle>
+                        <DialogDescription>
+                            Visualize e gerencie todos os chamados abertos pelos usuários.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Problema</TableHead>
+                                    <TableHead>Usuário</TableHead>
+                                    <TableHead>Data</TableHead>
+                                    <TableHead>ID da Requisição</TableHead>
+                                    <TableHead className="text-right">Ações</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center">
+                                        Nenhum chamado encontrado.
                                     </TableCell>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            {notificationUser && (
-                <NotificationFormModal 
-                    isOpen={!!notificationUser}
-                    onClose={() => setNotificationUser(null)}
-                    targetUser={notificationUser}
-                />
-            )}
-        </div>
+                            </TableBody>
+                        </Table>
+                    </div>
+                     <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsTicketsModalOpen(false)}>Fechar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
