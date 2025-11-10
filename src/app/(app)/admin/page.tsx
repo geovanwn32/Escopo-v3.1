@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, User, UserPlus, Ticket } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, User, UserPlus, Ticket, PlusCircle } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
@@ -213,11 +213,17 @@ export default function AdminPage() {
 
             <Dialog open={isTicketsModalOpen} onOpenChange={setIsTicketsModalOpen}>
                 <DialogContent className="max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Central de Chamados de Suporte</DialogTitle>
-                        <DialogDescription>
-                            Visualize e gerencie todos os chamados abertos pelos usuários.
-                        </DialogDescription>
+                    <DialogHeader className="flex-row justify-between items-center">
+                        <div>
+                            <DialogTitle>Central de Chamados de Suporte</DialogTitle>
+                            <DialogDescription>
+                                Visualize e gerencie todos os chamados abertos pelos usuários.
+                            </DialogDescription>
+                        </div>
+                        <Button>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Abrir Novo Chamado
+                        </Button>
                     </DialogHeader>
                     <div className="py-4">
                         <Table>
