@@ -103,6 +103,7 @@ export default function AdminPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">Painel de Administração</h1>
+                <Button>CHAMADOS</Button>
             </div>
 
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
