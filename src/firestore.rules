@@ -1,0 +1,22 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Regra para os dados do próprio usuário
+    match /users/{userId} {
+      // O usuário pode ler, atualizar e deletar seu próprio documento de usuário
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      // Qualquer usuário autenticado pode criar seu próprio registro de usuário
+      allow create: if request.auth != null;
+    }
+
+    // Regra para TODAS as outras subcoleções e documentos dentro de uma empresa específica
+    match /users/{userId}/companies/{companyId}/{document=**} {
+      // O usuário só pode ler e escrever nos documentos de suas próprias empresas
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+  }
+}

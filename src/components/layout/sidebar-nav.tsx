@@ -47,7 +47,6 @@ import {
   Gift,
   SendToBack,
   UserMinus,
-  Ticket,
 } from "lucide-react"
 
 export const fiscalLinks = [
@@ -114,7 +113,6 @@ export const utilitariosLinks = [
     { href: "/utilitarios/eventos", icon: <Calendar />, label: "Agenda" },
     { href: "/utilitarios/links", icon: <LinkIcon />, label: "Links Úteis" },
     { href: "/utilitarios/arquivos", icon: <Archive />, label: "Arquivos" },
-    { href: "/utilitarios/meus-chamados", icon: <Ticket />, label: "Meus Chamados" },
 ];
 
 export const sistemaLinks = [

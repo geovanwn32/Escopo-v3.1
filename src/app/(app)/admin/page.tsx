@@ -7,12 +7,11 @@ import { functions } from '@/lib/firebase.tsx';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import type { AppUser } from '@/types/user';
-import type { Ticket } from '@/types/ticket';
 import { format } from 'date-fns';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, Ticket as TicketIcon, User, UserPlus } from "lucide-react";
+import { Loader2, MoreHorizontal, CheckCircle, Clock, Send, ShieldAlert, User, UserPlus } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +37,6 @@ const licenseVariantMap: Record<AppUser['licenseType'], "default" | "secondary" 
 
 export default function AdminPage() {
     const [users, setUsers] = useState<AppUser[]>([]);
-    const [tickets, setTickets] = useState<Ticket[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
     const [notificationUser, setNotificationUser] = useState<Pick<AppUser, 'uid' | 'email'> | null>(null);
@@ -52,25 +50,14 @@ export default function AdminPage() {
             setLoading(true);
             try {
                 const listAllUsers = httpsCallable(functions, 'listAllUsers');
-                const listAllTickets = httpsCallable(functions, 'listAllTickets');
-
-                const [usersResult, ticketsResult] = await Promise.all([
-                    listAllUsers(),
-                    listAllTickets()
-                ]);
+                const usersResult = await listAllUsers();
 
                 const usersData = (usersResult.data as any[]).map(u => ({
                     ...u,
                     createdAt: u.createdAt?._seconds ? new Date(u.createdAt._seconds * 1000) : new Date(),
                 })) as AppUser[];
                 
-                const ticketsData = (ticketsResult.data as any[]).map(t => ({
-                    ...t,
-                    createdAt: t.createdAt?._seconds ? new Date(t.createdAt._seconds * 1000) : new Date(),
-                })) as Ticket[];
-
                 setUsers(usersData);
-                setTickets(ticketsData);
             } catch (error: any) {
                 console.error("Error fetching admin data:", error);
                 toast({ variant: 'destructive', title: 'Erro ao buscar dados', description: error.message });
@@ -89,11 +76,9 @@ export default function AdminPage() {
             const createdAt = u.createdAt as Date;
             return createdAt && createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
         }).length;
-        const totalTickets = tickets.length;
-        const pendingTickets = tickets.filter(t => t.status === 'open').length;
-
-        return { activeUsers, newUsersThisMonth, totalTickets, pendingTickets };
-    }, [users, tickets]);
+        
+        return { activeUsers, newUsersThisMonth };
+    }, [users]);
 
 
     const handleChangeLicense = async (targetUserId: string, newLicense: AppUser['licenseType']) => {
@@ -118,11 +103,6 @@ export default function AdminPage() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">Painel de Administração</h1>
-                <Button asChild>
-                    <Link href="/admin/chamados">
-                        <TicketIcon className="mr-2 h-4 w-4"/> Ver Todos os Chamados
-                    </Link>
-                </Button>
             </div>
 
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -144,26 +124,6 @@ export default function AdminPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">+{metrics.newUsersThisMonth}</div>
                         <p className="text-xs text-muted-foreground">Novos cadastros em {format(new Date(), 'MMMM', { locale: ptBR })}.</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de Chamados</CardTitle>
-                        <TicketIcon className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{metrics.totalTickets}</div>
-                        <p className="text-xs text-muted-foreground">Total de chamados já registrados.</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Chamados Pendentes</CardTitle>
-                        <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-destructive">{metrics.pendingTickets}</div>
-                        <p className="text-xs text-muted-foreground">Chamados com status "Aberto".</p>
                     </CardContent>
                 </Card>
             </div>

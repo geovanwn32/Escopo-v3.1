@@ -24,7 +24,6 @@ export type { Servico } from './servico';
 export type { Socio } from './socio';
 export type { Termination } from './termination';
 export type { Thirteenth } from './thirteenth';
-export type { Ticket, TicketStatus } from './ticket';
 export type { AppUser } from './user';
 export type { Vacation } from './vacation';
 import type { FieldValue, Timestamp } from 'firebase/firestore';

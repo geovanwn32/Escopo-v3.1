@@ -17,7 +17,6 @@ import { askSupportAssistant } from '@/ai/flows/support-assistant-flow';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '../ui/scroll-area';
 import { Textarea } from '../ui/textarea';
-import { createSupportTicket } from '@/services/ticket-service';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
 
 interface HelpModalProps {
@@ -25,11 +24,6 @@ interface HelpModalProps {
   onClose: () => void;
   activeCompany: Company | null;
 }
-
-const ticketSchema = z.object({
-  problemLocation: z.string().min(1, 'A localização do problema é obrigatória.'),
-  description: z.string().min(10, 'Descreva o problema com pelo menos 10 caracteres.'),
-});
 
 const aiQuestionSchema = z.object({
     question: z.string().min(3, 'Sua pergunta deve ter pelo menos 3 caracteres.'),
@@ -66,21 +60,13 @@ interface ChatMessage {
 export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentView, setCurrentView] = useState<'main' | 'ticket' | 'ai'>('main');
+  const [currentView, setCurrentView] = useState<'main' | 'ai'>('main');
 
-  // Ticket state
-  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
-  
   // AI Chat state
   const [isAskingAI, setIsAskingAI] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  const ticketForm = useForm<z.infer<typeof ticketSchema>>({
-    resolver: zodResolver(ticketSchema),
-    defaultValues: { problemLocation: '', description: '' },
-  });
-  
   const aiForm = useForm<z.infer<typeof aiQuestionSchema>>({
       resolver: zodResolver(aiQuestionSchema),
       defaultValues: { question: '' },
@@ -91,10 +77,9 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     if (isOpen) {
         setCurrentView('main');
         setChatHistory([]);
-        ticketForm.reset();
         aiForm.reset();
     }
-  }, [isOpen, ticketForm, aiForm]);
+  }, [isOpen, aiForm]);
 
   useEffect(() => {
       // Scroll to bottom of chat history when new messages are added
@@ -102,35 +87,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
           scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
       }
   }, [chatHistory]);
-
-  const onTicketSubmit = async (values: z.infer<typeof ticketSchema>) => {
-    if (!user || !activeCompany) {
-        toast({ variant: 'destructive', title: 'Erro', description: 'Usuário ou empresa não autenticados.'});
-        return;
-    }
-
-    setIsSubmittingTicket(true);
-    try {
-        const ticketNumber = await createSupportTicket({
-            requesterName: user.email!,
-            requesterUid: user.uid,
-            requesterCompanyId: activeCompany.id,
-            requesterCompanyName: activeCompany.nomeFantasia,
-            ...values,
-        });
-        toast({
-            title: `Chamado #${ticketNumber} Aberto!`,
-            description: 'Nossa equipe de suporte entrará em contato em breve.'
-        });
-        ticketForm.reset();
-        setCurrentView('main');
-    } catch(error) {
-         console.error("Error creating ticket:", error);
-         toast({ variant: 'destructive', title: 'Erro ao Abrir Chamado', description: 'Não foi possível registrar sua solicitação. Tente novamente.'});
-    } finally {
-        setIsSubmittingTicket(false);
-    }
-  };
 
   const onAiSubmit = async (values: z.infer<typeof aiQuestionSchema>) => {
       setIsAskingAI(true);
@@ -142,7 +98,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
           setChatHistory(prev => [...prev, { role: 'assistant', content: result.answer }]);
       } catch (error) {
           console.error("Error asking AI assistant:", error);
-          setChatHistory(prev => [...prev, { role: 'assistant', content: "Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente ou abra um chamado." }]);
+          setChatHistory(prev => [...prev, { role: 'assistant', content: "Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente." }]);
           toast({ variant: 'destructive', title: 'Erro na IA', description: 'Não foi possível obter uma resposta do assistente.' });
       } finally {
           setIsAskingAI(false);
@@ -170,13 +126,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             onClick={() => setCurrentView('ai')}
         />
          <SupportChannelCard 
-            icon={<Ticket className="h-7 w-7 text-primary"/>}
-            title="Abrir Chamado"
-            description="Encontrou um problema ou erro? Abra um chamado detalhado para nossa equipe técnica."
-            buttonText="Criar Chamado"
-            onClick={() => setCurrentView('ticket')}
-        />
-         <SupportChannelCard 
             icon={<WhatsAppIcon className="h-7 w-7 text-primary"/>}
             title="WhatsApp"
             description="Converse diretamente com um de nossos atendentes em tempo real."
@@ -194,37 +143,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
        <DialogFooter className="pt-4">
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
-    </>
-  );
-
-  const renderTicketView = () => (
-    <>
-       <DialogHeader>
-            <Button variant="ghost" size="sm" onClick={() => setCurrentView('main')} className="absolute left-4 top-4 text-muted-foreground">
-             &larr; Voltar
-            </Button>
-          <DialogTitle className="text-center flex items-center justify-center gap-2 pt-2">
-                <Ticket className="h-6 w-6 text-primary" />
-                Abrir Chamado de Suporte
-          </DialogTitle>
-          <DialogDescription className="text-center">
-            Descreva o problema que você encontrou para nossa equipe analisar.
-          </DialogDescription>
-      </DialogHeader>
-      <div className="py-4">
-        <Form {...ticketForm}>
-            <form onSubmit={ticketForm.handleSubmit(onTicketSubmit)} className="space-y-4">
-                <FormField control={ticketForm.control} name="problemLocation" render={({ field }) => ( <FormItem><FormLabel>Módulo/Tela com Problema</FormLabel><FormControl><Input {...field} placeholder="Ex: Módulo Fiscal > Lançamentos" /></FormControl><FormMessage /></FormItem> )} />
-                <FormField control={ticketForm.control} name="description" render={({ field }) => ( <FormItem><FormLabel>Descrição Detalhada do Problema</FormLabel><FormControl><Textarea {...field} placeholder="Descreva o que aconteceu, o que você esperava que acontecesse e quaisquer mensagens de erro que apareceram." rows={5} /></FormControl><FormMessage /></FormItem> )} />
-                <DialogFooter className="pt-4">
-                    <Button type="submit" className="w-full" disabled={isSubmittingTicket}>
-                        {isSubmittingTicket && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Enviar Chamado para Suporte
-                    </Button>
-                </DialogFooter>
-            </form>
-        </Form>
-      </div>
     </>
   );
 
@@ -274,10 +192,7 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
             </Form>
         </div>
         <DialogFooter className="pt-4 justify-start">
-            <p className="text-xs text-muted-foreground flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4"/> A resposta da IA não ajudou?
-                <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => setCurrentView('ticket')}>Abra um chamado</Button>
-            </p>
+             <p className="text-xs text-muted-foreground">A resposta da IA pode conter imprecisões. Para problemas técnicos, contate o suporte humano.</p>
         </DialogFooter>
      </>
   );
@@ -287,7 +202,6 @@ export function HelpModal({ isOpen, onClose, activeCompany }: HelpModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-3xl">
         {currentView === 'main' && renderMainView()}
-        {currentView === 'ticket' && renderTicketView()}
         {currentView === 'ai' && renderAiView()}
       </DialogContent>
     </Dialog>
