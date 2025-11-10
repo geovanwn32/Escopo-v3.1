@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
@@ -22,6 +22,7 @@ const SUPER_ADMIN_EMAIL = 'geovaniwn@gmail.com';
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   
   const [isCompanyModalOpen, setCompanyModalOpen] = useState(false);
@@ -29,6 +30,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const [activeCompany, setActiveCompany] = useState<any>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const isDashboard = pathname === '/dashboard';
 
   useEffect(() => {
     // 1. Wait for auth to finish loading
@@ -149,7 +152,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   return (
       <FirebaseProvider>
         <div className="flex min-h-screen w-full">
-          <SidebarNav onHelpClick={() => setIsHelpModalOpen(true)} />
+          {!isDashboard && <SidebarNav onHelpClick={() => setIsHelpModalOpen(true)} />}
           <div className="flex flex-1 flex-col">
             <Header
               activeCompany={activeCompany}
