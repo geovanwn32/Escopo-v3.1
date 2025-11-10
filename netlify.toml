@@ -1,0 +1,4 @@
+[build.processing.secrets_scan]
+# Ignore the Firebase API key as it's a public key and expected to be in client-side code.
+# This prevents the Netlify build from failing due to the "likely secret" detection.
+omit_values = ["AIza..."]
