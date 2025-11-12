@@ -736,20 +736,6 @@ export default function FiscalPage() {
     return <Badge variant={variantMap[xmlFile.status]} className={cn({'bg-green-600 hover:bg-green-700': xmlFile.status === 'launched' })}>{labelMap[xmlFile.status]}</Badge>
   }
   
-  const getBadgeForLaunchStatus = (status?: Launch['status']) => {
-    if (!status) return <Badge variant="secondary">Normal</Badge>;
-    switch (status) {
-        case 'Normal':
-            return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
-        case 'Cancelado':
-            return <Badge variant="destructive">{status}</Badge>;
-        case 'Substituida':
-            return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">{status}</Badge>;
-        default:
-            return <Badge variant="secondary">{status}</Badge>;
-    }
-  }
-
   return (
     <div className="space-y-6">
       <input
@@ -852,7 +838,7 @@ export default function FiscalPage() {
                         <BarChart data={monthlyChartData}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
+                            <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value as number)} />
                             <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
                             <Legend />
                             <Bar dataKey="receitas" fill="#16a34a" name="Receitas" radius={[4, 4, 0, 0]} />
@@ -870,7 +856,7 @@ export default function FiscalPage() {
                      <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={topClientsData} layout="vertical" margin={{ left: 10, right: 30 }}>
                              <CartesianGrid strokeDasharray="3 3" />
-                             <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value)} />
+                             <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value as number)} />
                              <YAxis type="category" dataKey="name" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} width={80} tickFormatter={(value) => value.length > 12 ? `${value.substring(0,10)}...` : value} />
                              <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
                              <Bar dataKey="total" fill="#1e90ff" name="Faturamento" radius={[0, 4, 4, 0]} />
