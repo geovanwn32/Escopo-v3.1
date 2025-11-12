@@ -70,12 +70,13 @@ const formatCpf = (value: string = '') => value.replace(/\D/g, '').replace(/(\d{
 const formatCnpj = (value: string = '') => value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, "$1-$2");
 
-const defaultFormValues: FormData = {
+const defaultFormValues: Partial<FormData> = {
     tipoPessoa: 'pj',
     razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
     cep: '', logradouro: '', numero: '', complemento: '',
     bairro: '', cidade: '', uf: '', email: '', telefone: '',
     contribuinteIcms: '9_nao_contribuinte',
+    regimeTributario: undefined,
 };
 
 function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
@@ -87,7 +88,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   
   const form = useForm<FormData>({
     resolver: zodResolver(partnerSchema),
-    defaultValues: defaultFormValues
+    defaultValues: defaultFormValues as FormData
   });
   
   const tipoPessoa = form.watch('tipoPessoa');
@@ -103,9 +104,9 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             ...partner,
             cpfCnpj: partner.tipoPessoa === 'pf' ? formatCpf(partner?.cpfCnpj || '') : formatCnpj(partner?.cpfCnpj || ''),
             cep: partner?.cep ? formatCep(partner.cep) : '',
-        });
+        } as FormData);
       } else {
-        form.reset(defaultFormValues);
+        form.reset(defaultFormValues as FormData);
       }
   }, [partner, form]);
 
@@ -181,7 +182,13 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             }
         }
 
-      const dataToSave = { ...values, type: partnerType, cpfCnpj: cleanedCpfCnpj };
+      const dataToSave = { 
+        ...values, 
+        type: partnerType, 
+        cpfCnpj: cleanedCpfCnpj,
+        regimeTributario: values.regimeTributario || null,
+      };
+      
       if (mode === 'create') {
         const partnersRef = collection(db, `users/${userId}/companies/${companyId}/partners`);
         await addDoc(partnersRef, dataToSave);
