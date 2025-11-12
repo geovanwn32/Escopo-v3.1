@@ -178,12 +178,12 @@ export default function ParceirosPage() {
         <CardContent>
             <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
                 <div className="relative w-full sm:max-w-xs">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Filtrar por nome ou CPF/CNPJ..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8"
+                        className="pl-10"
                     />
                 </div>
                  <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
@@ -304,5 +304,7 @@ export default function ParceirosPage() {
     </div>
   );
 }
+
+    
 
     
