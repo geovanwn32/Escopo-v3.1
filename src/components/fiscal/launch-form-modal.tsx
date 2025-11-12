@@ -105,6 +105,9 @@ const launchSchema = z.object({
   valorTotalNota: z.coerce.number().optional().nullable(),
   valorPis: z.coerce.number().optional().nullable(),
   valorCofins: z.coerce.number().optional().nullable(),
+  valorIr: z.coerce.number().optional().nullable(),
+  valorInss: z.coerce.number().optional().nullable(),
+  valorCsll: z.coerce.number().optional().nullable(),
   valorIss: z.coerce.number().optional().nullable(),
   valorLiquido: z.coerce.number().optional().nullable(),
 });
@@ -188,7 +191,11 @@ const defaultLaunchValues: Partial<FormData> = {
     valorTotalNota: 0,
     valorPis: 0,
     valorCofins: 0,
+    valorIr: 0,
+    valorInss: 0,
+    valorCsll: 0,
     valorIss: 0,
+    valorLiquido: 0,
 };
 
 const getInitialData = (
@@ -238,12 +245,18 @@ export const LaunchFormModal = ({
         resolver: zodResolver(launchSchema),
         defaultValues: defaultLaunchValues,
     });
-    const { control, setValue, reset } = form;
+    const { control, setValue, reset, watch } = form;
 
-    const { fields, append, remove } = useFieldArray({
-        control,
-        name: "produtos",
-    } as any);
+    const watchedValues = watch(['valorServicos', 'valorPis', 'valorCofins', 'valorIss', 'valorIr', 'valorInss', 'valorCsll']);
+
+    useEffect(() => {
+        const [vlrServicos, vlrPis, vlrCofins, vlrIss, vlrIr, vlrInss, vlrCsll] = watchedValues;
+        const totalDeductions = (vlrPis || 0) + (vlrCofins || 0) + (vlrIss || 0) + (vlrIr || 0) + (vlrInss || 0) + (vlrCsll || 0);
+        const liquidValue = (vlrServicos || 0) - totalDeductions;
+        setValue('valorLiquido', parseFloat(liquidValue.toFixed(2)));
+        setValue('valorTotalNota', parseFloat((vlrServicos || 0).toFixed(2)));
+    }, [watchedValues, setValue]);
+
 
     useEffect(() => {
         if (isOpen) {
@@ -432,7 +445,12 @@ export const LaunchFormModal = ({
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                      <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                     <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>Valor do IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>Valor do INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>Valor do PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>Valor do COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>Valor do CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
