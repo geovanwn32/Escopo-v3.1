@@ -60,6 +60,34 @@ const getLaunchDocRef = (item: GenericLaunch): string => {
     return item.numeroNfse || item.chaveNfe || 'N/A';
 };
 
+const getBadgeForLaunchType = (item: GenericLaunch) => {
+    if (item.docType === 'recibo') {
+        const variant = item.natureza === 'receita' ? 'success' : 'destructive';
+        const label = item.natureza === 'receita' ? 'Receita' : 'Despesa';
+        return <Badge className="capitalize" variant={variant}>{item.tipo} {label}</Badge>
+    }
+    switch (item.type) {
+        case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
+        case 'saida': return <Badge className="capitalize bg-blue-100 text-blue-800">{item.type}</Badge>;
+        case 'servico': return <Badge className="capitalize bg-yellow-100 text-yellow-800">{item.type}</Badge>;
+        default: return <Badge variant="secondary" className="capitalize">{item.type}</Badge>;
+    }
+}
+  
+const getBadgeForLaunchStatus = (status: Launch['status']) => {
+    if (!status) return <Badge variant="secondary">Normal</Badge>;
+    switch (status) {
+        case 'Normal':
+            return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
+        case 'Cancelado':
+            return <Badge variant="destructive">{status}</Badge>;
+        case 'Substituida':
+            return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">{status}</Badge>;
+        default:
+            return <Badge variant="secondary">{status}</Badge>;
+    }
+}
+
 
 // Helper to safely stringify with support for File objects
 function replacer(key: string, value: any) {
@@ -560,34 +588,6 @@ export default function FiscalPage() {
     });
   };
 
-  const getBadgeForLaunchType = (item: GenericLaunch) => {
-    if (item.docType === 'recibo') {
-        const variant = item.natureza === 'receita' ? 'success' : 'destructive';
-        const label = item.natureza === 'receita' ? 'Receita' : 'Despesa';
-        return <Badge className="capitalize" variant={variant}>{item.tipo} {label}</Badge>
-    }
-    switch (item.type) {
-        case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
-        case 'saida': return <Badge className="capitalize bg-blue-100 text-blue-800">{item.type}</Badge>;
-        case 'servico': return <Badge className="capitalize bg-yellow-100 text-yellow-800">{item.type}</Badge>;
-        default: return <Badge variant="secondary" className="capitalize">{item.type}</Badge>;
-    }
-  }
-  
-  const getBadgeForLaunchStatus = (status: Launch['status']) => {
-    if (!status) return <Badge variant="secondary">Normal</Badge>;
-    switch (status) {
-        case 'Normal':
-            return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
-        case 'Cancelado':
-            return <Badge variant="destructive">{status}</Badge>;
-        case 'Substituida':
-            return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">{status}</Badge>;
-        default:
-            return <Badge variant="secondary">{status}</Badge>;
-    }
-  }
-
   const isLaunchLocked = (launch: GenericLaunch): boolean => {
     const launchDateRaw = launch.docType === 'launch' ? launch.date : launch.data;
     const launchDate = (launchDateRaw as any)?.toDate ? (launchDateRaw as any).toDate() : new Date(launchDateRaw);
@@ -855,7 +855,7 @@ export default function FiscalPage() {
                              <XAxis type="number" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => formatCurrency(value as number)} />
                              <YAxis type="category" dataKey="name" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} width={80} tickFormatter={(value) => value.length > 12 ? `${value.substring(0,10)}...` : value} />
                              <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} formatter={(value: number) => formatCurrency(value)} />
-                             <Bar dataKey="total" fill="#1e90ff" name="Faturamento" radius={[0, 4, 4, 0]} />
+                             <Bar dataKey="total" fill="hsl(var(--primary))" name="Faturamento" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </CardContent>
