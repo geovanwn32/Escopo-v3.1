@@ -25,11 +25,11 @@ export function EmitterSelectionModal({ isOpen, onClose, onSelect, partners, emp
 
   const combinedList = useMemo(() => {
     const partnerEmitters = partners
-        .filter(p => p.type === 'cliente')
+        .filter(p => p.type === 'cliente' || p.type === 'fornecedor')
         .map(p => ({
             id: p.id!,
             name: p.razaoSocial,
-            type: 'Cliente' as const,
+            type: p.type.charAt(0).toUpperCase() + p.type.slice(1) as 'Cliente' | 'Fornecedor',
             address: `${p.logradouro || ''}, ${p.numero || ''}, ${p.bairro || ''}`
         }));
     
@@ -111,7 +111,7 @@ export function EmitterSelectionModal({ isOpen, onClose, onSelect, partners, emp
             <div className="flex gap-2">
                  <Button asChild variant="outline">
                     <Link href="/parceiros">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Cadastrar Cliente
+                        <PlusCircle className="mr-2 h-4 w-4" /> Cadastrar Cliente/Fornecedor
                     </Link>
                 </Button>
                  <Button asChild variant="outline">
