@@ -586,9 +586,31 @@ export const LaunchFormModal = ({
                     <DialogHeader>
                     <DialogTitle>{getTitle()}</DialogTitle>
                     <DialogDescription asChild>
-                        <div>
-                        <div className="flex items-center gap-2"><span>Tipo:</span><Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge></div>
-                        {(initialData.xmlFile || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
+                         <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                <Label>Tipo:</Label>
+                                {initialData.xmlFile ? (
+                                    <Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge>
+                                ) : (
+                                    <FormField
+                                        control={control}
+                                        name="type"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl><SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="entrada">Entrada</SelectItem>
+                                                        <SelectItem value="saida">Saída</SelectItem>
+                                                        <SelectItem value="servico">Serviço</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                            </div>
+                            {(initialData.xmlFile || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
                         </div>
                     </DialogDescription>
                     </DialogHeader>
@@ -637,8 +659,8 @@ export const LaunchFormModal = ({
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {renderPartyField(launchType === 'servico' ? 'prestador' : 'emitente', launchType === 'servico' ? 'Prestador' : 'Emitente', launchType === 'saida' || launchType === 'servico')}
-                                    {renderPartyField(launchType === 'servico' ? 'tomador' : 'destinatario', launchType === 'servico' ? 'Tomador' : 'Destinatário', launchType === 'entrada')}
+                                    {renderPartyField(launchType === 'servico' ? 'prestador' : 'emitente', launchType === 'servico' ? 'Prestador' : 'Emitente', (launchType === 'saida' || launchType === 'servico') && !initialData.xmlFile)}
+                                    {renderPartyField(launchType === 'servico' ? 'tomador' : 'destinatario', launchType === 'servico' ? 'Tomador' : 'Destinatário', launchType === 'entrada' && !initialData.xmlFile)}
                                 </div>
                             </TabsContent>
                              <TabsContent value="details" className="space-y-4">
