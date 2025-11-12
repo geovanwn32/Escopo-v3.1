@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Handshake, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, User, Truck, Building } from "lucide-react";
+import { PlusCircle, Handshake, MoreHorizontal, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, User, Truck, Building, Search, FilterX } from "lucide-react";
 import { PartnerFormModal } from '@/components/parceiros/partner-form-modal';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +16,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function ParceirosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,6 +26,9 @@ export default function ParceirosPage() {
   const [loading, setLoading] = useState(true);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [modalPartnerType, setModalPartnerType] = useState<PartnerType>('cliente');
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<PartnerType | ''>('');
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -76,6 +81,21 @@ export default function ParceirosPage() {
     return () => unsubscribe();
   }, [user, activeCompany, toast]);
 
+    const filteredPartners = useMemo(() => {
+        return partners.filter(partner => {
+            const searchTermLower = searchTerm.toLowerCase();
+            const nameMatch = partner.razaoSocial.toLowerCase().includes(searchTermLower) || (partner.nomeFantasia || '').toLowerCase().includes(searchTermLower);
+            const docMatch = partner.cpfCnpj.replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''));
+            const typeMatch = filterType ? partner.type === filterType : true;
+            return (nameMatch || docMatch) && typeMatch;
+        });
+    }, [partners, searchTerm, filterType]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterType]);
+
+
   const handleOpenModal = (type: PartnerType, partner: Partner | null = null) => {
     setModalPartnerType(type);
     setEditingPartner(partner);
@@ -103,8 +123,8 @@ export default function ParceirosPage() {
     }
   };
 
-  const totalPages = Math.ceil(partners.length / itemsPerPage);
-  const paginatedPartners = partners.slice(
+  const totalPages = Math.ceil(filteredPartners.length / itemsPerPage);
+  const paginatedPartners = filteredPartners.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -129,6 +149,11 @@ export default function ParceirosPage() {
     }
   }
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterType('');
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -151,6 +176,32 @@ export default function ParceirosPage() {
           <CardDescription>Gerencie seus clientes, fornecedores e transportadoras.</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="flex flex-col sm:flex-row gap-2 mb-4 p-4 border rounded-lg bg-muted/50 items-center">
+                <div className="relative w-full sm:max-w-xs">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Filtrar por nome ou CPF/CNPJ..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-8"
+                    />
+                </div>
+                 <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filtrar por Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="cliente">Cliente</SelectItem>
+                        <SelectItem value="fornecedor">Fornecedor</SelectItem>
+                        <SelectItem value="transportadora">Transportadora</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Button variant="ghost" onClick={clearFilters} className="sm:ml-auto">
+                    <FilterX className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                </Button>
+            </div>
+
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
