@@ -251,15 +251,15 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
 
     const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
-    data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
-    data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
-    data.valorPis = getFloat(valoresNode, ['vPIS', 'ValorPis']);
-    data.valorCofins = getFloat(valoresNode, ['vCOFINS', 'ValorCofins']);
-    data.valorIr = getFloat(valoresNode, ['vIR', 'ValorIr']);
-    data.valorInss = getFloat(valoresNode, ['vINSS', 'ValorInss']);
-    data.valorCsll = getFloat(valoresNode, ['vCSLL', 'ValorCsll']);
+    data.valorServicos = getFloat(valoresNode, 'ValorServicos');
+    data.valorIss = getFloat(valoresNode, 'ValorIss');
+    data.valorPis = getFloat(valoresNode, 'ValorPis');
+    data.valorCofins = getFloat(valoresNode, 'ValorCofins');
+    data.valorIr = getFloat(valoresNode, 'ValorIr');
+    data.valorInss = getFloat(valoresNode, 'ValorInss');
+    data.valorCsll = getFloat(valoresNode, 'ValorCsll');
     data.valorTotalNota = data.valorServicos; // Simplified
-    data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
+    data.valorLiquido = getFloat(valoresNode, 'ValorLiquidoNfse');
 
     data.prestador = {
         nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome', 'emit > xNome']),
