@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, Save, Bot } from 'lucide-react';
+import { Loader2, Search, Save, Bot, PlusCircle, Trash2 } from 'lucide-react';
 import { Launch, Company } from '@/types';
 import { isValid } from 'date-fns';
 import { Textarea } from '../ui/textarea';
@@ -75,14 +76,15 @@ const productSchema = z.object({
     codigo: z.string().optional().nullable(),
     descricao: z.string().min(1, "Descrição é obrigatória"),
     ncm: z.string().optional().nullable(),
+    cst: z.string().optional().nullable(),
     cfop: z.string().optional().nullable(),
     unidade: z.string().optional().nullable(),
     quantidade: z.coerce.number().default(1),
     valorUnitario: z.coerce.number().default(0),
     valorTotal: z.coerce.number().default(0),
-    baseCalculo: z.coerce.number().optional().nullable(),
-    vlrIcms: z.coerce.number().optional().nullable(),
-    vlrIpi: z.coerce.number().optional().nullable(),
+    baseCalculoIcms: z.coerce.number().optional().nullable(),
+    valorIcms: z.coerce.number().optional().nullable(),
+    valorIpi: z.coerce.number().optional().nullable(),
     aliqIcms: z.coerce.number().optional().nullable(),
     aliqIpi: z.coerce.number().optional().nullable(),
 });
@@ -96,6 +98,7 @@ const launchSchema = z.object({
   
   // NF-e fields
   chaveNfe: z.string().optional().nullable(),
+  modalidadeFrete: z.string().optional().nullable(),
 
   // NFS-e fields
   numeroNfse: z.string().optional().nullable(),
@@ -113,6 +116,9 @@ const launchSchema = z.object({
 
   // NF-e Values
   valorProdutos: z.coerce.number().optional().nullable(),
+  valorFrete: z.coerce.number().optional().nullable(),
+  valorSeguro: z.coerce.number().optional().nullable(),
+  valorOutrasDespesas: z.coerce.number().optional().nullable(),
 
   // NFS-e Values
   valorServicos: z.coerce.number().optional().nullable(),
@@ -128,6 +134,13 @@ const launchSchema = z.object({
   valorIpi: z.coerce.number().optional().nullable(),
   valorIcms: z.coerce.number().optional().nullable(),
   valorLiquido: z.coerce.number().optional().nullable(),
+  
+  aliqPis: z.coerce.number().optional().nullable(),
+  aliqCofins: z.coerce.number().optional().nullable(),
+  aliqIr: z.coerce.number().optional().nullable(),
+  aliqInss: z.coerce.number().optional().nullable(),
+  aliqCsll: z.coerce.number().optional().nullable(),
+  aliqIss: z.coerce.number().optional().nullable(),
 
   // Products
   produtos: z.array(productSchema).optional(),
@@ -176,6 +189,9 @@ function parseNfeXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
     const total = infNFe.querySelector('total > ICMSTot');
     data.valorTotalNota = getFloat(total, 'vNF');
     data.valorProdutos = getFloat(total, 'vProd');
+    data.valorFrete = getFloat(total, 'vFrete');
+    data.valorSeguro = getFloat(total, 'vSeg');
+    data.valorOutrasDespesas = getFloat(total, 'vOutro');
     data.valorPis = getFloat(total, 'vPIS');
     data.valorCofins = getFloat(total, 'vCOFINS');
     data.valorIcms = getFloat(total, 'vICMS');
@@ -184,17 +200,29 @@ function parseNfeXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
 
     xmlDoc.querySelectorAll('det').forEach(det => {
         const prod = det.querySelector('prod');
+        const imposto = det.querySelector('imposto');
+        const icmsNode = imposto?.querySelector('ICMS > *'); // Gets the first child of ICMS
+        const ipiNode = imposto?.querySelector('IPI > IPITrib');
+        
         data.produtos?.push({
             codigo: querySelectorText(prod, ['cProd']),
             descricao: querySelectorText(prod, ['xProd']),
             ncm: querySelectorText(prod, ['NCM']),
             cfop: querySelectorText(prod, ['CFOP']),
             unidade: querySelectorText(prod, ['uCom']),
+            cst: querySelectorText(icmsNode, ['CST', 'CSOSN']),
             quantidade: getFloat(prod, 'qCom'),
             valorUnitario: getFloat(prod, 'vUnCom'),
             valorTotal: getFloat(prod, 'vProd'),
+            baseCalculoIcms: getFloat(icmsNode, 'vBC'),
+            valorIcms: getFloat(icmsNode, 'vICMS'),
+            aliqIcms: getFloat(icmsNode, 'pICMS'),
+            valorIpi: getFloat(ipiNode, 'vIPI'),
+            aliqIpi: getFloat(ipiNode, 'pIPI'),
         });
     });
+    
+    data.modalidadeFrete = querySelectorText(infNFe.querySelector('transp'), ['modFrete']);
 
     return data;
 }
@@ -206,6 +234,8 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     if (!infNfse) return {};
 
     const prestadorCnpj = querySelectorText(infNfse, ['PrestadorServico > CpfCnpj > Cnpj', 'prest > CNPJ']).replace(/\D/g, '');
+    const tomadorCnpj = querySelectorText(infNfse, ['TomadorServico > CpfCnpj > Cnpj', 'toma > CNPJ']).replace(/\D/g, '');
+    
     data.type = prestadorCnpj === companyCnpj ? 'servico' : 'entrada';
     
     const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet', 'DPS > infDPS > dhEmi']);
@@ -223,6 +253,11 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
     data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
     data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
+    data.valorPis = getFloat(valoresNode, ['vPIS', 'ValorPis']);
+    data.valorCofins = getFloat(valoresNode, ['vCOFINS', 'ValorCofins']);
+    data.valorIr = getFloat(valoresNode, ['vIR', 'ValorIr']);
+    data.valorInss = getFloat(valoresNode, ['vINSS', 'ValorInss']);
+    data.valorCsll = getFloat(valoresNode, ['vCSLL', 'ValorCsll']);
     data.valorTotalNota = data.valorServicos; // Simplified
     data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
 
@@ -232,7 +267,7 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     };
     data.tomador = {
         nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial', 'DPS > infDPS > toma > xNome']),
-        cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf', 'DPS > infDPS > toma > CNPJ']).replace(/\D/g, ''),
+        cnpj: tomadorCnpj,
     };
 
     return data;
@@ -303,6 +338,31 @@ export const LaunchFormModal = ({
     });
     const { control, setValue, reset, getValues } = form;
 
+     const { fields, append, remove } = useFieldArray({
+        control,
+        name: "produtos",
+    });
+
+    const watchedProducts = useWatch({ control, name: "produtos" });
+    const watchedTaxFields = useWatch({ control, name: ['valorServicos', 'valorPis', 'valorCofins', 'valorCsll', 'valorIr', 'valorInss', 'valorIss'] });
+
+    useEffect(() => {
+        const totalProdutos = watchedProducts?.reduce((sum, p) => sum + (p.valorTotal || 0), 0) || 0;
+        setValue('valorProdutos', totalProdutos);
+    }, [watchedProducts, setValue]);
+
+    useEffect(() => {
+        const [
+            valorServicos = 0, valorPis = 0, valorCofins = 0, valorCsll = 0,
+            valorIr = 0, valorInss = 0, valorIss = 0
+        ] = watchedTaxFields.map(val => Number(val) || 0);
+        
+        const valorLiquido = valorServicos - (valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss);
+        setValue('valorLiquido', valorLiquido);
+        setValue('valorTotalNota', valorLiquido);
+    }, [watchedTaxFields, setValue]);
+
+
     const fillAndSetInitialData = useCallback((data: Partial<FormData>) => {
         reset({
             ...defaultLaunchValues,
@@ -315,7 +375,7 @@ export const LaunchFormModal = ({
 
     useEffect(() => {
         if (isOpen) {
-            const { mode = 'create', launch, xmlFile, manualLaunchType } = initialData;
+            const { mode = 'create', launch, xmlFile } = initialData;
 
             if (mode === 'edit' || mode === 'view') {
                 fillAndSetInitialData(launch || {});
@@ -328,20 +388,17 @@ export const LaunchFormModal = ({
                     onClose();
                 }
             } else { // Manual launch
-                const manualType = manualLaunchType || 'servico';
+                const manualType = initialData.manualLaunchType || 'servico';
                 fillAndSetInitialData({ type: manualType });
                 setLaunchType(manualType);
 
                  if (manualType === 'servico' || manualType === 'saida') {
-                    setValue('prestador.nome', company.razaoSocial);
-                    setValue('prestador.cnpj', company.cnpj);
-                    setValue('emitente.nome', company.razaoSocial);
-                    setValue('emitente.cnpj', company.cnpj);
+                    const partyField = manualType === 'servico' ? 'prestador' : 'emitente';
+                    setValue(`${partyField}.nome`, company.razaoSocial);
+                    setValue(`${partyField}.cnpj`, company.cnpj);
                  } else { // entrada
                     setValue('destinatario.nome', company.razaoSocial);
                     setValue('destinatario.cnpj', company.cnpj);
-                    setValue('tomador.nome', company.razaoSocial);
-                    setValue('tomador.cnpj', company.cnpj);
                  }
             }
         }
@@ -380,7 +437,7 @@ export const LaunchFormModal = ({
                  if (dataToSave.produtos) {
                     await upsertProductsFromLaunch(userId, company.id, dataToSave.produtos);
                 }
-                const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : dataToSave.destinatario;
+                const partnerData = dataToSave.type === 'entrada' ? dataToSave.emitente : (dataToSave.destinatario || dataToSave.tomador);
                  if (partnerData?.cnpj && partnerData?.nome) {
                     await upsertPartnerFromLaunch(userId, company.id, {
                         cpfCnpj: partnerData.cnpj,
@@ -441,7 +498,7 @@ export const LaunchFormModal = ({
                     </DialogDescription>
                     </DialogHeader>
                     
-                    <div className="py-4">
+                     <div className="py-4">
                         <FormField
                             control={form.control}
                             name="type"
@@ -502,16 +559,38 @@ export const LaunchFormModal = ({
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="details" className="space-y-4">
+                             <TabsContent value="details" className="space-y-4">
                                 {isNFe ? (
-                                    <Table>
-                                        <TableHeader><TableRow><TableHead>Descrição</TableHead><TableHead>Qtd</TableHead><TableHead>Vlr. Unit</TableHead><TableHead>Vlr. Total</TableHead></TableRow></TableHeader>
-                                        <TableBody>
-                                            {getValues('produtos')?.map((p, i) => (
-                                                <TableRow key={i}><TableCell>{p.descricao}</TableCell><TableCell>{p.quantidade}</TableCell><TableCell>{formatCurrency(p.valorUnitario)}</TableCell><TableCell>{formatCurrency(p.valorTotal)}</TableCell></TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                    <div className="space-y-3">
+                                    {fields.map((item, index) => {
+                                        const watchedItem = watchedProducts?.[index];
+                                        const total = (watchedItem?.quantidade || 0) * (watchedItem?.valorUnitario || 0);
+
+                                        return (
+                                        <div key={item.id} className="p-3 border rounded-lg space-y-2 relative">
+                                             <Button type="button" variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                             <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Descrição</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                 <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Qtd</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. Unit.</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                                 <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={formatCurrency(total)} className="font-semibold bg-muted" /></FormItem>
+                                                 <FormField control={control} name={`produtos.${index}.cfop`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CFOP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                             </div>
+                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                 <FormField control={control} name={`produtos.${index}.ncm`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">NCM</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.cst`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CST/CSOSN</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.valorIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                             </div>
+                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                <FormField control={control} name={`produtos.${index}.aliqIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. ICMS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                                <FormField control={control} name={`produtos.${index}.valorIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                                <FormField control={control} name={`produtos.${index}.aliqIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. IPI (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                             </div>
+                                        </div>
+                                        );
+                                    })}
+                                     <Button type="button" variant="outline" size="sm" onClick={() => append({ ...productSchema.parse({}) })}><PlusCircle className="mr-2 h-4 w-4"/>Adicionar Produto</Button>
+                                    </div>
                                 ) : (
                                     <div className="space-y-4">
                                         <FormField control={control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação dos Serviços</FormLabel><FormControl><Textarea {...field} value={field.value || ''}  rows={10} /></FormControl></FormItem> )} />

@@ -91,8 +91,11 @@ export interface Launch {
     
     // NF-e specific
     valorProdutos?: number | null;
-    valorTotalNota?: number | null;
     modalidadeFrete?: string | null;
+    valorFrete?: number | null;
+    valorSeguro?: number | null;
+    valorOutrasDespesas?: number | null;
+
 
     // Taxes
     valorPis?: number | null;
@@ -105,18 +108,27 @@ export interface Launch {
     valorIcms?: number | null;
     valorLiquido?: number | null;
 
+    // Tax Rates
+    aliqPis?: number | null;
+    aliqCofins?: number | null;
+    aliqIr?: number | null;
+    aliqInss?: number | null;
+    aliqCsll?: number | null;
+    aliqIss?: number | null;
+
     produtos?: {
       codigo?: string | null;
       descricao: string;
       ncm?: string | null;
+      cst?: string | null;
       cfop?: string | null;
       unidade?: string | null;
       quantidade: number;
       valorUnitario: number;
       valorTotal: number;
-      baseCalculo?: number | null;
-      vlrIcms?: number | null;
-      vlrIpi?: number | null;
+      baseCalculoIcms?: number | null;
+      valorIcms?: number | null;
+      valorIpi?: number | null;
       aliqIcms?: number | null;
       aliqIpi?: number | null;
     }[];
