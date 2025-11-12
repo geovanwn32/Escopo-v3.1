@@ -39,19 +39,24 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
 
 const getPartnerName = (item: GenericLaunch): string => {
-    if (item.docType === 'recibo') return item.pagadorNome;
-    switch (item.type) {
-      case 'entrada':
-        return item.emitente?.nome || 'N/A';
-      case 'saida':
-         if (item.destinatario?.nome) return item.destinatario.nome;
-         if (item.tomador?.nome) return item.tomador.nome;
-         return 'N/A';
-      case 'servico':
-        return item.tomador?.nome || 'N/A';
-      default:
-        return 'N/A';
+    if (item.docType === 'recibo') {
+        return item.pagadorNome;
     }
+    // For services taken (entrada), the partner is the provider (prestador).
+    if (item.type === 'servico' && item.tomador?.cnpj?.replace(/\D/g, '') === 'YOUR_COMPANY_CNPJ_IDENTIFIER') {
+        return item.prestador?.nome || 'N/A';
+    }
+    // For services provided (saída), the partner is the client (tomador).
+    if (item.type === 'servico') {
+        return item.tomador?.nome || 'N/A';
+    }
+    if (item.type === 'entrada') {
+        return item.emitente?.nome || 'N/A';
+    }
+    if (item.type === 'saida') {
+        return item.destinatario?.nome || 'N/A';
+    }
+    return 'N/A';
 };
 
 const getLaunchValue = (item: GenericLaunch): number => {
@@ -578,7 +583,7 @@ export default function FiscalPage() {
     }
   }
   
-  const getBadgeForLaunchStatus = (status?: Launch['status']) => {
+  const getBadgeForLaunchStatus = (status: Launch['status']) => {
     if (!status) return <Badge variant="secondary">Normal</Badge>;
     switch (status) {
         case 'Normal':
