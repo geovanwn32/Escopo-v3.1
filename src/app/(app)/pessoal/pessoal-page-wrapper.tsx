@@ -32,6 +32,7 @@ import type { Socio } from "@/types/socio";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -892,3 +893,4 @@ export default function PessoalPageWrapper() {
     
 
     
+
