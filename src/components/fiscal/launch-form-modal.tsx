@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -12,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Search, PlusCircle, Trash2, FileText, Save, Bot } from 'lucide-react';
+import { Loader2, Search, Save, Bot } from 'lucide-react';
 import { Launch, Company } from '@/types';
 import { isValid } from 'date-fns';
 import { Textarea } from '../ui/textarea';
@@ -30,6 +29,7 @@ import { Separator } from '../ui/separator';
 import { DateInput } from '../ui/date-input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Label } from '../ui/label';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 
 interface XmlFile {
@@ -85,13 +85,10 @@ const productSchema = z.object({
 
 const launchSchema = z.object({
   fileName: z.string().default(''),
-  type: z.string().min(1, "O tipo de lançamento é obrigatório"),
+  type: z.literal('servico').default('servico'),
   status: z.enum(['Normal', 'Cancelado', 'Substituida']),
   date: z.date({ required_error: "A data é obrigatória." }),
   observacoes: z.string().optional().nullable(),
-
-  // NF-e fields
-  chaveNfe: z.string().optional().nullable(),
   
   // NFS-e fields
   numeroNfse: z.string().optional().nullable(),
@@ -99,27 +96,17 @@ const launchSchema = z.object({
   discriminacao: z.string().optional().nullable(),
   itemLc116: z.string().optional().nullable(),
   
-  // Common fields
   serie: z.string().optional().nullable(),
 
-  emitente: partySchema,
-  destinatario: partySchema,
   prestador: partySchema,
   tomador: partySchema,
 
-  produtos: z.array(productSchema).optional(),
-
-  valorProdutos: z.coerce.number().optional().nullable(),
   valorServicos: z.coerce.number().optional().nullable(),
   valorTotalNota: z.coerce.number().optional().nullable(),
-  valorIpi: z.coerce.number().optional().nullable(),
-  valorIcms: z.coerce.number().optional().nullable(),
   valorPis: z.coerce.number().optional().nullable(),
   valorCofins: z.coerce.number().optional().nullable(),
   valorIss: z.coerce.number().optional().nullable(),
   valorLiquido: z.coerce.number().optional().nullable(),
-
-  modalidadeFrete: z.string().optional().nullable(),
 });
 
 
@@ -138,7 +125,7 @@ const querySelectorText = (element: Element | Document | null, selectors: string
 
 const getFloat = (node: Element | null, selector: string) => parseFloat(node?.querySelector(selector)?.textContent || '0');
 
-function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servico' | 'desconhecido'): Partial<FormData> | { error: string } {
+function parseXmlForService(xmlString: string): Partial<FormData> | { error: string } {
     if (!xmlString || !xmlString.trim().startsWith('<')) {
         return { error: 'O texto fornecido não é um XML válido.' };
     }
@@ -153,98 +140,37 @@ function parseXmlAdvanced(xmlString: string, type: 'entrada' | 'saida' | 'servic
     }
 
     const data: Partial<FormData> = {};
-    const infNFe = xmlDoc.querySelector('infNFe');
-
-    if (infNFe) { // It's an NF-e (product note)
-        const ide = infNFe.querySelector('ide');
-        const emit = infNFe.querySelector('emit');
-        const dest = infNFe.querySelector('dest');
-        const total = infNFe.querySelector('ICMSTot');
-        const transp = infNFe.querySelector('transp');
-
-        const dateString = querySelectorText(ide, ['dhEmi', 'dEmi']);
+    const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('NFSe > infNFSe');
+    if(infNfse) {
+        const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet', 'DPS > infDPS > dhEmi']);
         if (dateString) {
             const tempDate = new Date(dateString.split('T')[0]);
             const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
             data.date = new Date(tempDate.getTime() + timezoneOffset);
-        } else {
-            data.date = new Date();
         }
-
-        data.chaveNfe = infNFe.getAttribute('Id')?.replace('NFe', '') || '';
-        data.numeroNfse = querySelectorText(ide, ['nNF']);
-        data.serie = querySelectorText(ide, ['serie']);
+        data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero', 'DPS > infDPS > nDPS']);
+        data.codigoVerificacaoNfse = querySelectorText(infNfse, ['CodigoVerificacao']);
         
-        data.emitente = {
-            nome: querySelectorText(emit, ['xNome']),
-            cnpj: querySelectorText(emit, ['CNPJ', 'CPF']),
-        };
-        data.destinatario = {
-            nome: querySelectorText(dest, ['xNome']),
-            cnpj: querySelectorText(dest, ['CNPJ', 'CPF']),
-        };
+        const serviceNode = xmlDoc.querySelector('serv') || infNfse.querySelector('Servico') || infNfse;
+        data.discriminacao = querySelectorText(serviceNode, ['xDescServ', 'Discriminacao']);
+        data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
 
-        data.valorTotalNota = getFloat(total, 'vNF');
-        data.valorProdutos = getFloat(total, 'vProd');
-        data.valorPis = getFloat(total, 'vPIS');
-        data.valorCofins = getFloat(total, 'vCOFINS');
-        data.valorIcms = getFloat(total, 'vICMS');
-        data.valorIpi = getFloat(total, 'vIPI');
-        data.modalidadeFrete = querySelectorText(transp, ['modFrete']);
-        
-        data.produtos = Array.from(infNFe.querySelectorAll('det')).map(det => {
-            const prod = det.querySelector('prod');
-            const imposto = det.querySelector('imposto');
-            
-            return {
-                codigo: querySelectorText(prod, ['cProd']),
-                descricao: querySelectorText(prod, ['xProd']) || '',
-                ncm: querySelectorText(prod, ['NCM']),
-                cfop: querySelectorText(prod, ['CFOP']),
-                unidade: querySelectorText(prod, ['uCom']),
-                quantidade: getFloat(prod, 'qCom'),
-                valorUnitario: getFloat(prod, 'vUnCom'),
-                valorTotal: getFloat(prod, 'vProd'),
-                baseCalculo: getFloat(imposto, 'vBC'),
-                vlrIcms: getFloat(imposto, 'vICMS'),
-                vlrIpi: getFloat(imposto, 'vIPI'),
-                aliqIcms: getFloat(imposto, 'pICMS'),
-                aliqIpi: getFloat(imposto, 'pIPI'),
-            };
-        });
+        const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
+        data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
+        data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
+        data.valorTotalNota = data.valorServicos; // Simplified
+        data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
 
-    } 
-    else { // NFS-e logic
-        const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('NFSe > infNFSe');
-        if(infNfse) {
-            const dateString = querySelectorText(infNfse, ['dhProc', 'dhEmi', 'dCompet', 'DPS > infDPS > dhEmi']);
-            if (dateString) {
-                const tempDate = new Date(dateString.split('T')[0]);
-                const timezoneOffset = tempDate.getTimezoneOffset() * 60000;
-                data.date = new Date(tempDate.getTime() + timezoneOffset);
-            }
-            data.numeroNfse = querySelectorText(infNfse, ['nNFSe', 'Numero', 'DPS > infDPS > nDPS']);
-            data.codigoVerificacaoNfse = querySelectorText(infNfse, ['CodigoVerificacao']);
-            
-            const serviceNode = xmlDoc.querySelector('serv') || infNfse.querySelector('Servico') || infNfse;
-            data.discriminacao = querySelectorText(serviceNode, ['xDescServ', 'Discriminacao']);
-            data.itemLc116 = querySelectorText(serviceNode, ['cServ > cTribNac', 'ItemListaServico']);
-
-            const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
-            data.valorServicos = getFloat(valoresNode, ['vServPrest > vServ', 'vServ', 'ValorServicos']);
-            data.valorIss = getFloat(valoresNode, ['vISS', 'ValorIss']);
-            data.valorTotalNota = data.valorServicos; // Simplified
-            data.valorLiquido = getFloat(valoresNode, ['vLiq', 'ValorLiquidoNfse']);
-
-            data.prestador = {
-                nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome', 'emit > xNome']),
-                cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > CpfCnpj > Cnpj', 'prest > CNPJ']),
-            }
-            data.tomador = {
-                nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial', 'DPS > infDPS > toma > xNome']),
-                cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf', 'DPS > infDPS > toma > CNPJ']),
-            }
+        data.prestador = {
+            nome: querySelectorText(xmlDoc, ['emit > xNome', 'PrestadorServico > RazaoSocial', 'prest > xNome', 'emit > xNome']),
+            cnpj: querySelectorText(xmlDoc, ['emit > CNPJ', 'PrestadorServico > CpfCnpj > Cnpj', 'prest > CNPJ']),
         }
+        data.tomador = {
+            nome: querySelectorText(xmlDoc, ['toma > xNome', 'TomadorServico > RazaoSocial', 'DPS > infDPS > toma > xNome']),
+            cnpj: querySelectorText(xmlDoc, ['toma > CNPJ', 'toma > CPF', 'TomadorServico > CpfCnpj > Cnpj', 'TomadorServico > CpfCnpj > Cpf', 'DPS > infDPS > toma > CNPJ']),
+        }
+    } else {
+        return { error: 'Formato de NFS-e não reconhecido.' };
     }
     
     return data;
@@ -254,21 +180,12 @@ const defaultLaunchValues: Partial<FormData> = {
     fileName: '',
     status: 'Normal',
     date: new Date(),
-    produtos: [],
-    modalidadeFrete: '9', // Default to "Sem Frete"
-    chaveNfe: '',
-    numeroNfse: '',
     serie: '',
     observacoes: '',
-    emitente: { nome: '', cnpj: '' },
-    destinatario: { nome: '', cnpj: '' },
     prestador: { nome: '', cnpj: '' },
     tomador: { nome: '', cnpj: '' },
-    valorProdutos: 0,
     valorServicos: 0,
     valorTotalNota: 0,
-    valorIcms: 0,
-    valorIpi: 0,
     valorPis: 0,
     valorCofins: 0,
     valorIss: 0,
@@ -278,87 +195,25 @@ const getInitialData = (
     options: OpenModalOptions,
     company: Company,
 ): Partial<FormData> => {
-    const { mode = 'create', xmlFile, launch, manualLaunchType, orcamento } = options;
+    const { mode = 'create', launch } = options;
 
-    const sanitizeParty = (party: any) => ({
-        nome: party?.nome || '',
-        cnpj: party?.cnpj || '',
-    });
-
-    if (mode === 'create') {
-        if (xmlFile) {
-            const parsedData = parseXmlAdvanced(xmlFile.content, xmlFile.type as any);
-             if ('error' in parsedData) {
-                // In a real app, you might show a toast here
-                console.error("Failed to parse XML on init:", parsedData.error);
-                return { ...defaultLaunchValues, type: xmlFile.type, fileName: xmlFile.file.name };
-            }
-            return {
-                ...defaultLaunchValues,
-                ...parsedData,
-                type: xmlFile.type,
-                fileName: xmlFile.file.name,
-                status: xmlFile.status === 'cancelled' ? 'Cancelado' : 'Normal',
-                emitente: sanitizeParty(parsedData.emitente),
-                destinatario: sanitizeParty(parsedData.destinatario),
-                prestador: sanitizeParty(parsedData.prestador),
-                tomador: sanitizeParty(parsedData.tomador),
-            };
-        }
-        if (orcamento) {
-            return {
-                ...defaultLaunchValues,
-                type: orcamento.items.some(i => i.type === 'servico') ? 'servico' : 'saida',
-                date: new Date(),
-                fileName: `Orçamento Nº ${orcamento.quoteNumber}`,
-                destinatario: { nome: orcamento.partnerName, cnpj: '' }, // CNPJ would need to be fetched or be part of orcamento
-                produtos: orcamento.items.map(item => ({
-                    descricao: item.description,
-                    quantidade: item.quantity,
-                    valorUnitario: item.unitPrice,
-                    valorTotal: item.total,
-                    codigo: null,
-                    ncm: null,
-                    cfop: null,
-                    unidade: null,
-                    baseCalculo: null,
-                    vlrIcms: null,
-                    vlrIpi: null,
-                    aliqIcms: null,
-                    aliqIpi: null
-                })),
-                valorTotalNota: orcamento.total,
-                valorProdutos: orcamento.total,
-            };
-        }
-        if (manualLaunchType) {
-            const manualData: Partial<FormData> = { 
-                ...defaultLaunchValues,
-                type: manualLaunchType, 
-                date: new Date(), 
-                fileName: 'Lançamento Manual', 
-                status: 'Normal',
-                produtos: [],
-                modalidadeFrete: '9'
-            };
-            if (manualLaunchType === 'saida' || manualLaunchType === 'servico') {
-              const partyKey = manualLaunchType === 'saida' ? 'emitente' : 'prestador';
-              manualData[partyKey] = { nome: company.razaoSocial, cnpj: company.cnpj };
-            }
-            if (manualLaunchType === 'entrada') manualData.destinatario = { nome: company.razaoSocial, cnpj: company.cnpj };
-            return manualData;
-        }
-    } else if ((mode === 'edit' || mode === 'view') && launch) {
+    if (mode === 'edit' || mode === 'view') {
         return { 
             ...defaultLaunchValues, 
             ...launch,
-            emitente: sanitizeParty(launch.emitente),
-            destinatario: sanitizeParty(launch.destinatario),
-            prestador: sanitizeParty(launch.prestador),
-            tomador: sanitizeParty(launch.tomador),
+            prestador: { nome: launch?.prestador?.nome || '', cnpj: launch?.prestador?.cnpj || '' },
+            tomador: { nome: launch?.tomador?.nome || '', cnpj: launch?.tomador?.cnpj || '' },
          };
     }
-    return defaultLaunchValues;
+
+    // Default for creating a new manual service note
+    return {
+        ...defaultLaunchValues,
+        type: 'servico',
+        date: new Date(),
+        fileName: 'Lançamento Manual de Serviço',
+        status: 'Normal',
+    };
 };
 
 
@@ -372,9 +227,9 @@ export const LaunchFormModal = ({
     partners,
 }: LaunchFormModalProps) => {
     const [isPartnerModalOpen, setPartnerModalOpen] = useState(false);
-    const [partnerTarget, setPartnerTarget] = useState<'emitente' | 'destinatario' | 'prestador' | 'tomador' | null>(null);
+    const [partnerTarget, setPartnerTarget] = useState<'prestador' | 'tomador' | null>(null);
     const [loading, setLoading] = useState(false);
-    const [isFetchingOrcamento, setIsFetchingOrcamento] = useState(false);
+    const [serviceType, setServiceType] = useState<'prestado' | 'tomado'>('prestado');
     const [xmlContent, setXmlContent] = useState('');
 
     const { toast } = useToast();
@@ -383,66 +238,34 @@ export const LaunchFormModal = ({
         resolver: zodResolver(launchSchema),
         defaultValues: defaultLaunchValues,
     });
-    const { control, setValue, reset, getValues, watch } = form;
+    const { control, setValue, reset } = form;
 
     const { fields, append, remove } = useFieldArray({
         control,
         name: "produtos",
-    });
-
-    const watchedProducts = useWatch({ control, name: 'produtos' });
-    const launchType = watch('type');
-    
-    useEffect(() => {
-        if (launchType !== 'servico' && watchedProducts) {
-             const newTotal = watchedProducts.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
-             if (newTotal !== getValues('valorTotalNota')) {
-                setValue('valorTotalNota', parseFloat(newTotal.toFixed(2)));
-             }
-        }
-    }, [watchedProducts, launchType, setValue, getValues]);
-
+    } as any);
 
     useEffect(() => {
-        const loadOrcamento = async (orcamentoId: string) => {
-            setIsFetchingOrcamento(true);
-            try {
-                const orcamentoRef = doc(db, `users/${userId}/companies/${company.id}/orcamentos`, orcamentoId);
-                const orcamentoSnap = await getDoc(orcamentoRef);
-                if (orcamentoSnap.exists()) {
-                    const orcamentoData = { id: orcamentoSnap.id, ...orcamentoSnap.data() } as Orcamento;
-                    const partnerSnap = await getDoc(doc(db, `users/${userId}/companies/${company.id}/partners`, orcamentoData.partnerId));
-                    const partnerData = partnerSnap.data();
-
-                    const initialFormState = getInitialData({orcamento: orcamentoData}, company)
-                    
-                    if (partnerData) {
-                        const targetParty = initialFormState.type === 'servico' ? 'tomador' : 'destinatario';
-                        initialFormState[targetParty] = {
-                            nome: orcamentoData.partnerName,
-                            cnpj: partnerData.cpfCnpj || ''
-                        };
-                    }
-                    
-                    reset(initialFormState);
-                }
-            } catch (error) {
-                toast({ variant: 'destructive', title: "Erro ao Carregar Orçamento" });
-            } finally {
-                setIsFetchingOrcamento(false);
-            }
-        };
-
         if (isOpen) {
             setXmlContent('');
-            if (initialData.orcamentoId) {
-                loadOrcamento(initialData.orcamentoId);
+            const data = getInitialData(initialData, company);
+            reset(data);
+
+            // Determine if it's a "prestado" or "tomado" service on load
+            const companyCnpj = company.cnpj?.replace(/\D/g, '');
+            if (data.prestador?.cnpj?.replace(/\D/g, '') === companyCnpj) {
+                setServiceType('prestado');
+            } else if (data.tomador?.cnpj?.replace(/\D/g, '') === companyCnpj) {
+                setServiceType('tomado');
             } else {
-                const data = getInitialData(initialData, company);
-                reset(data);
+                 setServiceType('prestado'); // Default
+                 if (initialData.mode !== 'edit' && initialData.mode !== 'view') {
+                     setValue('prestador.nome', company.razaoSocial);
+                     setValue('prestador.cnpj', company.cnpj);
+                 }
             }
         }
-    }, [isOpen, initialData, company, reset, userId, toast]);
+    }, [isOpen, initialData, company, reset, setValue]);
   
     const mode = initialData.launch ? 'edit' : 'create';
 
@@ -454,10 +277,24 @@ export const LaunchFormModal = ({
         setPartnerTarget(null);
     };
 
-    const openPartnerSearch = (target: 'emitente' | 'destinatario' | 'prestador' | 'tomador') => {
+    const openPartnerSearch = (target: 'prestador' | 'tomador') => {
       setPartnerTarget(target);
       setPartnerModalOpen(true);
     };
+    
+    const handleServiceTypeChange = (type: 'prestado' | 'tomado') => {
+        setServiceType(type);
+        // Clear parties and set the company to the correct role
+        setValue('prestador', { nome: '', cnpj: '' });
+        setValue('tomador', { nome: '', cnpj: '' });
+        if (type === 'prestado') {
+            setValue('prestador.nome', company.razaoSocial);
+            setValue('prestador.cnpj', company.cnpj);
+        } else {
+            setValue('tomador.nome', company.razaoSocial);
+            setValue('tomador.cnpj', company.cnpj);
+        }
+    }
 
     const handleParseXmlFromText = () => {
         if (!xmlContent) {
@@ -465,7 +302,7 @@ export const LaunchFormModal = ({
             return;
         }
         try {
-            const parsedData = parseXmlAdvanced(xmlContent, 'servico'); // Assume service for manual paste
+            const parsedData = parseXmlForService(xmlContent);
              if ('error' in parsedData) {
                 toast({ variant: 'destructive', title: 'Erro ao Analisar XML', description: parsedData.error });
                 return;
@@ -483,60 +320,33 @@ export const LaunchFormModal = ({
     const handleSubmit = async (values: FormData) => {
         setLoading(true);
         try {
-            // Sanitize data before saving
-            const dataToSave = { ...values };
+            const dataToSave: Partial<Launch> = { ...values };
             Object.keys(dataToSave).forEach(key => {
                 const k = key as keyof typeof dataToSave;
-                if (dataToSave[k] === undefined) {
+                if ((dataToSave as any)[k] === undefined) {
                     (dataToSave as any)[k] = null;
                 }
             });
 
             dataToSave.updatedAt = serverTimestamp();
             
-            const parties = ['emitente', 'destinatario', 'prestador', 'tomador'];
-            parties.forEach(party => {
-                if ((dataToSave as any)[party]) {
-                    (dataToSave as any)[party] = {
-                        nome: (dataToSave as any)[party].nome || null,
-                        cnpj: (dataToSave as any)[party].cnpj?.replace(/\D/g, '') || null,
-                    };
-                }
-            });
-            
             if (mode === 'create') {
                 dataToSave.createdAt = serverTimestamp();
             } else {
-                 delete (dataToSave as any).createdAt; // Do not overwrite creation date
+                 delete (dataToSave as any).createdAt;
             }
 
-            let partnerType: 'cliente' | 'fornecedor' = 'cliente';
-            let partnerData;
-
-            if (values.type === 'entrada') {
-                partnerType = 'fornecedor';
-                partnerData = dataToSave.emitente;
-            } else if (values.type === 'saida') {
-                partnerType = 'cliente';
-                partnerData = dataToSave.destinatario;
-            } else if (values.type === 'servico') {
-                partnerType = 'cliente';
-                partnerData = dataToSave.tomador;
-            }
+            const partnerType = serviceType === 'prestado' ? 'cliente' : 'fornecedor';
+            const partnerData = serviceType === 'prestado' ? dataToSave.tomador : dataToSave.prestador;
 
             if (partnerData?.cnpj && partnerData?.nome) {
                 await upsertPartnerFromLaunch(userId, company.id, { cpfCnpj: partnerData.cnpj, razaoSocial: partnerData.nome, type: partnerType });
             }
             
-            if (values.type === 'entrada' && values.produtos && values.produtos.length > 0) {
-              await upsertProductsFromLaunch(userId, company.id, values.produtos as Produto[]);
-            }
-
             const launchRef = mode === 'create' ? collection(db, `users/${userId}/companies/${company.id}/launches`) : doc(db, `users/${userId}/companies/${company.id}/launches`, initialData.launch!.id);
             if (mode === 'create') {
                 await addDoc(launchRef, dataToSave);
-                onLaunchSuccess(dataToSave.chaveNfe || `${dataToSave.numeroNfse}`, dataToSave.status);
-                 toast({ title: "Lançamento Criado!", description: `A nota foi salva com sucesso.` });
+                toast({ title: "Lançamento Criado!", description: `A nota foi salva com sucesso.` });
             } else {
                 await updateDoc(launchRef as any, dataToSave);
                  toast({ title: "Lançamento Atualizado!", description: `As alterações foram salvas com sucesso.`});
@@ -551,31 +361,17 @@ export const LaunchFormModal = ({
     };
   
     const getTitle = () => {
-        const { xmlFile, launch, manualLaunchType } = initialData;
-        if (mode === 'create') return xmlFile ? 'Confirmar Lançamento de XML' : `Novo Lançamento Manual`;
-        return launch ? `Alterar Lançamento Fiscal` : 'Alterar Lançamento';
+        if (mode === 'create') return `Lançamento de Nota Fiscal de Serviço`;
+        return `Alterar Lançamento de Serviço`;
     };
     
-     const renderPartyField = (partyName: 'emitente' | 'destinatario' | 'prestador' | 'tomador', label: string, disabled: boolean = false) => (
+     const renderPartyField = (partyName: 'prestador' | 'tomador', label: string) => (
         <div className="space-y-4 rounded-md border p-4">
              <h4 className="font-semibold">{label}</h4>
-            <FormField control={control} name={`${partyName}.nome`} render={({ field }) => ( <FormItem><FormLabel>Razão Social</FormLabel><div className="flex gap-2"><FormControl><Input {...field} value={field.value || ''} readOnly={disabled} /></FormControl><Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)} disabled={disabled}><Search className="h-4 w-4"/></Button></div><FormMessage /></FormItem> )} />
-            <FormField control={control} name={`${partyName}.cnpj`} render={({ field }) => ( <FormItem><FormLabel>CNPJ / CPF</FormLabel><FormControl><Input {...field} value={field.value || ''} readOnly={disabled} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={control} name={`${partyName}.nome`} render={({ field }) => ( <FormItem><FormLabel>Razão Social</FormLabel><div className="flex gap-2"><FormControl><Input {...field} value={field.value || ''}  /></FormControl><Button type="button" variant="outline" size="icon" onClick={() => openPartnerSearch(partyName)}><Search className="h-4 w-4"/></Button></div><FormMessage /></FormItem> )} />
+            <FormField control={control} name={`${partyName}.cnpj`} render={({ field }) => ( <FormItem><FormLabel>CNPJ / CPF</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl><FormMessage /></FormItem> )} />
         </div>
     );
-
-    if (isFetchingOrcamento) {
-        return (
-            <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent>
-                    <div className="flex flex-col items-center justify-center p-8 h-full">
-                        <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                        <p className="text-muted-foreground">Carregando dados do orçamento...</p>
-                    </div>
-                </DialogContent>
-            </Dialog>
-        )
-    }
 
     return (
         <>
@@ -585,46 +381,39 @@ export const LaunchFormModal = ({
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col h-full">
                     <DialogHeader>
                     <DialogTitle>{getTitle()}</DialogTitle>
-                    <DialogDescription asChild>
-                         <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <Label>Tipo:</Label>
-                                {initialData.xmlFile ? (
-                                    <Badge variant="secondary" className="text-base capitalize">{form.getValues('type')}</Badge>
-                                ) : (
-                                    <FormField
-                                        control={control}
-                                        name="type"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl><SelectTrigger className="w-[180px] h-8"><SelectValue /></SelectTrigger></FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="entrada">Entrada</SelectItem>
-                                                        <SelectItem value="saida">Saída</SelectItem>
-                                                        <SelectItem value="servico">Serviço</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                )}
-                            </div>
-                            {(initialData.xmlFile || initialData.launch?.fileName) && <p className="flex items-center gap-1.5 text-sm mt-1 text-muted-foreground"><FileText className="h-3.5 w-3.5" /><span>{form.getValues('fileName')}</span></p>}
-                        </div>
+                    <DialogDescription>
+                         Preencha os dados da nota fiscal de serviço.
                     </DialogDescription>
                     </DialogHeader>
-                     <Tabs defaultValue="geral" className="w-full pt-4">
-                        <TabsList className="grid w-full grid-cols-4">
+                    
+                    <div className="py-4 space-y-4">
+                        <RadioGroup defaultValue="prestado" onValueChange={(value: 'prestado' | 'tomado') => handleServiceTypeChange(value)} value={serviceType} className="flex gap-4">
+                            <Label className="flex items-center gap-2 border rounded-md p-3 flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/5 cursor-pointer">
+                                <RadioGroupItem value="prestado" />
+                                <div>
+                                    <p className="font-semibold">Serviços Prestados</p>
+                                    <p className="text-xs text-muted-foreground">Sua empresa emitiu a nota para um cliente.</p>
+                                </div>
+                            </Label>
+                             <Label className="flex items-center gap-2 border rounded-md p-3 flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/5 cursor-pointer">
+                                <RadioGroupItem value="tomado" />
+                                <div>
+                                    <p className="font-semibold">Serviços Tomados</p>
+                                    <p className="text-xs text-muted-foreground">Sua empresa contratou um serviço de um fornecedor.</p>
+                                </div>
+                            </Label>
+                        </RadioGroup>
+                    </div>
+
+                     <Tabs defaultValue="geral" className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="geral">Geral</TabsTrigger>
-                            <TabsTrigger value="parties">{launchType === 'servico' ? 'Partes' : 'Partes'}</TabsTrigger>
-                            {launchType !== 'servico' && <TabsTrigger value="details">Produtos</TabsTrigger>}
-                             {launchType === 'servico' && <TabsTrigger value="details">Detalhes</TabsTrigger>}
-                            <TabsTrigger value="transporte">Transporte/Outros</TabsTrigger>
+                            <TabsTrigger value="parties">Partes</TabsTrigger>
+                            <TabsTrigger value="details">Detalhes</TabsTrigger>
                         </TabsList>
-                        <div className="py-4 max-h-[60vh] overflow-y-auto pr-4 mt-2">
+                        <div className="py-4 max-h-[50vh] overflow-y-auto pr-4 mt-2">
                              <TabsContent value="geral" className="space-y-4">
-                                {launchType === 'servico' && mode === 'create' && (
+                                {mode === 'create' && (
                                     <div className="space-y-2">
                                         <Label htmlFor="xml-content">Conteúdo do XML (Opcional)</Label>
                                         <Textarea id="xml-content" placeholder="Cole o conteúdo do XML da NFS-e aqui..." value={xmlContent} onChange={(e) => setXmlContent(e.target.value)} rows={6} />
@@ -641,60 +430,25 @@ export const LaunchFormModal = ({
                                 </div>
                                 <Separator className="my-4"/>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                     {launchType === 'servico' ? (
-                                        <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                    ) : (
-                                       <FormField control={control} name="valorProdutos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Produtos</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                    )}
-                                     {launchType === 'servico' ? (
-                                        <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                     ) : (
-                                       <>
-                                        <FormField control={control} name="valorIcms" render={({ field }) => ( <FormItem><FormLabel>Valor do ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                        <FormField control={control} name="valorIpi" render={({ field }) => ( <FormItem><FormLabel>Valor do IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
-                                       </>
-                                     )}
-                                    <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorServicos" render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
                             <TabsContent value="parties" className="space-y-4">
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {renderPartyField(launchType === 'servico' ? 'prestador' : 'emitente', launchType === 'servico' ? 'Prestador' : 'Emitente', (launchType === 'saida' || launchType === 'servico') && !initialData.xmlFile)}
-                                    {renderPartyField(launchType === 'servico' ? 'tomador' : 'destinatario', launchType === 'servico' ? 'Tomador' : 'Destinatário', launchType === 'entrada' && !initialData.xmlFile)}
+                                    {renderPartyField('prestador', 'Prestador do Serviço')}
+                                    {renderPartyField('tomador', 'Tomador do Serviço')}
                                 </div>
                             </TabsContent>
                              <TabsContent value="details" className="space-y-4">
-                                {launchType === 'servico' ? (
-                                    <div className="space-y-4">
-                                        <FormField control={control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação dos Serviços</FormLabel><FormControl><Textarea {...field} value={field.value || ''}  rows={10} /></FormControl></FormItem> )} />
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <FormField control={control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item da Lista (LC 116)</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                            <FormField control={control} name="codigoVerificacaoNfse" render={({ field }) => ( <FormItem><FormLabel>Código de Verificação</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                        </div>
+                                <div className="space-y-4">
+                                    <FormField control={control} name="discriminacao" render={({ field }) => ( <FormItem><FormLabel>Discriminação dos Serviços</FormLabel><FormControl><Textarea {...field} value={field.value || ''}  rows={10} /></FormControl></FormItem> )} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField control={control} name="itemLc116" render={({ field }) => ( <FormItem><FormLabel>Item da Lista (LC 116)</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
+                                        <FormField control={control} name="codigoVerificacaoNfse" render={({ field }) => ( <FormItem><FormLabel>Código de Verificação</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
                                     </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {fields.map((field, index) => (
-                                            <div key={field.id} className="p-3 border rounded-md space-y-2 relative">
-                                                 <Button type="button" size="sm" variant="destructive" className="absolute top-2 right-2 h-7" onClick={() => remove(index)}><Trash2 className="h-4 w-4"/> Remover</Button>
-                                                <div className="grid grid-cols-12 gap-x-2 gap-y-3">
-                                                    <FormField control={control} name={`produtos.${index}.codigo`} render={({ field }) => ( <FormItem className="col-span-2"><FormLabel className="text-xs">Código</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.descricao`} render={({ field }) => ( <FormItem className="col-span-10"><FormLabel className="text-xs">Descrição do Produto</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.ncm`} render={({ field }) => ( <FormItem className="col-span-2"><FormLabel className="text-xs">NCM</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.cfop`} render={({ field }) => ( <FormItem className="col-span-2"><FormLabel className="text-xs">CFOP</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.unidade`} render={({ field }) => ( <FormItem className="col-span-1"><FormLabel className="text-xs">Unid.</FormLabel><FormControl><Input {...field} value={field.value || ''}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => ( <FormItem className="col-span-2"><FormLabel className="text-xs">Qtd.</FormLabel><FormControl><Input type="number" {...field}  /></FormControl></FormItem> )} />
-                                                    <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => ( <FormItem className="col-span-3"><FormLabel className="text-xs">Vlr. Unitário</FormLabel><FormControl><Input type="number" step="0.01" {...field}  /></FormControl></FormItem> )} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                         <Button type="button" variant="outline" className="w-full mt-2" onClick={() => append({} as any)}><PlusCircle className="mr-2 h-4 w-4" /> Adicionar Produto</Button>
-                                    </div>
-                                )}
-                            </TabsContent>
-                            <TabsContent value="transporte" className="space-y-4">
-                                <FormField control={control} name="modalidadeFrete" render={({ field }) => (<FormItem><FormLabel>Modalidade do Frete</FormLabel><Select onValueChange={field.onChange} value={field.value || '9'} ><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="0">Contratação do Frete por conta do Remetente (CIF)</SelectItem><SelectItem value="1">Contratação do Frete por conta do Destinatário (FOB)</SelectItem><SelectItem value="2">Contratação do Frete por conta de Terceiros</SelectItem><SelectItem value="3">Transporte Próprio por conta do Remetente</SelectItem><SelectItem value="4">Transporte Próprio por conta do Destinatário</SelectItem><SelectItem value="9">Sem Ocorrência de Transporte</SelectItem></SelectContent></Select></FormItem>)} />
-                                <FormField control={control} name="observacoes" render={({ field }) => ( <FormItem><FormLabel>Dados Adicionais / Observações</FormLabel><FormControl><Textarea {...field} value={field.value || ''}  rows={5} /></FormControl></FormItem> )} />
+                                </div>
                             </TabsContent>
                         </div>
                     </Tabs>
@@ -715,7 +469,7 @@ export const LaunchFormModal = ({
                     onClose={() => setPartnerModalOpen(false)}
                     onSelect={handleSelectPartner}
                     partners={partners}
-                    partnerType={partnerTarget === 'emitente' ? 'fornecedor' : 'cliente'}
+                    partnerType={partnerTarget === 'prestador' ? 'fornecedor' : 'cliente'}
                 />
             )}
         </>
