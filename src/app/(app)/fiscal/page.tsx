@@ -38,27 +38,34 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 export type GenericLaunch = (Launch & { docType: 'launch' }) | (Recibo & { docType: 'recibo' });
 
-const getPartnerName = (item: GenericLaunch): string => {
+const getPartnerName = (item: GenericLaunch, company: Company | null): string => {
     if (item.docType === 'recibo') {
         return item.pagadorNome;
     }
-    // For services taken (entrada), the partner is the provider (prestador).
-    if (item.type === 'servico' && item.tomador?.cnpj?.replace(/\D/g, '') === 'YOUR_COMPANY_CNPJ_IDENTIFIER') {
-        return item.prestador?.nome || 'N/A';
-    }
-    // For services provided (saída), the partner is the client (tomador).
+
+    const companyCnpj = company?.cnpj?.replace(/\D/g, '');
+
     if (item.type === 'servico') {
-        return item.tomador?.nome || 'N/A';
+        const prestadorCnpj = item.prestador?.cnpj?.replace(/\D/g, '');
+        // Se a empresa ativa for o prestador, o parceiro é o tomador.
+        if (prestadorCnpj === companyCnpj) {
+            return item.tomador?.nome || 'N/A (Tomador)';
+        }
+        // Senão, é um serviço tomado, e o parceiro é o prestador.
+        return item.prestador?.nome || 'N/A (Prestador)';
     }
+
     if (item.type === 'entrada') {
-        return item.emitente?.nome || 'N/A';
+        return item.emitente?.nome || 'N/A (Emitente)';
     }
+
     if (item.type === 'saida') {
-        return item.destinatario?.nome || 'N/A';
+        return item.destinatario?.nome || 'N/A (Destinatário)';
     }
+
     return 'N/A';
 };
-
+  
 const getLaunchValue = (item: GenericLaunch): number => {
     if (item.docType === 'recibo') return item.valor;
     return item.valorLiquido || item.valorTotalNota || 0;
@@ -338,7 +345,7 @@ export default function FiscalPage() {
     launches
         .filter(l => (l.type === 'saida' || l.type === 'servico') && l.status === 'Normal')
         .forEach(l => {
-            const clientName = getPartnerName({ ...l, docType: 'launch' });
+            const clientName = getPartnerName({ ...l, docType: 'launch' }, activeCompany);
             if (clientName && clientName !== 'N/A') {
                 clientRevenue[clientName] = (clientRevenue[clientName] || 0) + (l.valorLiquido || l.valorTotalNota || 0);
             }
@@ -348,7 +355,7 @@ export default function FiscalPage() {
         .map(([name, total]) => ({ name, total }))
         .sort((a, b) => b.total - a.total)
         .slice(0, 5); // Top 5
-}, [launches]);
+}, [launches, activeCompany]);
 
 
   const refreshXmlFileStatus = useCallback(() => {
@@ -1123,7 +1130,7 @@ export default function FiscalPage() {
                                     {getBadgeForLaunchType(item)}
                                 </TableCell>
                                 <TableCell className="max-w-[200px] truncate">
-                                    {getPartnerName(item)}
+                                    {getPartnerName(item, activeCompany)}
                                 </TableCell>
                                 <TableCell className="font-mono text-xs max-w-[150px] truncate" title={getLaunchDocRef(item)}>
                                     {getLaunchDocRef(item)}
