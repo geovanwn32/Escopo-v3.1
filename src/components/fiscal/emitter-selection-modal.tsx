@@ -2,14 +2,15 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, UserCheck } from 'lucide-react';
+import { Loader2, Search, UserCheck, PlusCircle } from 'lucide-react';
 import type { Partner } from '@/types/partner';
 import type { Employee } from '@/types/employee';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import Link from 'next/link';
 
 interface EmitterSelectionModalProps {
   isOpen: boolean;
@@ -106,6 +107,21 @@ export function EmitterSelectionModal({ isOpen, onClose, onSelect, partners, emp
                 )}
             </div>
         </div>
+        <DialogFooter className="justify-between">
+            <div className="flex gap-2">
+                 <Button asChild variant="outline">
+                    <Link href="/parceiros">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Cadastrar Cliente
+                    </Link>
+                </Button>
+                 <Button asChild variant="outline">
+                    <Link href="/funcionarios">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Cadastrar Funcionário
+                    </Link>
+                </Button>
+            </div>
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
