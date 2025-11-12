@@ -198,7 +198,7 @@ function parseNfeXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
     data.valorCofins = getFloat(total, 'vCOFINS');
     data.valorIcms = getFloat(total, 'vICMS');
     data.valorIpi = getFloat(total, 'vIPI');
-    data.valorLiquido = data.valorTotalNota; // For NF-e, liquid is usually the same as total
+    data.valorLiquido = getFloat(total, 'vNF'); // For NF-e, liquid is usually the same as total
 
     xmlDoc.querySelectorAll('det').forEach(det => {
         const prod = det.querySelector('prod');
@@ -414,8 +414,8 @@ export const LaunchFormModal = ({
                     setValue(`${partyField}.nome`, company.razaoSocial);
                     setValue(`${partyField}.cnpj`, company.cnpj);
                  } else { // entrada
-                    setValue('destinatario.nome`, company.razaoSocial);
-                    setValue('destinatario.cnpj`, company.cnpj);
+                    setValue('destinatario.nome', company.razaoSocial);
+                    setValue('destinatario.cnpj', company.cnpj);
                  }
             }
         }
@@ -675,4 +675,3 @@ export const LaunchFormModal = ({
         </>
     );
 };
-
