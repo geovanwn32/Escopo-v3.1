@@ -30,6 +30,7 @@ export interface Company {
     uf?: string;
     cep?: string;
     cnaePrincipalCodigo?: string;
+    cnaePrincipalDescricao?: string;
     establishment?: EstablishmentData;
     logoUrl?: string | null;
     logoPath?: string | null;
@@ -38,4 +39,7 @@ export interface Company {
     tipoContribuicao?: string;
     incidenciaTributaria?: string;
     apuracaoPisCofins?: string;
+    email?: string;
+    telefone?: string;
+    inscricaoEstadual?: string;
 }

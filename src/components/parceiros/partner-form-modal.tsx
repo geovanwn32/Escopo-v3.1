@@ -171,6 +171,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                     title: "CPF/CNPJ Duplicado",
                     description: `Já existe um parceiro cadastrado com este CPF/CNPJ.`,
                 });
+                setIsSubmitting(false); // Stop submission
                 return;
             }
         }
