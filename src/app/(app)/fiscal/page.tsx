@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { collection, query, orderBy, onSnapshot, deleteDoc, doc, getDocs, where, Timestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase.tsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileStack, ArrowUpRightSquare, ArrowDownLeftSquare, FileText, Upload, FileUp, Check, Loader2, Eye, Pencil, Trash2, ChevronLeft, ChevronRight, FilterX, Search, FileX as FileXIcon, Lock, ClipboardList, Calculator, FileSignature, MoreHorizontal, Send, Scale, RefreshCw, Landmark, ShoppingCart, BarChart as RechartsIcon, TrendingUp, Building, BarChart3, Users } from "lucide-react";
@@ -314,7 +314,11 @@ export default function FiscalPage() {
         if (!isValid(itemDate)) return;
         const key = `${itemDate.getFullYear()}-${itemDate.getMonth()}`;
         if(monthlyTotals[key]) {
-            monthlyTotals[key].despesas += item.valor;
+             if (item.natureza === 'receita') {
+                monthlyTotals[key].receitas += item.valor;
+            } else {
+                monthlyTotals[key].despesas += item.valor;
+            }
         }
     });
     
@@ -562,7 +566,9 @@ export default function FiscalPage() {
 
   const getBadgeForLaunchType = (item: GenericLaunch) => {
     if (item.docType === 'recibo') {
-        return <Badge className="capitalize bg-indigo-100 text-indigo-800">{item.tipo}</Badge>
+        const variant = item.natureza === 'receita' ? 'success' : 'destructive';
+        const label = item.natureza === 'receita' ? 'Receita' : 'Despesa';
+        return <Badge className="capitalize" variant={variant}>{item.tipo} {label}</Badge>
     }
     switch (item.type) {
         case 'entrada': return <Badge className="capitalize bg-red-100 text-red-800">{item.type}</Badge>;
@@ -572,6 +578,55 @@ export default function FiscalPage() {
     }
   }
   
+  const getBadgeForLaunchStatus = (status?: Launch['status']) => {
+    if (!status) return <Badge variant="secondary">Normal</Badge>;
+    switch (status) {
+        case 'Normal':
+            return <Badge className="bg-green-600 hover:bg-green-700">{status}</Badge>;
+        case 'Cancelado':
+            return <Badge variant="destructive">{status}</Badge>;
+        case 'Substituida':
+            return <Badge className="bg-yellow-500 hover:bg-yellow-600 text-black">{status}</Badge>;
+        default:
+            return <Badge variant="secondary">{status}</Badge>;
+    }
+  }
+
+  const isLaunchLocked = (launch: GenericLaunch): boolean => {
+    const launchDateRaw = launch.docType === 'launch' ? launch.date : launch.data;
+    const launchDate = (launchDateRaw as any)?.toDate ? (launchDateRaw as any).toDate() : new Date(launchDateRaw);
+    if (!isValid(launchDate)) return false;
+    const launchPeriod = format(launchDate, 'yyyy-MM');
+    return closedPeriods.includes(launchPeriod);
+  }
+  
+  const handleDeleteOrcamento = async (id: string) => {
+     if (!user || !activeCompany) return;
+     try {
+         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
+         toast({ title: "Orçamento excluído com sucesso." });
+     } catch (error) {
+        toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
+     }
+  }
+
+  const handleGeneratePdf = (launch: Launch) => {
+    if (!activeCompany) {
+      toast({ variant: 'destructive', title: 'Empresa não selecionada' });
+      return;
+    }
+    try {
+      generateLaunchPdf(activeCompany, launch);
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
+    }
+  }
+
+  const handleCreateLaunchFromBudget = (orcamentoId: string) => {
+    router.push(`/fiscal?orcamentoId=${orcamentoId}`);
+    openLaunchModal({ orcamentoId, mode: 'create' });
+  };
+
   const filteredItems = useMemo(() => {
     const genericLaunches: GenericLaunch[] = [
         ...launches.map(l => ({ ...l, docType: 'launch' as const })),
@@ -694,41 +749,6 @@ export default function FiscalPage() {
             return <Badge variant="secondary">{status}</Badge>;
     }
   }
-
-  const isLaunchLocked = (launch: GenericLaunch): boolean => {
-    const launchDateRaw = launch.docType === 'launch' ? launch.date : launch.data;
-    const launchDate = (launchDateRaw as any)?.toDate ? (launchDateRaw as any).toDate() : new Date(launchDateRaw);
-    if (!isValid(launchDate)) return false;
-    const launchPeriod = format(launchDate, 'yyyy-MM');
-    return closedPeriods.includes(launchPeriod);
-  }
-  
-  const handleDeleteOrcamento = async (id: string) => {
-     if (!user || !activeCompany) return;
-     try {
-         await deleteDoc(doc(db, `users/${user.uid}/companies/${activeCompany.id}/orcamentos`, id));
-         toast({ title: "Orçamento excluído com sucesso." });
-     } catch (error) {
-        toast({ variant: "destructive", title: "Erro ao excluir orçamento." });
-     }
-  }
-
-  const handleGeneratePdf = (launch: Launch) => {
-    if (!activeCompany) {
-      toast({ variant: 'destructive', title: 'Empresa não selecionada' });
-      return;
-    }
-    try {
-      generateLaunchPdf(activeCompany, launch);
-    } catch (error) {
-       toast({ variant: 'destructive', title: 'Erro ao gerar PDF', description: (error as Error).message });
-    }
-  }
-
-  const handleCreateLaunchFromBudget = (orcamentoId: string) => {
-    router.push(`/fiscal?orcamentoId=${orcamentoId}`);
-    openLaunchModal({ orcamentoId, mode: 'create' });
-  };
 
   return (
     <div className="space-y-6">

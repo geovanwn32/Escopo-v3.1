@@ -36,9 +36,10 @@ interface ReceiptFormModalProps {
 
 const receiptSchema = z.object({
   tipo: z.enum(['Recibo', 'Comprovante']),
+  natureza: z.enum(['despesa', 'receita']),
   numero: z.coerce.number().min(1, "O número é obrigatório."),
   valor: z.string().min(1, "O valor é obrigatório.").transform(v => String(v).replace(',', '.')).pipe(z.coerce.number().min(0.01, "O valor deve ser maior que zero.")),
-  pagadorNome: z.string().min(1, "O nome do pagador é obrigatório."),
+  pagadorNome: z.string().min(1, "O nome do pagador/recebedor é obrigatório."),
   pagadorEndereco: z.string().optional(),
   referenteA: z.string().min(1, "O campo 'Referente a' é obrigatório."),
   data: z.date({ required_error: "A data é obrigatória." }),
@@ -60,7 +61,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
   
   const form = useForm<FormData>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: { numero: 1, data: new Date(), tipo: 'Recibo' }
+    defaultValues: { numero: 1, data: new Date(), tipo: 'Recibo', natureza: 'despesa' }
   });
 
   useEffect(() => {
@@ -78,6 +79,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
       } else {
         form.reset({
             tipo: 'Recibo',
+            natureza: 'despesa',
             numero: 1, // Will be replaced by next number
             valor: '0',
             pagadorNome: '',
@@ -102,6 +104,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
 
   const valor = form.watch('valor');
   const valorPorExtenso = numberToWords(parseFloat(String(valor).replace(',', '.')) || 0);
+  const natureza = form.watch('natureza');
 
   const handleSelectEmitter = (emitter: { id: string; name: string; address?: string; }) => {
     setSelectedEmitter(emitter);
@@ -128,7 +131,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
             toast({ title: "Lançamento Salvo!", description: `${values.tipo} nº ${values.numero} criado com sucesso.` });
         } else if (initialData.receipt?.id) {
             const reciboRef = doc(db, `users/${userId}/companies/${company.id}/recibos`, initialData.receipt.id);
-            await updateDoc(reciboRef, dataToSave);
+            await updateDoc(reciboRef, dataToSave as any);
             toast({ title: "Lançamento Atualizado!", description: `${values.tipo} nº ${values.numero} atualizado com sucesso.` });
         }
 
@@ -152,7 +155,10 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
               <DialogDescription>Preencha os dados abaixo para gerar um novo documento.</DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto pr-4">
-                <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo de Documento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Recibo">Recibo</SelectItem><SelectItem value="Comprovante">Comprovante</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="tipo" render={({ field }) => ( <FormItem><FormLabel>Tipo de Documento</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Recibo">Recibo</SelectItem><SelectItem value="Comprovante">Comprovante</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="natureza" render={({ field }) => ( <FormItem><FormLabel>Natureza</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="despesa">Despesa (Saída)</SelectItem><SelectItem value="receita">Receita (Entrada)</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                </div>
               <div className="grid grid-cols-3 gap-4">
                 <FormField control={form.control} name="numero" render={({ field }) => ( <FormItem><FormLabel>Número</FormLabel><FormControl><Input type="number" {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
                 <FormField control={form.control} name="valor" render={({ field }) => ( <FormItem className="col-span-2"><FormLabel>Valor (R$)</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
@@ -161,8 +167,8 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
                 <FormLabel>Importância (Valor por Extenso)</FormLabel>
                 <Input value={valorPorExtenso} readOnly className="italic text-muted-foreground" />
               </FormItem>
-              <FormField control={form.control} name="pagadorNome" render={({ field }) => ( <FormItem><FormLabel>Recebi(emos) de</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Nome do pagador..." /></FormControl><FormMessage /></FormItem> )} />
-              <FormField control={form.control} name="pagadorEndereco" render={({ field }) => ( <FormItem><FormLabel>Endereço do Pagador</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Endereço completo (opcional)..." /></FormControl><FormMessage /></FormItem> )} />
+              <FormField control={form.control} name="pagadorNome" render={({ field }) => ( <FormItem><FormLabel>{natureza === 'despesa' ? 'Recebi(emos) de' : 'Pagamos a'}</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder={natureza === 'despesa' ? 'Nome do pagador...' : 'Nome do recebedor...'} /></FormControl><FormMessage /></FormItem> )} />
+              <FormField control={form.control} name="pagadorEndereco" render={({ field }) => ( <FormItem><FormLabel>Endereço do Pagador/Recebedor</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Endereço completo (opcional)..." /></FormControl><FormMessage /></FormItem> )} />
               <FormField control={form.control} name="referenteA" render={({ field }) => ( <FormItem><FormLabel>Referente a</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Referente ao pagamento de..." /></FormControl><FormMessage /></FormItem> )} />
               <div className="grid grid-cols-2 gap-4">
                  <FormField control={form.control} name="data" render={({ field }) => ( <FormItem className="flex flex-col pt-2"><FormLabel>Data</FormLabel><FormControl><DateInput {...field} disabled={isReadOnly} /></FormControl><FormMessage /></FormItem> )} />
