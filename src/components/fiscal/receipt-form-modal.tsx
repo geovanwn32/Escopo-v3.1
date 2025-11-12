@@ -11,13 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save, Search } from 'lucide-react';
+import { Loader2, Save, Search, PlusCircle } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { DateInput } from '@/components/ui/date-input';
 import type { Company, Partner, Employee, Recibo } from '@/types';
 import { numberToWords } from '@/lib/number-to-words';
 import { EmitterSelectionModal } from './emitter-selection-modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Textarea } from "../ui/textarea";
 
 export interface ReceiptModalOptions {
   receipt?: Recibo | null;
@@ -48,6 +49,19 @@ const receiptSchema = z.object({
 
 type FormData = z.infer<typeof receiptSchema>;
 
+const defaultValues: Partial<FormData> = {
+    tipo: 'Recibo',
+    natureza: 'despesa',
+    numero: 1,
+    valor: '0',
+    pagadorNome: '',
+    pagadorEndereco: '',
+    referenteA: '',
+    data: new Date(),
+    emitenteId: '',
+};
+
+
 const MemoizedEmitterSelectionModal = React.memo(EmitterSelectionModal);
 
 export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company, partners, employees }: ReceiptFormModalProps) {
@@ -61,8 +75,25 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
   
   const form = useForm<FormData>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: { numero: 1, data: new Date(), tipo: 'Recibo', natureza: 'despesa' }
+    defaultValues: defaultValues
   });
+  
+  const fetchNextNumber = async () => {
+    const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
+    const q = query(recibosRef, orderBy('numero', 'desc'), limit(1));
+    const snapshot = await getDocs(q);
+    const lastNumber = snapshot.empty ? 0 : snapshot.docs[0].data().numero;
+    return lastNumber + 1;
+  }
+
+  const resetFormForNew = async () => {
+      const nextNumber = await fetchNextNumber();
+      form.reset({
+          ...(defaultValues as FormData),
+          numero: nextNumber
+      });
+      setSelectedEmitter(null);
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -77,27 +108,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
           setSelectedEmitter({ id: receipt.emitenteId, name: receipt.emitenteNome, address: receipt.emitenteEndereco });
         }
       } else {
-        form.reset({
-            tipo: 'Recibo',
-            natureza: 'despesa',
-            numero: 1, // Will be replaced by next number
-            valor: '0',
-            pagadorNome: '',
-            pagadorEndereco: '',
-            referenteA: '',
-            data: new Date(),
-            emitenteId: '',
-        });
-        setSelectedEmitter(null);
-        // Fetch next receipt number
-        const getNextNumber = async () => {
-            const recibosRef = collection(db, `users/${userId}/companies/${company.id}/recibos`);
-            const q = query(recibosRef, orderBy('numero', 'desc'), limit(1));
-            const snapshot = await getDocs(q);
-            const lastNumber = snapshot.empty ? 0 : snapshot.docs[0].data().numero;
-            form.setValue('numero', lastNumber + 1);
-        };
-        getNextNumber();
+        resetFormForNew();
       }
     }
   }, [isOpen, initialData, form, userId, company.id]);
@@ -105,6 +116,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
   const valor = form.watch('valor');
   const valorPorExtenso = numberToWords(parseFloat(String(valor).replace(',', '.')) || 0);
   const natureza = form.watch('natureza');
+  const tipo = form.watch('tipo');
 
   const handleSelectEmitter = (emitter: { id: string; name: string; address?: string; }) => {
     setSelectedEmitter(emitter);
@@ -135,21 +147,33 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
             toast({ title: "Lançamento Atualizado!", description: `${values.tipo} nº ${values.numero} atualizado com sucesso.` });
         }
 
-        onClose();
+        return true; // Indicate success
     } catch (error) {
         console.error("Error saving receipt:", error);
         toast({ variant: "destructive", title: "Erro ao salvar", description: "Não foi possível salvar o lançamento." });
+        return false; // Indicate failure
     } finally {
         setLoading(false);
     }
   };
+
+  const handleSaveAndClose = async (values: FormData) => {
+    const success = await onSubmit(values);
+    if(success) onClose();
+  }
+
+  const handleSaveAndNew = async (values: FormData) => {
+    const success = await onSubmit(values);
+    if(success) resetFormForNew();
+  }
+
 
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form>
             <DialogHeader>
               <DialogTitle>{mode === 'create' ? 'Lançamentos Diversos' : 'Editar Lançamento'}</DialogTitle>
               <DialogDescription>Preencha os dados abaixo para gerar um novo documento.</DialogDescription>
@@ -167,7 +191,7 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
                 <FormLabel>Importância (Valor por Extenso)</FormLabel>
                 <Input value={valorPorExtenso} readOnly className="italic text-muted-foreground" />
               </FormItem>
-              <FormField control={form.control} name="pagadorNome" render={({ field }) => ( <FormItem><FormLabel>{natureza === 'despesa' ? 'Recebi(emos) de' : 'Pagamos a'}</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder={natureza === 'despesa' ? 'Nome do pagador...' : 'Nome do recebedor...'} /></FormControl><FormMessage /></FormItem> )} />
+              <FormField control={form.control} name="pagadorNome" render={({ field }) => ( <FormItem><FormLabel>{natureza === 'despesa' ? (tipo === 'Recibo' ? 'Recebi(emos) de' : 'Pagador') : (tipo === 'Recibo' ? 'Pagamos a' : 'Recebedor')}</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder={natureza === 'despesa' ? 'Nome do pagador...' : 'Nome do recebedor...'} /></FormControl><FormMessage /></FormItem> )} />
               <FormField control={form.control} name="pagadorEndereco" render={({ field }) => ( <FormItem><FormLabel>Endereço do Pagador/Recebedor</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Endereço completo (opcional)..." /></FormControl><FormMessage /></FormItem> )} />
               <FormField control={form.control} name="referenteA" render={({ field }) => ( <FormItem><FormLabel>Referente a</FormLabel><FormControl><Input {...field} readOnly={isReadOnly} placeholder="Referente ao pagamento de..." /></FormControl><FormMessage /></FormItem> )} />
               <div className="grid grid-cols-2 gap-4">
@@ -189,11 +213,17 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-              <Button type="submit" disabled={loading || isReadOnly}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Salvar Lançamento
-              </Button>
+                <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+                {mode === 'create' && (
+                    <Button type="button" onClick={form.handleSubmit(handleSaveAndNew)} disabled={loading}>
+                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                        Salvar e Novo
+                    </Button>
+                )}
+                <Button type="button" onClick={form.handleSubmit(handleSaveAndClose)} disabled={loading || isReadOnly}>
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {mode === 'create' ? 'Salvar e Fechar' : 'Salvar Alterações'}
+                </Button>
             </DialogFooter>
           </form>
         </Form>
@@ -210,3 +240,5 @@ export function ReceiptFormModal({ isOpen, onClose, initialData, userId, company
     </>
   );
 }
+
+    
