@@ -41,6 +41,8 @@ export interface XmlFile {
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   key?: string; // NFe key or NFS-e unique identifier
   versaoNfse?: string;
+  numero?: string;
+  valor?: number;
 }
 
 export interface EfdFile {
@@ -107,7 +109,8 @@ export interface Launch {
     valorIpi?: number | null;
     valorIcms?: number | null;
     valorLiquido?: number | null;
-
+    valorTotalNota?: number | null;
+    
     // Tax Rates
     aliqPis?: number | null;
     aliqCofins?: number | null;

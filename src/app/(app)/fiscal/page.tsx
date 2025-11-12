@@ -42,10 +42,15 @@ const getPartnerName = (item: GenericLaunch, company: Company | null): string =>
     if (item.docType === 'recibo') {
         return item.pagadorNome;
     }
+    
+    // For 'entrada' (Serviço Tomado or NF-e de Compra), the partner is the provider/emitter.
+    if (item.type === 'entrada') {
+      return item.prestador?.nome || item.emitente?.nome || 'N/A';
+    }
 
+    // For 'saida' (NF-e de Venda) or 'servico' (Serviço Prestado), the partner is the recipient/tomador.
     if (item.type === 'saida') return item.destinatario?.nome || 'N/A';
     if (item.type === 'servico') return item.tomador?.nome || 'N/A';
-    if (item.type === 'entrada') return item.emitente?.nome || 'N/A';
 
     return 'N/A';
 };
@@ -434,11 +439,22 @@ export default function FiscalPage() {
         const fileContent = await file.text();
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(fileContent, 'text/xml');
+        const querySelectorText = (element: Element | null, selectors: string[]): string => {
+            if (!element) return '';
+            for (const selector of selectors) {
+                const el = element.querySelector(selector);
+                if (el?.textContent) return el.textContent.trim();
+            }
+            return '';
+        };
+
         const normalizedActiveCnpj = activeCompany.cnpj?.replace(/\D/g, '');
 
         let type: XmlFile['type'] = 'desconhecido';
         let status: XmlFile['status'] = 'pending';
         let key: string | undefined = undefined;
+        let numero: string | undefined = undefined;
+        let valor: number | undefined = undefined;
 
         const getCnpjCpfFromNode = (node: Element | null, selectors: string[]): string | null => {
             if (!node) return null;
@@ -457,17 +473,23 @@ export default function FiscalPage() {
         const isCancelled = xmlDoc.querySelector('procCancNFe, cancNFe');
         
         let nfseVersion = '';
-        let fileValue = 0;
 
         if (isCancelled) {
             type = 'cancelamento';
             status = 'cancelled';
         } else if (isNFe) {
-            const emitCnpj = getCnpjCpfFromNode(isNFe.querySelector('emit'), ['CNPJ', 'CPF']);
-            const destCnpj = getCnpjCpfFromNode(isNFe.querySelector('dest'), ['CNPJ', 'CPF']);
+            const ide = isNFe.querySelector('ide');
+            const emit = isNFe.querySelector('emit');
+            const dest = isNFe.querySelector('dest');
+            const total = isNFe.querySelector('total > ICMSTot');
+
+            numero = querySelectorText(ide, ['nNF']);
+            valor = parseFloat(querySelectorText(total, ['vNF']) || '0');
+
+            const emitCnpj = getCnpjCpfFromNode(emit, ['CNPJ', 'CPF']);
+            const destCnpj = getCnpjCpfFromNode(dest, ['CNPJ', 'CPF']);
             
             key = (isNFe.getAttribute('Id') || '').replace('NFe', '');
-            fileValue = parseFloat(xmlDoc.querySelector('vNF')?.textContent || '0');
             
             if (emitCnpj === normalizedActiveCnpj) type = 'saida';
             else if (destCnpj === normalizedActiveCnpj) type = 'entrada';
@@ -477,17 +499,17 @@ export default function FiscalPage() {
             nfseVersion = nfseNode?.getAttribute('versao') || '1.00';
             
             const serviceNode = xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('InfDeclaracaoPrestacaoServico') || nfseNode;
-            const declaracaoServicoNode = xmlDoc.querySelector('DeclaracaoPrestacaoServico > InfDeclaracaoPrestacaoServico') || serviceNode;
-
+            
             if (serviceNode) {
-                const prestadorCnpj = getCnpjCpfFromNode(declaracaoServicoNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
-                const tomadorNode = declaracaoServicoNode.querySelector('TomadorServico, Tomador') || declaracaoServicoNode;
-                const tomadorCnpj = tomadorNode ? getCnpjCpfFromNode(tomadorNode, ['IdentificacaoTomador > CpfCnpj > Cnpj', 'IdentificacaoTomador > CpfCnpj > Cpf', 'CpfCnpj > Cnpj', 'CpfCnpj > Cpf']) : null;
-                
-                const numeroNfse = (serviceNode.querySelector('Numero') || xmlDoc.querySelector('Numero'))?.textContent;
-                const codigoVerificacao = (serviceNode.querySelector('CodigoVerificacao'))?.textContent;
+                 const prestadorCnpj = getCnpjCpfFromNode(serviceNode, ['PrestadorServico > CpfCnpj > Cnpj', 'Prestador > CpfCnpj > Cnpj', 'prest > CNPJ']);
+                const tomadorCnpj = getCnpjCpfFromNode(serviceNode, ['TomadorServico > CpfCnpj > Cnpj', 'Tomador > CpfCnpj > Cpf', 'toma > CNPJ', 'toma > Cpf']);
+
+                const numeroNfse = querySelectorText(serviceNode, ['Numero']);
+                const codigoVerificacao = querySelectorText(serviceNode, ['CodigoVerificacao']);
+                numero = numeroNfse;
+                valor = parseFloat(querySelectorText(serviceNode.querySelector('Valores'), ['ValorLiquidoNfse']) || '0');
+
                 key = `${numeroNfse}-${codigoVerificacao}-${nfseVersion}`;
-                fileValue = parseFloat(xmlDoc.querySelector('ValorLiquidoNfse, vLiq, vNF')?.textContent || '0');
 
                 if (prestadorCnpj === normalizedActiveCnpj) type = 'servico';
                 else if (tomadorCnpj === normalizedActiveCnpj) type = 'entrada';
@@ -497,7 +519,7 @@ export default function FiscalPage() {
         if(key) {
             const existingLaunch = launchedItems.get(key);
             if (existingLaunch) {
-                 if (Math.abs(existingLaunch.valor - fileValue) < 0.01 && existingLaunch.status !== 'Substituida') {
+                 if (Math.abs(existingLaunch.valor - (valor || 0)) < 0.01 && existingLaunch.status !== 'Substituida') {
                     status = 'launched';
                  }
             }
@@ -513,7 +535,7 @@ export default function FiscalPage() {
         }
 
         const fileData = { name: file.name, type: file.type, size: file.size, lastModified: file.lastModified };
-        return { file: fileData, content: fileContent, status, type, key, versaoNfse: nfseVersion };
+        return { file: fileData, content: fileContent, status, type, key, versaoNfse: nfseVersion, numero, valor };
     });
 
     const newFiles = (await Promise.all(newFilesPromises)).filter(Boolean) as XmlFile[];
@@ -973,8 +995,10 @@ export default function FiscalPage() {
                 <Table>
                 <TableHeader>
                     <TableRow>
-                    <TableHead>Nome do Arquivo</TableHead>
+                    <TableHead>Arquivo</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead>Nº</TableHead>
+                    <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -982,12 +1006,14 @@ export default function FiscalPage() {
                 <TableBody>
                     {paginatedXmlFiles.length > 0 ? paginatedXmlFiles.map((xmlFile, index) => (
                     <TableRow key={`${xmlFile.file.name}-${index}`}>
-                        <TableCell className="font-medium max-w-xs truncate">{xmlFile.file.name}</TableCell>
+                        <TableCell className="font-medium max-w-[150px] truncate" title={xmlFile.file.name}>{xmlFile.file.name}</TableCell>
                         <TableCell>
-                        <Badge variant={xmlFile.type === 'desconhecido' || xmlFile.type === 'cancelamento' ? 'destructive' : 'secondary'}>
-                            {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
-                        </Badge>
+                            <Badge variant={xmlFile.type === 'desconhecido' || xmlFile.type === 'cancelamento' ? 'destructive' : 'secondary'}>
+                                {xmlFile.type.charAt(0).toUpperCase() + xmlFile.type.slice(1)}
+                            </Badge>
                         </TableCell>
+                        <TableCell className="font-mono text-xs">{xmlFile.numero || 'N/A'}</TableCell>
+                        <TableCell className="font-mono text-xs">{formatCurrency(xmlFile.valor || 0)}</TableCell>
                         <TableCell>
                             {getBadgeForXml(xmlFile)}
                         </TableCell>
@@ -1019,7 +1045,7 @@ export default function FiscalPage() {
                     </TableRow>
                     )) : (
                     <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
+                        <TableCell colSpan={6} className="h-24 text-center">
                             Nenhum arquivo encontrado para os filtros aplicados.
                         </TableCell>
                     </TableRow>
