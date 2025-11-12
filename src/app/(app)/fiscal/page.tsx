@@ -43,25 +43,9 @@ const getPartnerName = (item: GenericLaunch, company: Company | null): string =>
         return item.pagadorNome;
     }
 
-    const companyCnpj = company?.cnpj?.replace(/\D/g, '');
-
-    if (item.type === 'servico') {
-        const prestadorCnpj = item.prestador?.cnpj?.replace(/\D/g, '');
-        // Se a empresa ativa for o prestador, o parceiro é o tomador.
-        if (prestadorCnpj === companyCnpj) {
-            return item.tomador?.nome || 'N/A (Tomador)';
-        }
-        // Senão, é um serviço tomado, e o parceiro é o prestador.
-        return item.prestador?.nome || 'N/A (Prestador)';
-    }
-
-    if (item.type === 'entrada') {
-        return item.emitente?.nome || 'N/A (Emitente)';
-    }
-
-    if (item.type === 'saida') {
-        return item.destinatario?.nome || 'N/A (Destinatário)';
-    }
+    if (item.type === 'saida') return item.destinatario?.nome || 'N/A';
+    if (item.type === 'servico') return item.tomador?.nome || 'N/A';
+    if (item.type === 'entrada') return item.emitente?.nome || 'N/A';
 
     return 'N/A';
 };
