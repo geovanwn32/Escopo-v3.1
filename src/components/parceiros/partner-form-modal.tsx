@@ -16,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Partner, PartnerType } from '@/types/partner';
 import { lookupCnpj } from '@/services/data-lookup-service';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -28,13 +29,12 @@ interface PartnerFormModalProps {
 
 const partnerSchema = z.object({
   // Identity
+  tipoPessoa: z.enum(['pf', 'pj']),
   razaoSocial: z.string().min(1, "Razão Social/Nome é obrigatório"),
   nomeFantasia: z.string().optional(),
-  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório").refine(val => {
-    const cleaned = val.replace(/\D/g, '');
-    return cleaned.length === 11 || cleaned.length === 14;
-  }, "CPF/CNPJ inválido"),
+  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
   inscricaoEstadual: z.string().optional(),
+  regimeTributario: z.string().optional(),
   
   // Address
   cep: z.string().optional(),
@@ -48,30 +48,26 @@ const partnerSchema = z.object({
   // Contact
   email: z.string().email("Email inválido").optional().or(z.literal('')),
   telefone: z.string().optional(),
+}).superRefine((data, ctx) => {
+    const cleanedCpfCnpj = data.cpfCnpj.replace(/\D/g, '');
+    if (data.tipoPessoa === 'pj' && cleanedCpfCnpj.length !== 14) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CNPJ inválido.", path: ["cpfCnpj"]});
+    }
+    if (data.tipoPessoa === 'pf' && cleanedCpfCnpj.length !== 11) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CPF inválido.", path: ["cpfCnpj"]});
+    }
 });
+
 
 type FormData = z.infer<typeof partnerSchema>;
 
-const formatCpfCnpj = (value: string = '') => {
-  const cleaned = value.replace(/\D/g, '');
-  if (cleaned.length <= 11) {
-    return cleaned
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  }
-  return cleaned
-    .slice(0, 14)
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-};
-
+const formatCpf = (value: string = '') => value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+const formatCnpj = (value: string = '') => value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, "$1-$2");
 
 const defaultFormValues: FormData = {
-    razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
+    tipoPessoa: 'pj',
+    razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '', regimeTributario: '',
     cep: '', logradouro: '', numero: '', complemento: '',
     bairro: '', cidade: '', uf: '', email: '', telefone: '',
 };
@@ -85,14 +81,25 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   
   const form = useForm<FormData>({
     resolver: zodResolver(partnerSchema),
-    defaultValues: mode === 'create'
-        ? defaultFormValues
-        : {
+    defaultValues: defaultFormValues
+  });
+  
+  const tipoPessoa = form.watch('tipoPessoa');
+
+  useEffect(() => {
+    form.setValue('cpfCnpj', ''); // Clear CPF/CNPJ when type changes
+  }, [tipoPessoa, form]);
+
+  useEffect(() => {
+      if (partner) {
+           form.reset({
             ...partner,
+            tipoPessoa: partner.tipoPessoa || 'pj',
             razaoSocial: partner?.razaoSocial || '',
             nomeFantasia: partner?.nomeFantasia || '',
-            cpfCnpj: formatCpfCnpj(partner?.cpfCnpj || ''),
+            cpfCnpj: partner.tipoPessoa === 'pf' ? formatCpf(partner?.cpfCnpj || '') : formatCnpj(partner?.cpfCnpj || ''),
             inscricaoEstadual: partner?.inscricaoEstadual || '',
+            regimeTributario: partner?.regimeTributario || '',
             cep: partner?.cep ? formatCep(partner.cep) : '',
             logradouro: partner?.logradouro || '',
             numero: partner?.numero || '',
@@ -102,8 +109,12 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             uf: partner?.uf || '',
             email: partner?.email || '',
             telefone: partner?.telefone || '',
-        }
-  });
+        });
+      } else {
+        form.reset(defaultFormValues);
+      }
+  }, [partner, form]);
+
 
   const handleCnpjLookup = async () => {
     const cnpjValue = form.getValues("cpfCnpj");
@@ -171,7 +182,7 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                     title: "CPF/CNPJ Duplicado",
                     description: `Já existe um parceiro cadastrado com este CPF/CNPJ.`,
                 });
-                setIsSubmitting(false); // Stop submission
+                setIsSubmitting(false);
                 return;
             }
         }
@@ -217,23 +228,42 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
             </TabsList>
             <div className="max-h-[60vh] overflow-y-auto p-4">
               <TabsContent value="identity" className="space-y-4">
-                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>Razão Social / Nome</FormLabel><FormControl><Input {...field} autoFocus /></FormControl><FormMessage /></FormItem> )} />
-                  <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( 
-                        <FormItem>
-                            <FormLabel>CPF / CNPJ</FormLabel>
-                            <div className="relative">
-                                <FormControl><Input {...field} onChange={e => field.onChange(formatCpfCnpj(e.target.value))} maxLength={18} /></FormControl>
-                                <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingLookup}>
-                                    {loadingLookup ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
-                                </Button>
-                            </div>
-                            <FormMessage />
-                        </FormItem> 
-                      )} />
-                      <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                  </div>
+                 <FormField control={form.control} name="tipoPessoa" render={({ field }) => (
+                    <FormItem className="space-y-3"><FormLabel>Tipo de Pessoa</FormLabel>
+                        <FormControl>
+                            <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="pj" /></FormControl><FormLabel className="font-normal">Pessoa Jurídica</FormLabel></FormItem>
+                                <FormItem className="flex items-center space-x-2 space-y-0"><FormControl><RadioGroupItem value="pf" /></FormControl><FormLabel className="font-normal">Pessoa Física</FormLabel></FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                    <FormMessage /></FormItem>
+                 )} />
+
+                  <FormField control={form.control} name="razaoSocial" render={({ field }) => ( <FormItem><FormLabel>{tipoPessoa === 'pj' ? 'Razão Social' : 'Nome Completo'}</FormLabel><FormControl><Input {...field} autoFocus /></FormControl><FormMessage /></FormItem> )} />
+                  {tipoPessoa === 'pj' && <FormField control={form.control} name="nomeFantasia" render={({ field }) => ( <FormItem><FormLabel>Nome Fantasia (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />}
+
+                  <FormField control={form.control} name="cpfCnpj" render={({ field }) => ( 
+                    <FormItem>
+                        <FormLabel>{tipoPessoa === 'pj' ? 'CNPJ' : 'CPF'}</FormLabel>
+                        <div className="relative">
+                            <FormControl>
+                                <Input {...field} onChange={e => field.onChange(tipoPessoa === 'pf' ? formatCpf(e.target.value) : formatCnpj(e.target.value))} maxLength={18} />
+                            </FormControl>
+                           {tipoPessoa === 'pj' && (
+                             <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8" onClick={handleCnpjLookup} disabled={loadingLookup}>
+                                {loadingLookup ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-muted-foreground" />}
+                             </Button>
+                           )}
+                        </div>
+                        <FormMessage />
+                    </FormItem> 
+                  )} />
+                 {tipoPessoa === 'pj' && (
+                    <>
+                        <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="regimeTributario" render={({ field }) => ( <FormItem><FormLabel>Regime Tributário (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                    </>
+                 )}
               </TabsContent>
               <TabsContent value="address" className="space-y-4">
                  <FormField control={form.control} name="cep" render={({ field }) => ( <FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} onChange={(e) => {

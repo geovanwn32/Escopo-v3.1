@@ -129,11 +129,11 @@ export default function ParceirosPage() {
     currentPage * itemsPerPage
   );
 
-  const formatCpfCnpj = (value?: string) => {
+  const formatCpfCnpj = (value?: string, tipoPessoa?: 'pf' | 'pj') => {
     if (!value) return '';
     const cleaned = value.replace(/\D/g, '');
     
-    if (cleaned.length <= 11) {
+    if ((tipoPessoa === 'pf' || cleaned.length <= 11)) {
       return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
     
@@ -220,7 +220,8 @@ export default function ParceirosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Razão Social / Nome</TableHead>
+                  <TableHead>Nome Fantasia / Nome</TableHead>
+                  <TableHead>Razão Social</TableHead>
                   <TableHead>CPF / CNPJ</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -229,8 +230,9 @@ export default function ParceirosPage() {
               <TableBody>
                 {paginatedPartners.map((partner) => (
                   <TableRow key={partner.id}>
-                    <TableCell className="font-medium">{partner.razaoSocial}</TableCell>
-                    <TableCell>{formatCpfCnpj(partner.cpfCnpj)}</TableCell>
+                    <TableCell className="font-medium">{partner.nomeFantasia || partner.razaoSocial}</TableCell>
+                    <TableCell className="text-muted-foreground">{partner.razaoSocial}</TableCell>
+                    <TableCell>{formatCpfCnpj(partner.cpfCnpj, partner.tipoPessoa)}</TableCell>
                     <TableCell>
                       <Badge variant={getTypeVariant(partner.type)} className="capitalize">{partner.type}</Badge>
                     </TableCell>
@@ -304,7 +306,3 @@ export default function ParceirosPage() {
     </div>
   );
 }
-
-    
-
-    
