@@ -14,9 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save, Search } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Partner, PartnerType } from '@/types/partner';
+import { Partner, PartnerType, RegimeTributario, TipoContribuinteIcms } from '@/types/partner';
 import { lookupCnpj } from '@/services/data-lookup-service';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface PartnerFormModalProps {
   isOpen: boolean;
@@ -34,7 +35,8 @@ const partnerSchema = z.object({
   nomeFantasia: z.string().optional(),
   cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
   inscricaoEstadual: z.string().optional(),
-  regimeTributario: z.string().optional(),
+  regimeTributario: z.custom<RegimeTributario>().optional(),
+  contribuinteIcms: z.custom<TipoContribuinteIcms>().default('9_nao_contribuinte'),
   
   // Address
   cep: z.string().optional(),
@@ -49,12 +51,15 @@ const partnerSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal('')),
   telefone: z.string().optional(),
 }).superRefine((data, ctx) => {
-    const cleanedCpfCnpj = data.cpfCnpj.replace(/\D/g, '');
+    const cleanedCpfCnpj = (data.cpfCnpj || '').replace(/\D/g, '');
     if (data.tipoPessoa === 'pj' && cleanedCpfCnpj.length !== 14) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CNPJ inválido.", path: ["cpfCnpj"]});
     }
     if (data.tipoPessoa === 'pf' && cleanedCpfCnpj.length !== 11) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CPF inválido.", path: ["cpfCnpj"]});
+    }
+    if (data.tipoPessoa === 'pj' && data.contribuinteIcms === '1_contribuinte' && !data.inscricaoEstadual) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Inscrição Estadual é obrigatória para contribuintes.", path: ["inscricaoEstadual"]});
     }
 });
 
@@ -67,9 +72,10 @@ const formatCep = (cep: string = '') => cep?.replace(/\D/g, '').replace(/(\d{5})
 
 const defaultFormValues: FormData = {
     tipoPessoa: 'pj',
-    razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '', regimeTributario: '',
+    razaoSocial: '', nomeFantasia: '', cpfCnpj: '', inscricaoEstadual: '',
     cep: '', logradouro: '', numero: '', complemento: '',
     bairro: '', cidade: '', uf: '', email: '', telefone: '',
+    contribuinteIcms: '9_nao_contribuinte',
 };
 
 function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<PartnerFormModalProps, 'isOpen'>) {
@@ -93,22 +99,10 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   useEffect(() => {
       if (partner) {
            form.reset({
+            ...defaultFormValues,
             ...partner,
-            tipoPessoa: partner.tipoPessoa || 'pj',
-            razaoSocial: partner?.razaoSocial || '',
-            nomeFantasia: partner?.nomeFantasia || '',
             cpfCnpj: partner.tipoPessoa === 'pf' ? formatCpf(partner?.cpfCnpj || '') : formatCnpj(partner?.cpfCnpj || ''),
-            inscricaoEstadual: partner?.inscricaoEstadual || '',
-            regimeTributario: partner?.regimeTributario || '',
             cep: partner?.cep ? formatCep(partner.cep) : '',
-            logradouro: partner?.logradouro || '',
-            numero: partner?.numero || '',
-            complemento: partner?.complemento || '',
-            bairro: partner?.bairro || '',
-            cidade: partner?.cidade || '',
-            uf: partner?.uf || '',
-            email: partner?.email || '',
-            telefone: partner?.telefone || '',
         });
       } else {
         form.reset(defaultFormValues);
@@ -260,8 +254,32 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
                   )} />
                  {tipoPessoa === 'pj' && (
                     <>
-                        <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="regimeTributario" render={({ field }) => ( <FormItem><FormLabel>Regime Tributário (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="contribuinteIcms" render={({ field }) => (
+                            <FormItem><FormLabel>Contribuinte de ICMS</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="1_contribuinte">1 - Contribuinte ICMS</SelectItem>
+                                        <SelectItem value="2_contribuinte_isento">2 - Contribuinte isento</SelectItem>
+                                        <SelectItem value="9_nao_contribuinte">9 - Não Contribuinte</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            <FormMessage /></FormItem>
+                        )} />
+                        <FormField control={form.control} name="inscricaoEstadual" render={({ field }) => ( <FormItem><FormLabel>Inscrição Estadual</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+                         <FormField control={form.control} name="regimeTributario" render={({ field }) => (
+                            <FormItem><FormLabel>Regime Tributário</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Selecione..."/></SelectTrigger></FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="simples">Simples Nacional</SelectItem>
+                                        <SelectItem value="presumido">Lucro Presumido</SelectItem>
+                                        <SelectItem value="real">Lucro Real</SelectItem>
+                                        <SelectItem value="mei">MEI</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            <FormMessage /></FormItem>
+                        )} />
                     </>
                  )}
               </TabsContent>

@@ -148,6 +148,17 @@ export default function ParceirosPage() {
         default: return 'default';
     }
   }
+  
+  const getRegimeLabel = (regime?: Partner['regimeTributario']): string => {
+    if (!regime) return '-';
+    const labels = {
+        simples: 'Simples Nacional',
+        presumido: 'Lucro Presumido',
+        real: 'Lucro Real',
+        mei: 'MEI',
+    };
+    return labels[regime] || '-';
+  }
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -221,8 +232,8 @@ export default function ParceirosPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome Fantasia / Nome</TableHead>
-                  <TableHead>Razão Social</TableHead>
                   <TableHead>CPF / CNPJ</TableHead>
+                  <TableHead>Regime Tributário</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -230,9 +241,9 @@ export default function ParceirosPage() {
               <TableBody>
                 {paginatedPartners.map((partner) => (
                   <TableRow key={partner.id}>
-                    <TableCell className="font-medium">{partner.nomeFantasia || partner.razaoSocial}</TableCell>
-                    <TableCell className="text-muted-foreground">{partner.razaoSocial}</TableCell>
+                    <TableCell className="font-medium max-w-xs truncate">{partner.nomeFantasia || partner.razaoSocial}</TableCell>
                     <TableCell>{formatCpfCnpj(partner.cpfCnpj, partner.tipoPessoa)}</TableCell>
+                    <TableCell>{getRegimeLabel(partner.regimeTributario)}</TableCell>
                     <TableCell>
                       <Badge variant={getTypeVariant(partner.type)} className="capitalize">{partner.type}</Badge>
                     </TableCell>
