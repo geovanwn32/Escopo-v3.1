@@ -258,7 +258,7 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     data.valorIr = getFloat(valoresNode, 'ValorIr');
     data.valorInss = getFloat(valoresNode, 'ValorInss');
     data.valorCsll = getFloat(valoresNode, 'ValorCsll');
-    data.valorTotalNota = data.valorServicos; // Simplified
+    data.valorTotalNota = getFloat(valoresNode, 'vLiq'); // Valor Líquido é o valor total da nota de serviço
     data.valorLiquido = getFloat(valoresNode, 'ValorLiquidoNfse');
 
     data.prestador = {
@@ -361,15 +361,19 @@ export const LaunchFormModal = ({
             valorOutrasDespesas = 0, valorIpi = 0, valorPis = 0, valorCofins = 0,
             valorCsll = 0, valorIr = 0, valorInss = 0, valorIss = 0
         ] = watchedValues.map(val => Number(val) || 0);
-
-        const totalNota = valorProdutos + valorServicos + valorFrete + valorSeguro + valorOutrasDespesas + valorIpi;
-        setValue('valorTotalNota', totalNota, { shouldValidate: true });
+    
+        // Only update valorTotalNota if it wasn't pre-filled by the XML.
+        const currentTotal = getValues('valorTotalNota');
+        if (currentTotal === 0 && (valorProdutos > 0 || valorServicos > 0)) {
+           const totalNota = valorProdutos + valorServicos + valorFrete + valorSeguro + valorOutrasDespesas + valorIpi;
+           setValue('valorTotalNota', totalNota, { shouldValidate: true });
+        }
         
         const totalDeducoes = valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss;
-        const valorLiquido = totalNota - totalDeducoes;
+        const valorLiquido = (getValues('valorTotalNota') || 0) - totalDeducoes;
         setValue('valorLiquido', valorLiquido, { shouldValidate: true });
         
-    }, [watchedValues, setValue]);
+    }, [watchedValues, setValue, getValues]);
 
 
     const fillAndSetInitialData = useCallback((data: Partial<FormData>) => {
