@@ -98,17 +98,26 @@ function PartnerForm({ userId, companyId, partner, partnerType, onClose }: Omit<
   }, [tipoPessoa, form]);
 
   useEffect(() => {
-      if (partner) {
-           form.reset({
-            ...defaultFormValues,
-            ...partner,
-            cpfCnpj: partner.tipoPessoa === 'pf' ? formatCpf(partner?.cpfCnpj || '') : formatCnpj(partner?.cpfCnpj || ''),
-            cep: partner?.cep ? formatCep(partner.cep) : '',
-        } as FormData);
-      } else {
-        form.reset(defaultFormValues as FormData);
-      }
-  }, [partner, form]);
+    if (partner) {
+      const partnerDataWithDefaults = {
+        ...defaultFormValues,
+        ...partner,
+      };
+
+      // Ensure no null values are passed to the form, which causes uncontrolled component errors.
+      const sanitizedPartnerData = Object.fromEntries(
+        Object.entries(partnerDataWithDefaults).map(([key, value]) => [key, value === null ? '' : value])
+      );
+      
+      form.reset({
+        ...sanitizedPartnerData,
+        cpfCnpj: partner.tipoPessoa === 'pf' ? formatCpf(partner?.cpfCnpj || '') : formatCnpj(partner?.cpfCnpj || ''),
+        cep: partner?.cep ? formatCep(partner.cep) : '',
+      } as FormData);
+    } else {
+      form.reset(defaultFormValues as FormData);
+    }
+}, [partner, form]);
 
 
   const handleCnpjLookup = async () => {
