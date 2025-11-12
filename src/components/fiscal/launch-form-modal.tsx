@@ -229,7 +229,7 @@ function parseNfeXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
 
 
 function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
-    const data: Partial<FormData> = { type: 'servico' };
+    const data: Partial<FormData> = {};
     const infNfse = xmlDoc.querySelector('infNFSe') || xmlDoc.querySelector('InfNfse') || xmlDoc.querySelector('NFSe > infNFSe');
     if (!infNfse) return {};
 
@@ -344,40 +344,32 @@ export const LaunchFormModal = ({
     });
 
     const watchedProducts = useWatch({ control, name: "produtos" });
-    const watchedTaxFields = useWatch({ control, name: ['valorServicos', 'aliqPis', 'aliqCofins', 'aliqCsll', 'aliqIr', 'aliqInss', 'aliqIss'] });
-    const valorServicos = useWatch({ control, name: 'valorServicos' });
-
-
+    
     useEffect(() => {
-        const totalProdutos = watchedProducts?.reduce((sum, p) => sum + (p.valorTotal || 0), 0) || 0;
-        setValue('valorProdutos', totalProdutos);
+        const totalProdutos = watchedProducts?.reduce((sum, p) => {
+            const total = (p.quantidade || 0) * (p.valorUnitario || 0);
+            return sum + total;
+        }, 0) || 0;
+        setValue('valorProdutos', totalProdutos, { shouldValidate: true });
     }, [watchedProducts, setValue]);
+
+    const watchedValues = useWatch({ control, name: ['valorProdutos', 'valorServicos', 'valorFrete', 'valorSeguro', 'valorOutrasDespesas', 'valorIpi', 'valorPis', 'valorCofins', 'valorCsll', 'valorIr', 'valorInss', 'valorIss'] });
 
     useEffect(() => {
         const [
-            vs = 0, aliqPis = 0, aliqCofins = 0, aliqCsll = 0,
-            aliqIr = 0, aliqInss = 0, aliqIss = 0
-        ] = watchedTaxFields.map(val => Number(val) || 0);
-        
-        const valorPis = parseFloat((vs * (aliqPis / 100)).toFixed(2));
-        const valorCofins = parseFloat((vs * (aliqCofins / 100)).toFixed(2));
-        const valorCsll = parseFloat((vs * (aliqCsll / 100)).toFixed(2));
-        const valorIr = parseFloat((vs * (aliqIr / 100)).toFixed(2));
-        const valorInss = parseFloat((vs * (aliqInss / 100)).toFixed(2));
-        const valorIss = parseFloat((vs * (aliqIss / 100)).toFixed(2));
+            valorProdutos = 0, valorServicos = 0, valorFrete = 0, valorSeguro = 0,
+            valorOutrasDespesas = 0, valorIpi = 0, valorPis = 0, valorCofins = 0,
+            valorCsll = 0, valorIr = 0, valorInss = 0, valorIss = 0
+        ] = watchedValues.map(val => Number(val) || 0);
 
-        setValue('valorPis', valorPis, { shouldValidate: false });
-        setValue('valorCofins', valorCofins, { shouldValidate: false });
-        setValue('valorCsll', valorCsll, { shouldValidate: false });
-        setValue('valorIr', valorIr, { shouldValidate: false });
-        setValue('valorInss', valorInss, { shouldValidate: false });
-        setValue('valorIss', valorIss, { shouldValidate: false });
+        const totalNota = valorProdutos + valorServicos + valorFrete + valorSeguro + valorOutrasDespesas + valorIpi;
+        setValue('valorTotalNota', totalNota, { shouldValidate: true });
         
-        const valorLiquido = vs - (valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss);
-        setValue('valorLiquido', parseFloat(valorLiquido.toFixed(2)), { shouldValidate: true });
-        setValue('valorTotalNota', parseFloat(vs.toFixed(2)), { shouldValidate: true });
-
-    }, [watchedTaxFields, setValue]);
+        const totalDeducoes = valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss;
+        const valorLiquido = totalNota - totalDeducoes;
+        setValue('valorLiquido', valorLiquido, { shouldValidate: true });
+        
+    }, [watchedValues, setValue]);
 
 
     const fillAndSetInitialData = useCallback((data: Partial<FormData>) => {
@@ -414,8 +406,8 @@ export const LaunchFormModal = ({
                     setValue(`${partyField}.nome`, company.razaoSocial);
                     setValue(`${partyField}.cnpj`, company.cnpj);
                  } else { // entrada
-                    setValue('destinatario.nome`, company.razaoSocial);
-                    setValue('destinatario.cnpj`, company.cnpj);
+                    setValue('destinatario.nome', company.razaoSocial);
+                    setValue('destinatario.cnpj', company.cnpj);
                  }
             }
         }
@@ -624,28 +616,29 @@ export const LaunchFormModal = ({
                                      <FormField control={control} name={"valorServicos"} render={({ field }) => ( <FormItem><FormLabel>Valor dos Serviços</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      
                                      <FormField control={form.control} name="aliqIss" render={({ field }) => (<FormItem><FormLabel>Alíq. ISS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorIss" render={({ field }) => ( <FormItem><FormLabel>Valor do ISS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      <div></div>
                                      
                                      <FormField control={form.control} name="aliqPis" render={({ field }) => (<FormItem><FormLabel>Alíq. PIS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>Valor do PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorPis" render={({ field }) => ( <FormItem><FormLabel>Valor do PIS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      
                                      <FormField control={form.control} name="aliqCofins" render={({ field }) => (<FormItem><FormLabel>Alíq. COFINS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>Valor do COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorCofins" render={({ field }) => ( <FormItem><FormLabel>Valor do COFINS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      
                                      <FormField control={form.control} name="aliqCsll" render={({ field }) => (<FormItem><FormLabel>Alíq. CSLL (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>Valor do CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorCsll" render={({ field }) => ( <FormItem><FormLabel>Valor do CSLL</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
 
                                      <FormField control={form.control} name="aliqInss" render={({ field }) => (<FormItem><FormLabel>Alíq. INSS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>Valor do INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorInss" render={({ field }) => ( <FormItem><FormLabel>Valor do INSS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      
                                      <FormField control={form.control} name="aliqIr" render={({ field }) => (<FormItem><FormLabel>Alíq. IR (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem>)} />
-                                     <FormField control={control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>Valor do IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} readOnly className="bg-muted" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorIr" render={({ field }) => ( <FormItem><FormLabel>Valor do IR</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0}  /></FormControl></FormItem> )} />
                                      
                                 </div>
                                 <Separator />
                                 <div className="grid grid-cols-2 gap-4">
-                                     <FormField control={control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} className="font-semibold border-primary" readOnly /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorTotalNota" render={({ field }) => ( <FormItem><FormLabel>Valor Total da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} className="font-semibold border-primary" /></FormControl></FormItem> )} />
+                                     <FormField control={control} name="valorLiquido" render={({ field }) => ( <FormItem><FormLabel>Valor Líquido da Nota</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value || 0} className="font-semibold border-primary" /></FormControl></FormItem> )} />
                                 </div>
                             </TabsContent>
 
