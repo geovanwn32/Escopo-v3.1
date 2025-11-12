@@ -44,6 +44,8 @@ interface XmlFile {
   type: 'entrada' | 'saida' | 'servico' | 'desconhecido' | 'cancelamento';
   key?: string;
   versaoNfse?: string;
+  numero?: string;
+  valor?: number;
 }
 
 export interface OpenModalOptions {
@@ -196,12 +198,12 @@ function parseNfeXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> {
     data.valorCofins = getFloat(total, 'vCOFINS');
     data.valorIcms = getFloat(total, 'vICMS');
     data.valorIpi = getFloat(total, 'vIPI');
-    data.valorLiquido = data.valorTotalNota;
+    data.valorLiquido = data.valorTotalNota; // For NF-e, liquid is usually the same as total
 
     xmlDoc.querySelectorAll('det').forEach(det => {
         const prod = det.querySelector('prod');
         const imposto = det.querySelector('imposto');
-        const icmsNode = imposto?.querySelector('ICMS > *'); // Gets the first child of ICMS
+        const icmsNode = imposto?.querySelector('ICMS > *');
         const ipiNode = imposto?.querySelector('IPI > IPITrib');
         
         data.produtos?.push({
@@ -253,12 +255,12 @@ function parseNfseXml(xmlDoc: Document, companyCnpj: string): Partial<FormData> 
     const valoresNode = xmlDoc.querySelector('valores') || serviceNode.querySelector('Valores') || infNfse.querySelector('DPS > infDPS > valores');
     data.valorServicos = getFloat(valoresNode, 'ValorServicos');
     data.valorIss = getFloat(valoresNode, 'ValorIss');
-    data.valorPis = getFloat(valoresNode, 'ValorPis');
-    data.valorCofins = getFloat(valoresNode, 'ValorCofins');
-    data.valorIr = getFloat(valoresNode, 'ValorIr');
-    data.valorInss = getFloat(valoresNode, 'ValorInss');
-    data.valorCsll = getFloat(valoresNode, 'ValorCsll');
-    data.valorTotalNota = getFloat(valoresNode, 'vLiq'); // Valor Líquido é o valor total da nota de serviço
+    data.valorPis = getFloat(valoresNode, 'vPIS');
+    data.valorCofins = getFloat(valoresNode, 'vCOFINS');
+    data.valorIr = getFloat(valoresNode, 'vIR');
+    data.valorInss = getFloat(valoresNode, 'vINSS');
+    data.valorCsll = getFloat(valoresNode, 'vCSLL');
+    data.valorTotalNota = getFloat(valoresNode, 'vLiq') || getFloat(valoresNode, 'ValorServicos'); // vLiq or fallback to vServicos
     data.valorLiquido = getFloat(valoresNode, 'ValorLiquidoNfse');
 
     data.prestador = {
@@ -343,38 +345,40 @@ export const LaunchFormModal = ({
         name: "produtos",
     });
 
-    const watchedProducts = useWatch({ control, name: "produtos" });
-    
-    useEffect(() => {
-        const totalProdutos = watchedProducts?.reduce((sum, p) => {
-            const total = (p.quantidade || 0) * (p.valorUnitario || 0);
-            return sum + total;
-        }, 0) || 0;
-        setValue('valorProdutos', totalProdutos, { shouldValidate: true });
-    }, [watchedProducts, setValue]);
+    const watchedFields = useWatch({ control });
 
-    const watchedValues = useWatch({ control, name: ['valorProdutos', 'valorServicos', 'valorFrete', 'valorSeguro', 'valorOutrasDespesas', 'valorIpi', 'valorPis', 'valorCofins', 'valorCsll', 'valorIr', 'valorInss', 'valorIss'] });
-
+    // Centralized calculation logic
     useEffect(() => {
-        const [
+        const {
             valorProdutos = 0, valorServicos = 0, valorFrete = 0, valorSeguro = 0,
             valorOutrasDespesas = 0, valorIpi = 0, valorPis = 0, valorCofins = 0,
-            valorCsll = 0, valorIr = 0, valorInss = 0, valorIss = 0
-        ] = watchedValues.map(val => Number(val) || 0);
-    
-        // Only update valorTotalNota if it wasn't pre-filled by the XML.
-        const currentTotal = getValues('valorTotalNota');
-        if (currentTotal === 0 && (valorProdutos > 0 || valorServicos > 0)) {
-           const totalNota = valorProdutos + valorServicos + valorFrete + valorSeguro + valorOutrasDespesas + valorIpi;
-           setValue('valorTotalNota', totalNota, { shouldValidate: true });
+            valorCsll = 0, valorIr = 0, valorInss = 0, valorIss = 0,
+            produtos = []
+        } = watchedFields;
+
+        // 1. Calculate total from products if they exist
+        const totalFromProducts = produtos.reduce((sum, p) => sum + ((p.quantidade || 0) * (p.valorUnitario || 0)), 0);
+        if (Math.abs(totalFromProducts - (valorProdutos || 0)) > 0.001) {
+            setValue('valorProdutos', totalFromProducts, { shouldValidate: true });
         }
         
-        const totalDeducoes = valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss;
-        const valorLiquido = (getValues('valorTotalNota') || 0) - totalDeducoes;
-        setValue('valorLiquido', valorLiquido, { shouldValidate: true });
+        // 2. Calculate Gross Total (Valor Total da Nota)
+        const totalBruto = (launchType === 'servico' ? valorServicos : valorProdutos) + valorFrete + valorSeguro + valorOutrasDespesas + valorIpi;
         
-    }, [watchedValues, setValue, getValues]);
+        // Only update if it wasn't pre-filled by XML or if it's a manual entry
+        const currentTotalNota = getValues('valorTotalNota') || 0;
+        const xmlFileExists = !!initialData.xmlFile;
 
+        if (!xmlFileExists || currentTotalNota === 0) {
+             setValue('valorTotalNota', totalBruto, { shouldValidate: true });
+        }
+        
+        // 3. Calculate Net Total (Valor Líquido)
+        const totalDeducoes = valorPis + valorCofins + valorCsll + valorIr + valorInss + valorIss;
+        const valorLiquidoFinal = (getValues('valorTotalNota') || totalBruto) - totalDeducoes;
+        setValue('valorLiquido', valorLiquidoFinal, { shouldValidate: true });
+
+    }, [watchedFields, launchType, setValue, getValues, initialData.xmlFile]);
 
     const fillAndSetInitialData = useCallback((data: Partial<FormData>) => {
         reset({
@@ -410,8 +414,8 @@ export const LaunchFormModal = ({
                     setValue(`${partyField}.nome`, company.razaoSocial);
                     setValue(`${partyField}.cnpj`, company.cnpj);
                  } else { // entrada
-                    setValue('destinatario.nome', company.razaoSocial);
-                    setValue('destinatario.cnpj', company.cnpj);
+                    setValue('destinatario.nome`, company.razaoSocial);
+                    setValue('destinatario.cnpj`, company.cnpj);
                  }
             }
         }
@@ -576,7 +580,7 @@ export const LaunchFormModal = ({
                                 {isNFe ? (
                                     <div className="space-y-3">
                                     {fields.map((item, index) => {
-                                        const watchedItem = watchedProducts?.[index];
+                                        const watchedItem = watchedFields.produtos?.[index];
                                         const total = (watchedItem?.quantidade || 0) * (watchedItem?.valorUnitario || 0);
 
                                         return (
@@ -587,17 +591,17 @@ export const LaunchFormModal = ({
                                                  <FormField control={control} name={`produtos.${index}.quantidade`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Qtd</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem> )} />
                                                  <FormField control={control} name={`produtos.${index}.valorUnitario`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. Unit.</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
                                                  <FormItem><FormLabel className="text-xs">Vlr. Total</FormLabel><Input readOnly value={formatCurrency(total)} className="font-semibold bg-muted" /></FormItem>
-                                                 <FormField control={control} name={`produtos.${index}.cfop`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CFOP</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.cfop`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CFOP</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
                                              </div>
                                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                 <FormField control={control} name={`produtos.${index}.ncm`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">NCM</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                                 <FormField control={control} name={`produtos.${index}.cst`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CST/CSOSN</FormLabel><FormControl><Input {...field} /></FormControl></FormItem> )} />
-                                                 <FormField control={control} name={`produtos.${index}.valorIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.ncm`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">NCM</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.cst`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">CST/CSOSN</FormLabel><FormControl><Input {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
+                                                 <FormField control={control} name={`produtos.${index}.valorIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. ICMS</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
                                              </div>
                                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                <FormField control={control} name={`produtos.${index}.aliqIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. ICMS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
-                                                <FormField control={control} name={`produtos.${index}.valorIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
-                                                <FormField control={control} name={`produtos.${index}.aliqIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. IPI (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem> )} />
+                                                <FormField control={control} name={`produtos.${index}.aliqIcms`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. ICMS (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
+                                                <FormField control={control} name={`produtos.${index}.valorIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Vlr. IPI</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
+                                                <FormField control={control} name={`produtos.${index}.aliqIpi`} render={({ field }) => ( <FormItem><FormLabel className="text-xs">Alíq. IPI (%)</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl></FormItem> )} />
                                              </div>
                                         </div>
                                         );
@@ -671,3 +675,4 @@ export const LaunchFormModal = ({
         </>
     );
 };
+
