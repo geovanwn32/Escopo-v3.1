@@ -2,6 +2,8 @@
 import * as functions from 'firebase-functions';
 import { adminApp } from '../lib/firebase-admin-config'; // Ensure this path is correct
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -31,9 +33,9 @@ export const listAllUsers = functions
         }
 
         try {
-            const firestore = adminApp.firestore();
+            const firestore = getFirestore(adminApp);
             const usersSnapshot = await firestore.collection('users').get();
-            const users = usersSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data()}));
+            const users = usersSnapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => ({ uid: doc.id, ...doc.data()}));
             return users;
         } catch (error) {
             console.error('Error listing users:', error);
@@ -64,7 +66,7 @@ export const updateUserLicense = functions
         }
 
         try {
-            const firestore = adminApp.firestore();
+            const firestore = getFirestore(adminApp);
             const userRef = firestore.doc(`users/${userId}`);
             await userRef.update({ licenseType: newLicense });
             return { success: true };
@@ -94,8 +96,8 @@ export const backupCompanyData = functions
         }
 
         const userId = context.auth.uid;
-        const firestore = adminApp.firestore();
-        const storage = adminApp.storage();
+        const firestore = getFirestore(adminApp);
+        const storage = getStorage(adminApp);
         
         try {
             const collectionsToBackup = [
@@ -119,7 +121,7 @@ export const backupCompanyData = functions
                 const collectionRef = firestore.collection(`users/${userId}/companies/${companyId}/${collectionName}`);
                 const snapshot = await collectionRef.get();
                 if (!snapshot.empty) {
-                    backupData[collectionName] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    backupData[collectionName] = snapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() }));
                 }
             }
             

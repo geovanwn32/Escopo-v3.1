@@ -1,5 +1,5 @@
 
-import { initializeApp, getApps, App, applicationDefault, ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, getApps, App, applicationDefault } from 'firebase-admin/app';
 
 let adminApp: App | null = null;
 
